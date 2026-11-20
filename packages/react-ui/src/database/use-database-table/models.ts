@@ -6,7 +6,18 @@
  * capabilities the optional paths gate on (the row / column restore, the
  * CAS, the server sort).
  */
-import type { BridgeColumn, BridgeErrorCode, BridgeTableDescription, ProtocolCapability, Revision } from "../bridge";
+import type { Dispatch, SetStateAction } from "react";
+
+import type {
+  BridgeColumn,
+  BridgeErrorCode,
+  BridgeTableDescription,
+  DatabaseBridge,
+  ProtocolCapability,
+  Revision,
+  TableDescription,
+  TableSnapshot,
+} from "../bridge";
 
 /** One loaded row: the row id (the pk value) + the cells. */
 interface DatabaseTableRow {
@@ -93,4 +104,51 @@ interface UseDatabaseTable {
   canRedo: boolean;
 }
 
-export type { DatabaseTableRow, DatabaseTablePhase, InverseOp, UseDatabaseTable };
+export type {
+  ColumnOpsContext,
+  DatabaseTableRow,
+  DatabaseTablePhase,
+  InverseOp,
+  RefCell,
+  RowOpsContext,
+  UseDatabaseTable,
+};
+
+/** A mutable ref cell (the React `useRef`'s stand — the structural type
+ *  keeps the op factories decoupled from React). */
+interface RefCell<T> {
+  current: T;
+}
+
+/** The row-write ops' shared stand: the live rows / the pending row / the
+ *  CAS revisions (the refs the optimistic apply + the inverses read), the
+ *  state setters (the optimistic apply), and the write's plumbing (the
+ *  undo's push, the post-commit refetch, the error's note, the CAS's
+ *  stand). */
+interface RowOpsContext {
+  bridge: DatabaseBridge;
+  tableId: string;
+  rowsRef: RefCell<DatabaseTableRow[]>;
+  pendingRowRef: RefCell<DatabaseTableRow | null>;
+  revisionsRef: RefCell<Map<string, string>>;
+  /** The negotiated protocol capabilities (the row-restore gate). */
+  capabilitiesRef: RefCell<readonly ProtocolCapability[]>;
+  setRows: Dispatch<SetStateAction<DatabaseTableRow[]>>;
+  setPendingRow: Dispatch<SetStateAction<DatabaseTableRow | null>>;
+  pushUndo: (op: InverseOp, opBridge: DatabaseBridge, opTableId: string) => void;
+  refresh: (onApplied?: (snapshot: TableSnapshot) => void) => void;
+  noteError: (operationError: unknown) => void;
+  casOf: (rowId: string) => { expectedRevision?: string };
+}
+
+/** The column-write ops' shared stand: the wire schema (the spec / patch
+ *  read the current values from) + the capability gate + the write's
+ *  plumbing. */
+interface ColumnOpsContext {
+  bridge: DatabaseBridge;
+  tableId: string;
+  descriptionRef: RefCell<TableDescription | null>;
+  capabilitiesRef: RefCell<readonly ProtocolCapability[]>;
+  pushUndo: (op: InverseOp, opBridge: DatabaseBridge, opTableId: string) => void;
+  noteError: (operationError: unknown) => void;
+}

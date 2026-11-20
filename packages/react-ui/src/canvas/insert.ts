@@ -1,10 +1,19 @@
 import type { BlockId, Doc, ShapeAttrs } from "docblocks-core";
 import { InvalidOperationError } from "docblocks-core";
 
+import { autoMembership } from "./membership";
 import type { CanvasPoint, PenStroke } from "./viewport";
 
 /** The shape's variant (the dock's shape tools; the pen reuses the rect variant — its points win in the render). */
 type ShapeVariant = "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud";
+
+/** The neutral default fill of a placed shape (the shape tools): a new
+ *  figure has a modest body (the Miro/Figma look) and the fill's palette
+ *  pick is the override (the explicit "none" entry keeps the stroke-only
+ *  annotation frame). The pen's stroke is created without a fill (its
+ *  `points` path renders the stroke only). The dark theme's corridor
+ *  applies the hex's dark neutral value at render. */
+const DEFAULT_SHAPE_FILL = "#e9ecef";
 
 /**
  * The placement commands (the dock's tools): one `doc.transact` per placed
@@ -34,8 +43,11 @@ function placeShape(doc: Doc, variant: ShapeVariant, point: CanvasPoint, size: {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
-    id = doc.insertBlock("shape", { variant } satisfies ShapeAttrs, { parent: surface });
+    id = doc.insertBlock("shape", { variant, fill: DEFAULT_SHAPE_FILL } satisfies ShapeAttrs, { parent: surface });
     doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
+    // The centre inside a container joins it (the same transaction — one
+    // undo step).
+    autoMembership(doc, id);
   });
   return id!;
 }
@@ -49,6 +61,7 @@ function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number; h: num
   doc.transact(() => {
     id = doc.insertBlock("canvas-text", undefined, { parent: surface });
     doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
+    autoMembership(doc, id);
   });
   return id!;
 }
@@ -111,6 +124,7 @@ function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
   doc.transact(() => {
     id = doc.insertBlock("shape", { variant: "rect", points: stroke.points } satisfies ShapeAttrs, { parent: surface });
     doc.setGeometry(id, stroke.geometry);
+    autoMembership(doc, id);
   });
   return id!;
 }
@@ -166,6 +180,7 @@ function dissolveGroup(doc: Doc, id: BlockId): boolean {
 
 export {
   firstSurface,
+  DEFAULT_SHAPE_FILL,
   placeShape,
   placeCanvasText,
   placeFrame,

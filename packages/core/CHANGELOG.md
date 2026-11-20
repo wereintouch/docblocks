@@ -1,5 +1,103 @@
 # docblocks-core
 
+## 0.6.0
+
+### Minor Changes
+
+- b8e3dc9: The canvas's frame stands a first-class z-order element: the `frame` type
+  joins the surface's canvas elements' z-order (the explicit `zIndex` over
+  the frame's registry spec, the `setZOrder`'s reorder over the frames, the
+  dense mirror's normalization / the strict validation's parity), and the
+  frame's render's view-back's pin stands off — the paint order is the
+  surface's children's order over every canvas type (the frame stands its
+  data's slot; the legacy documents' frames stand their existing slots — no
+  migration). The selection's toolbar stands unified over the canvas's types:
+  the single `group` (the container) / the single `frame` selection renders
+  the standard arrange's toolbar (the z-order's menu — the bring-forward /
+  to-front / send-backward / to-back's picks, one `setZOrder` each, the edge
+  states disabled) — the same mechanism over the shapes (the container and
+  the frame carry no style attrs of their own, so the menu is the toolbar's
+  whole content). The strict validator's all-or-nothing invariant now spans
+  the frame (the load's path is unchanged — the snapshot's normalization
+  runs before the validation; a pre-upgrade snapshot validated directly
+  stands the frame's index's gap over the strict's read).
+
+## 0.5.0
+
+### Minor Changes
+
+- acb03c6: The mermaid diagram preview's viewport (the `./mermaid` subpath): the diagram now renders over a pan/zoom viewport — the `ctrl`/`cmd` + wheel's zoom at the cursor (0.25–4x), the plain wheel's vertical pan, the drag's pan, and the hover toolbar (zoom in / out, the percent label, the fit-to-view button, the reset) over the diagram. The fit stands the diagram into the visible viewport (capped at 100% — the small diagram stands its natural size, centered); the reset restores the default view. The view persists over the code block's new optional `zoom` / `panX` / `panY` attrs (the null idiom — the reload restores the view, the panes share it over the wire; the persisted coordinate stands the clamped stand — the sub-wrapper content's centering offset is the identity's canonical coordinate, so the peer's adopt stands the no-write parity). The bottom-edge's resize (the editing mode's stand) stretches / clips the diagram's height over the new optional `height` attr (absent = the diagram's natural's height — the auto's stand; the drag's linear stand over the pointer delta, the keyboard's step per press). The attrs are additive over the `code` block's schema; the code mode stands the attrs inert.
+
+### Patch Changes
+
+- 75e6caa: Fixed the canvas surface's bulk stand (the large canvas's quadratic
+  guards): the per-command z-order mirror's refresh now skips the
+  unchanged siblings (the yjs's equal-value `set` allocates a new item —
+  the bulk insert of a 5000-figure surface stood the 4 GB allocation and
+  the crash), and the dense z-order's read derives the surface's positions
+  once per transaction (the per-block walk over the surface's whole
+  children stood the bulk read's quadratic stand — the 5000-figure
+  `toJSON` dropped from ~14 s to tens of ms). The derived read's
+  convergence's stand stands (the walk over the current's order, the
+  stale's mirror's tolerance, the mid-transaction's parity).
+- Add the `removeBlockAttr(id, key)` command (exposed on `Doc`): removes one
+  optional attr from a block's attrs map in a single transaction — one undo
+  step, one wire update. The absent key stands the no-op (no write); the
+  unknown block throws `UnknownBlockError`, the block type without attrs
+  throws `InvalidAttrsError`, and the post-removal validation rejects a
+  required attr's removal and the canvas block's invariant's violation
+  (same gates as the `updateBlock`'s write path). The registry's `undefined`
+  filter is untouched — the removal is the explicit path, and
+  `updateBlock`'s set/overwrite semantics stand.
+
+## 0.4.0
+
+### Minor Changes
+
+- 6b1f954: Document-level attributes: the additive `DocMeta.attributes` field
+  with the `setAttribute` / `removeAttribute` commands and the
+  `InvalidAttributeError` over reserved keys and unsupported values.
+  The value union: `string | number | boolean | string[] | MentionRef |
+  TypedAttributeValue` — the typed form (`{ type, value }` over the
+  `ATTRIBUTE_TYPES` enum: string / number / boolean / list / mention)
+  stores the declared value type as data (the consumer's type-picker's
+  parse contract). The `MentionRef` is the id-only reference
+  (`{ id }`, the legacy `{ id, label }` snapshot still readable and
+  validated) — the display label is the consumer's resolution, never a
+  document field. The record is CRDT-represented (the `meta.attributes`
+  nested map), converges over the wire (the whole-record LWW over the
+  concurrent init), and the change flows into the `metaChanged` signal
+  with the meta's revision bump.
+  
+  The `DocMeta.attributesOrder` field (the attributes' display order) with
+  the `reorderAttributes(order)` command: an optional permutation of the
+  `attributes` keys, CRDT-represented as a `meta` array, normalized in
+  `fromJSON` / the validator (unknown keys dropped, missing keys appended,
+  absent over the empty record). `setAttribute` / `removeAttribute` maintain
+  the field (a new key appends, a removed key drops, the empty order is not
+  emitted). `reorderAttributes` takes a full permutation in one transaction
+  (`InvalidAttributeError` over a non-permutation, a no-op stand over the
+  same order). Absence is the legacy stand (the sorted record order) —
+  older data reads unchanged.
+  
+  The `renameAttribute(fromKey, toKey)` command (the key's rename): one
+  transaction (one undo step, one wire update) that moves the attribute
+  under the new key — the value's form (the plain / the typed wrapper) moves
+  as-is, and the display order keeps the key's position (the entry's
+  replacement). An absent source key and a same-key rename are no-ops; the
+  target key runs the full key validation (the reserved's / the prototype's
+  rejection), and a rename onto an existing key throws the typed
+  `InvalidAttributeError` (the record is key-addressed — the rename would
+  clobber the target's value).
+- f5d29df: The `mention` mark stands the target's identity only: the `setMark`
+  input no longer accepts a `label` (the writer stands the id-only
+  `{ kind, id }` mark), and the mark's `label` field is now the legacy
+  snapshot — tolerated over the lenient read and accepted by the strict
+  validator when present (non-empty), ignored otherwise. The display
+  label is the consumer's resolution (the run's text stands the
+  insertion-time label). Pre-id-only documents (the `label` snapshot in
+  the data) stay readable and validatable.
+
 ## 0.3.0
 
 ### Minor Changes

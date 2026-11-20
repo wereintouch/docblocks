@@ -43,7 +43,7 @@ function renderCanvas(doc: TestDoc) {
       <Editor view="canvas" />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view: view as HTMLElement };
 }

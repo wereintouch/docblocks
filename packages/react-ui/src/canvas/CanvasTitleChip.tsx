@@ -9,6 +9,13 @@
  * seat. Pure view state: the doc writes on the commit only. The `slot`
  * prefix stands the data hooks' identity (the group's slots stand the
  * container's, the frame's stand their own).
+ *
+ * The chip is position-neutral over the box's corner: the caller seats a
+ * box that spans the block's own frame (the world item at the world's
+ * scale, the screen chip layer at the on-screen scale), so the chip's
+ * offsets resolve against that seat. `interactive` stands the inert
+ * copies' stand (the page frame's window mirror): the chip renders,
+ * nothing catches the pointer.
  */
 import { useTranslation } from "react-i18next";
 
@@ -33,11 +40,16 @@ type TitleSlot = "group" | "frame";
 
 /** The title chip's position stand (the box's top-left corner, above the
  * top frame line — the chip's anchor point, off the border by the gap). */
-const TITLE_CHIP_STYLE: { pointerEvents: "auto"; left: number; bottom: string } = {
-  pointerEvents: "auto",
+const TITLE_CHIP_STYLE = {
   left: TITLE_LEFT_PX,
   bottom: `calc(100% + ${TITLE_GAP_PX}px)`,
 };
+
+/** The chip's pointer stand: the interactive chip catches its own press
+ * (the seat around it stays transparent), the inert copy catches nothing. */
+function pointerEventsOf(interactive: boolean): "auto" | "none" {
+  return interactive ? "auto" : "none";
+}
 
 function CanvasTitleChip({
   id,
@@ -46,6 +58,7 @@ function CanvasTitleChip({
   slot,
   ariaLabel,
   restBorderColor,
+  interactive = true,
 }: {
   id: BlockId;
   /** The committed title (the empty string = the removed stand). */
@@ -58,6 +71,9 @@ function CanvasTitleChip({
   /** The chip's frame's resting color (the selected's stand is the
    *  selection's border). */
   restBorderColor: string;
+  /** The chip's press stand (the inert copies — the page frame's window
+   *  mirror — render the chip transparent to the pointer). */
+  interactive?: boolean;
 }) {
   const { doc } = useEditorContext();
   const hasTitle = title !== "";
@@ -108,12 +124,14 @@ function CanvasTitleChip({
       {hasTitle && !editing && (
         <div
           data-slot={`docblocks/${slot}-title`}
+          data-block-id={id}
           className="
             absolute cursor-default truncate rounded-(--docblocks-radius) px-2 py-0.5
             text-(length:--docblocks-font-size) leading-5
           "
           style={{
             ...TITLE_CHIP_STYLE,
+            pointerEvents: pointerEventsOf(interactive),
             maxWidth: "calc(100% - 32px)",
             background: "var(--docblocks-page-card-background)",
             border: `1px solid ${borderColor}`,
@@ -128,6 +146,7 @@ function CanvasTitleChip({
           ref={inputRef}
           type="text"
           data-slot={`docblocks/${slot}-title-edit`}
+          data-block-id={id}
           aria-label={ariaLabel}
           defaultValue={title}
           onPointerDown={stopPropagation}
@@ -142,6 +161,7 @@ function CanvasTitleChip({
           "
           style={{
             ...TITLE_CHIP_STYLE,
+            pointerEvents: pointerEventsOf(interactive),
             width: 120,
             boxSizing: "border-box",
             background: "var(--docblocks-page-card-background)",
@@ -153,7 +173,7 @@ function CanvasTitleChip({
           onKeyDown={onTitleKeyDown}
         />
       )}
-      {selected && !hasTitle && !editing && (
+      {interactive && selected && !hasTitle && !editing && (
         <TitleMenu
           slot={slot}
           ariaLabel={ariaLabel}
@@ -209,7 +229,7 @@ function TitleMenu({
   };
 
   return (
-    <div className="absolute" style={TITLE_CHIP_STYLE} onPointerDown={stopPropagation}>
+    <div className="absolute" style={{ ...TITLE_CHIP_STYLE, pointerEvents: "auto" }} onPointerDown={stopPropagation}>
       <Button
         data-slot={`docblocks/${slot}-title-menu`}
         variant="ghost"

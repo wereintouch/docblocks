@@ -8,7 +8,9 @@
 // press's drag (the move's geometry's delta over the wire), the Escape
 // over the empty real block (the removeBlock's no-orphan's stand), the
 // container's membership (the drag-in / drag-out's indicators' stand, the
-// release's commit over the wire), and the text toolbar (the single
+// release's commit over the wire), the side insets from the box's edges
+// (the shape's text's parity — the wrapper's horizontal padding over the
+// border-box), and the text toolbar (the single
 // selection's "Text options" stand, the font family / color / style /
 // size / align's applies — one updateBlock each over the wire — + the
 // z-order menu's reorder's apply).
@@ -163,6 +165,58 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       expect(await a.locator('[data-slot="docblocks/canvas-text-ghost"]').count()).toBe(0);
       expect(await docBlocks(a, "a")).toEqual(jsonBefore);
       await expect.poll(async () => await docBlocks(b, "b"), SETTLE).toEqual(jsonBefore);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the side insets from the box's edges (the shape's text's parity: the wrapper's horizontal padding, the border-box's stand, the inner's shrink)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "text-side-insets");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      // The 50% zoom (the empty canvas's stand — the card's screen's half-
+      // span stands 180x240, the point's (±450, ±300) stands clear of it).
+      const zoomToolbar = canvasView(a, "a").getByRole("toolbar", { name: "Canvas zoom" });
+      for (let i = 0; i < 5; i += 1) await zoomToolbar.getByLabel("Zoom out").click();
+      const zoom = parseInt((await zoomToolbar.getByLabel("Reset zoom").textContent()) ?? "50", 10) / 100;
+      const center = await canvasCenter(a, "a");
+      const point = screenAt(center, 450 * zoom, 300 * zoom);
+
+      await a.mouse.dblclick(point.x, point.y);
+      // The ghost's inner stands the same side inset (the commit's visual
+      // continuity: the typed text stands where the committed text stands).
+      const ghost = a.locator('[data-slot="docblocks/canvas-text-ghost-inner"]');
+      expect(await ghost.count()).toBe(1);
+      expect(await ghost.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("8px");
+
+      // The commit's stand (the ghost's close, the real block's stand).
+      await a.keyboard.type("Inset", { delay: 20 });
+      const blocks = await docBlocks(a, "a");
+      const textId = Object.entries(blocks).find(([, block]) => block.type === "canvas-text");
+      expect(textId).not.toBeUndefined();
+      const item = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${textId![0]}"]`);
+      // The border-box's stand (the preflight): the item's border box stands
+      // the geometry — the selection's frame and the position are unmoved;
+      // the horizontal padding (the rect's 8 px x) shrinks the text's wrap
+      // width inside the box's edges.
+      const box = await item.evaluate((el) => {
+        const itemEl = el as HTMLElement;
+        const cs = getComputedStyle(itemEl);
+        const inner = itemEl.querySelector<HTMLElement>("[data-slot='docblocks/block-content']");
+        return {
+          padding: cs.padding,
+          boxSizing: cs.boxSizing,
+          itemWidth: itemEl.offsetWidth,
+          innerWidth: inner !== null && "offsetWidth" in inner ? inner.offsetWidth : null,
+        };
+      });
+      expect(box.padding).toBe("0px 8px");
+      expect(box.boxSizing).toBe("border-box");
+      expect(box.innerWidth).toBe(box.itemWidth - 16);
+      await expect.poll(async () => await docBlocks(b, "b"), SETTLE).toEqual(blocks);
     } finally {
       await close();
     }

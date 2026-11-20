@@ -205,6 +205,16 @@ function containerCaretNeedsReseat(container: HTMLElement, anchorNode: Node | nu
   // a genuine landing: the controls live inside the container but own
   // their own caret.
   if (host?.matches("input, textarea") === true) return false;
+  // The form control's focus's residue: while a control inside the
+  // container holds the focus, the browser's document selection stands a
+  // collapsed caret at a container position (the control's own caret is
+  // the input's, the document's selection is the residue). The residue's
+  // reseat stands the steal (the seat's focus's move blurs the control —
+  // the empty line's unmount's stand — and the seat re-schedules over the
+  // next frame's selectionchange: the caption's focus's war's loop). The
+  // control's landing stands the no-reseat's parity.
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && container.contains(active) && active.matches("input, textarea")) return false;
   // A collapsed selection inside an isolated surface (a
   // contenteditable=false island: the database grid's cells, the table's
   // chrome) is that island's own pointer state (the grid's cell selection,

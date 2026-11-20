@@ -6,7 +6,7 @@ export { Calendar, CalendarDayButton } from "./Calendar";
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card";
 export { Checkbox } from "./Checkbox";
 export { normalizeHex, resolveColorToHex, rgbToHex } from "./color-utils";
-export { ColorPicker } from "./ColorPicker";
+export { ColorChip } from "./ColorChip";
 export { ColorSwatches } from "./ColorSwatches";
 export { AVATAR_EMOJI } from "./emoji-catalog";
 export type { AvatarEmoji } from "./emoji-catalog";
@@ -34,6 +34,8 @@ export {
   DropdownMenuTrigger,
 } from "./DropdownMenu";
 export { Input } from "./Input";
+export { InlineEditInput } from "./InlineEditInput";
+export type { InlineEditInputProps } from "./InlineEditInput";
 export { Label } from "./Label";
 export {
   Popover,

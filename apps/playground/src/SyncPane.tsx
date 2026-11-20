@@ -8,6 +8,7 @@ import {
   type EditorView,
   type PresenceConfig,
   cn,
+  useCoverAverageColor,
 } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
@@ -19,9 +20,11 @@ import type { CSSProperties } from "react";
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { ChaosBar } from "./ChaosBar";
+import { attributeTypePickerDemo, renderAttributeDemo, useDocDescriptionDemo, useDocTagsDemo } from "./attribute-demos";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
-import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
+import { createHeavyDoc } from "./heavy-seed";
+import { blobStore, coverPresets, databaseBridge, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { BridgeInspector } from "./inspect/BridgeInspector";
 import { JsonInspector } from "./inspect/JsonInspector";
@@ -118,23 +121,51 @@ interface Runtime {
  * toggle visibility — the subscriptions live in the runtime effect, so a
  * hidden inspector keeps updating and its testid stays queryable.
  */
+/** The consumer-side cover's glow's reporter (the glow's demo's stand —
+ *  the surroundings' visual stands the consumer's chrome over the
+ *  package's `useCoverAverageColor`'s data; the package's DOM ends at the
+ *  card). The average's color stands on the host's element as the
+ *  `--cover-glow`'s variable (the harness's CSS's mix's input). */
+function CoverGlowReporter({ hostRef }: { hostRef: React.RefObject<HTMLDivElement | null> }) {
+  const color = useCoverAverageColor();
+  useEffect(() => {
+    const el = hostRef.current;
+    if (el === null) return;
+    if (color === null) el.style.removeProperty("--cover-glow");
+    else el.style.setProperty("--cover-glow", color);
+  }, [color, hostRef]);
+  return null;
+}
+
 function SyncPane({
   client,
   syncUrl,
   catalog,
   canvas,
+  heavy,
   cycle,
   role,
+  attrDemo,
 }: {
   client: "a" | "b";
   syncUrl: string;
   catalog: boolean;
   canvas: boolean;
+  heavy: boolean;
   cycle: boolean;
   role: "editor" | "viewer";
+  attrDemo: boolean;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
+  // The consumer's tags demo (the per-pane's store's stand — the document
+  // never stores the tags; the contract's value is the memoized stand
+  // over the list's changes only).
+  const docTagsDemo = useDocTagsDemo(attrDemo);
+  // The consumer's description demo (the per-pane's store's stand — the
+  // document never stores the description; the contract's value is the
+  // memoized stand over the value's changes only).
+  const docDescriptionDemo = useDocDescriptionDemo(attrDemo);
   const docAreaRef = useRef<HTMLDivElement | null>(null);
   /** The wire log's per-pane event counter (capped list, unique key). */
   const wireSeq = useRef(0);
@@ -145,7 +176,7 @@ function SyncPane({
   const [wire, setWire] = useState<WireEvent[]>([]);
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
-  const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
+  const [view, setView] = useState<EditorView>(canvas || heavy ? "canvas" : "page");
   /** The consumer's document mode: the editor's mode is controlled; the viewer's mode is forced to published (the package's resolution — the harness stands the editor's controlled stand). */
   const [mode, setMode] = useState<EditorMode>("edit");
   /** The published snapshot (the consumer's publish stand: the room's shared localStorage stand, the publish.ts); null over the absent stand. */
@@ -156,6 +187,8 @@ function SyncPane({
   const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
+  /** The cover preset's gallery's stand (the consumer's `coverPresets` prop's demo): on by default (the feature's visible stand), the toggle's off stands the no-preset's layout. */
+  const [coverPresetsOn, setCoverPresetsOn] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
 
   // The theme lands on `<html>` (the package's dark set activates via the
@@ -209,7 +242,11 @@ function SyncPane({
     }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
-    const doc = canvas ? createCanvasDoc(client === "a") : seedPaneDoc(catalog);
+    const doc = heavy
+      ? createHeavyDoc(client === "a")
+      : canvas
+        ? createCanvasDoc(client === "a")
+        : seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
     // The pane's master (the sync-embed target): pane a seeds it, pane b
@@ -261,7 +298,7 @@ function SyncPane({
       }
     };
     let unsubscribeSettle: (() => void) | null = null;
-    if (client === "a" && !catalog && !canvas) {
+    if (client === "a" && !catalog && !canvas && !heavy) {
       unsubscribeSettle = provider.onUpdate(finishStarter);
       settleTimer = window.setTimeout(finishStarter, 1000);
     }
@@ -334,7 +371,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, cycle, masterDocId, client, role]);
+  }, [syncUrl, catalog, canvas, heavy, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
@@ -487,7 +524,7 @@ function SyncPane({
             </>
           )}
         </header>
-        <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
+        <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle} className="cover-glow-host">
           {role === "viewer" ? (
             // The viewer's security stand: the published snapshot is the
             // doc (the live document never reaches the reader's browser);
@@ -504,9 +541,15 @@ function SyncPane({
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
               mentionInteractions={mentionInteractions}
+              docTags={docTagsDemo}
+              docDescription={docDescriptionDemo}
+              renderAttribute={attrDemo ? renderAttributeDemo : undefined}
+              attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
+              coverPresets={coverPresetsOn ? coverPresets : undefined}
               accessLevel="viewer"
             >
               <Editor view={view} />
+              <CoverGlowReporter hostRef={docAreaRef} />
             </EditorProvider>
           ) : (
             runtime !== null && (
@@ -520,12 +563,18 @@ function SyncPane({
                 pdfPreview={PdfFirstPage}
                 mentionProvider={mentionProvider}
                 mentionInteractions={mentionInteractions}
+                docTags={docTagsDemo}
+                docDescription={docDescriptionDemo}
+                renderAttribute={attrDemo ? renderAttributeDemo : undefined}
+                attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
+                coverPresets={coverPresetsOn ? coverPresets : undefined}
                 presence={PRESENCE[client]}
                 accessLevel={role}
                 mode={mode}
                 publishedDoc={publishedDoc}
               >
                 <Editor view={view} />
+                <CoverGlowReporter hostRef={docAreaRef} />
                 {/* The harness's sharing's control (the consumer-side UI over the hook — the
                      provider's context; the catalog's golden's fixture stands no control). */}
                 {!catalog && <PresenceShareControl client={client} peerUserId={`user-${peerLetter}`} />}
@@ -559,6 +608,34 @@ function SyncPane({
             onClick={setDarkFalse}
           >
             light
+          </Button>
+        </div>
+        {/* The cover preset's gallery's toggle (the consumer's `coverPresets`
+            prop's stand: on = the harness's fixed id's gallery, off = the
+            no-preset's layout's stand). */}
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
+          cover presets
+          <Button
+            type="button"
+            variant={coverPresetsOn ? "default" : "outline"}
+            size="sm"
+            data-testid={`coverpresets-${client}-on`}
+            aria-pressed={coverPresetsOn}
+            className={TOGGLE_BTN}
+            onClick={() => setCoverPresetsOn(true)}
+          >
+            on
+          </Button>
+          <Button
+            type="button"
+            variant={!coverPresetsOn ? "default" : "outline"}
+            size="sm"
+            data-testid={`coverpresets-${client}-off`}
+            aria-pressed={!coverPresetsOn}
+            className={TOGGLE_BTN}
+            onClick={() => setCoverPresetsOn(false)}
+          >
+            off
           </Button>
         </div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>

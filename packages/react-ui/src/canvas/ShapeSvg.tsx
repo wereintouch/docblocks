@@ -2,13 +2,16 @@ import type { ReactElement } from "react";
 
 import type { BlockId } from "docblocks-core";
 
+import { useDarkTheme } from "../shared/dark-theme";
+import { effectiveColorOf } from "./canvas-color";
+import { minScreenStrokeOf } from "./canvas-stroke";
 import type { ShapeBlockView } from "./geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
+import { DEFAULT_SHAPE_STROKE_WIDTH, cloudPath, cylinderPaths, freehandPath, linePath } from "./shape-outline";
 
 /** The shape block as seen by the renderer (the geometry-carrying union member). */
 /** The v1 shape defaults (the theme token + sane numbers; the block attrs override). */
 const DEFAULT_STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
-const DEFAULT_STROKE_WIDTH = 2;
 
 /** The strokeStyle dash patterns (dot = a dense dash with a round cap). */
 const DASH_PATTERN: Record<"dash" | "dot", string> = {
@@ -30,6 +33,14 @@ const DASH_PATTERN: Record<"dash" | "dot", string> = {
  */
 function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?: { w: number; h: number } }) {
   const attrs = block.attrs;
+  // The figure's data colors' themes' stand (the render-time's transform
+  // — the data stands the source hex): the dark theme's light fixed
+  // fill / stroke stand the dark corridor's value (the `#dae8fc`'s
+  // muted dark blue's stand), the light theme / the dark's values / the
+  // non-hex stand verbatim (the fidelity's / the adaptive's stands).
+  const isDark = useDarkTheme();
+  const fill = effectiveColorOf(attrs?.fill, isDark) ?? "none";
+  const stroke = effectiveColorOf(attrs?.stroke ?? DEFAULT_STROKE, isDark);
   // The effective box (the resize preview's live box when in flight; the
   // committed geometry otherwise): the viewBox and the figure stand from it,
   // so the shape redraws box-proportional in real time — no letterbox
@@ -37,7 +48,7 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
   // (one number, no jump on the release).
   const w = box?.w ?? block.geometry?.w ?? DEFAULT_CANVAS_ITEM_SIZE;
   const h = box?.h ?? block.geometry?.h ?? DEFAULT_CANVAS_ITEM_SIZE;
-  const strokeWidth = attrs?.strokeWidth ?? DEFAULT_STROKE_WIDTH;
+  const strokeWidth = attrs?.strokeWidth ?? DEFAULT_SHAPE_STROKE_WIDTH;
   const strokeStyle = attrs?.strokeStyle;
   const dash = strokeStyle === "dash" || strokeStyle === "dot" ? DASH_PATTERN[strokeStyle] : undefined;
   const inset = strokeWidth / 2;
@@ -46,8 +57,7 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
 
   let figure: ReactElement | null = null;
   if (attrs?.points !== undefined && attrs.points.length > 0) {
-    const d = attrs.points.map(([x, y], index) => `${index === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
-    figure = <path d={d} fill="none" />;
+    figure = <path d={freehandPath(attrs.points)} fill="none" />;
   } else if (attrs?.variant === "rect") {
     figure = <rect x={inset} y={inset} width={halfW * 2} height={halfH * 2} />;
   } else if (attrs?.variant === "rounded") {
@@ -63,37 +73,21 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
     // half-height is the box-proportional stand — no own attr, the v1
     // limit). The top cap's front arc stands the seam (the figure's
     // tell; the stroke only — the fill stands the body path).
-    const capH = Math.min(w * 0.15, (h - strokeWidth) * 0.3);
-    const topY = inset + capH;
-    const botY = h - inset - capH;
-    const body = `M ${inset} ${topY} A ${halfW} ${capH} 0 0 1 ${w - inset} ${topY} L ${w - inset} ${botY} A ${halfW} ${capH} 0 0 1 ${inset} ${botY} Z`;
-    const seam = `M ${inset} ${topY} A ${halfW} ${capH} 0 0 0 ${w - inset} ${topY}`;
+    const paths = cylinderPaths(w, h, strokeWidth);
     figure = (
       <>
-        <path d={body} />
-        <path d={seam} fill="none" />
+        <path d={paths.body} />
+        <path d={paths.seam} fill="none" />
       </>
     );
   } else if (attrs?.variant === "cloud") {
-    // The cloud's outline (the silhouette MIRRORED over its vertical axis
-    //scaled to the box: the arc radii
-    // scale anisotropically, the stroke width stands). The mirrored x's
-    // stand the inverse arc sweep flags (1 → 0).
-    const boxW = Math.max(w - strokeWidth, 0);
-    const boxH = Math.max(h - strokeWidth, 0);
-    const px = (x: number) => inset + (x - 2) * (boxW / 19.5);
-    const py = (y: number) => inset + (y - 3) * (boxH / 16);
-    const rx7 = 7 * (boxW / 19.5);
-    const ry7 = 7 * (boxH / 16);
-    const rx45 = 4.5 * (boxW / 19.5);
-    const ry45 = 4.5 * (boxH / 16);
-    figure = (
-      <path
-        d={`M ${px(6)} ${py(19)} H ${px(14.5)} A ${rx7} ${ry7} 0 1 0 ${px(7.79)} ${py(10)} H ${px(6)} A ${rx45} ${ry45} 0 1 0 ${px(6)} ${py(19)} Z`}
-      />
-    );
+    // The cloud's silhouette: the outline builder's box-proportional path
+    // (the hit zone's contour stands the same source).
+    figure = <path d={cloudPath(w, h, strokeWidth)} />;
   } else if (attrs?.variant === "line") {
-    figure = <line x1={0} y1={0} x2={w} y2={h} />;
+    // The legacy `line` figure: the box's diagonal (the outline builder's
+    // source — the hit zone's contour stands it).
+    figure = <path d={linePath(w, h)} />;
   }
 
   return (
@@ -111,11 +105,16 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
       }}
     >
       <g
-        stroke={attrs?.stroke ?? DEFAULT_STROKE}
+        stroke={stroke}
         strokeWidth={strokeWidth}
-        fill={attrs?.fill ?? "none"}
+        fill={fill}
         strokeDasharray={dash}
         strokeLinecap={strokeStyle === "dot" ? "round" : undefined}
+        // The min-screen stroke's stand (the 1/zoom's compensation — the
+        // world's inverse-zoom's variable's read; the attribute stands the
+        // data's width, the style's `max()` compensates the render; the
+        // figure's geometry's math stands the data's width).
+        style={{ strokeWidth: minScreenStrokeOf(strokeWidth) }}
       >
         {figure}
       </g>

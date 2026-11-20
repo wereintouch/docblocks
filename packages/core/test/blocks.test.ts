@@ -101,8 +101,8 @@ describe("insertBlock", () => {
       type: "connector",
       attrs: { start: { blockId: surface }, end: { blockId: shape }, zIndex: 2 },
     });
-    expect(doc.getBlock(frame)).toEqual({ type: "frame" });
-    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text", attrs: { zIndex: 3 } });
+    expect(doc.getBlock(frame)).toEqual({ type: "frame", attrs: { zIndex: 3 } });
+    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text", attrs: { zIndex: 4 } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -470,6 +470,74 @@ describe("updateBlock", () => {
     // validator's one-width-per-column rule, kept live by the command).
     expect(() => doc.updateBlock(table, { columnWidths: [100, 100] })).toThrow(InvalidAttrsError);
     expect(widths()).toEqual([120, 300, 220]);
+  });
+});
+
+describe("the attr removal (removeBlockAttr)", () => {
+  it("removes one attr, keeping the rest; the last attr's removal stands the omitted field", () => {
+    const doc = newDoc();
+    const co = doc.insertBlock("code", { language: "ts", lineNumbers: true });
+    doc.removeBlockAttr(co, "lineNumbers");
+    expect(doc.getBlock(co)).toEqual({ type: "code", attrs: { language: "ts" } });
+
+    // The last attr: the read stands the omitted `attrs` field (the
+    // empty map's read rule) — the JSON keeps the same shape as the
+    // never-set stand.
+    doc.removeBlockAttr(co, "language");
+    const block = doc.getBlock(co);
+    expect(block).not.toBeNull();
+    expect(block).toEqual({ type: "code" });
+    expect((doc.toJSON().blocks[co] as { attrs?: unknown }).attrs).toBeUndefined();
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the post-removal attrs keep the registry's invariants (the required attr's removal is a rejection)", () => {
+    const doc = newDoc();
+    const h = doc.insertBlock("heading", { level: 2, align: "center" });
+    expect(() => doc.removeBlockAttr(h, "level")).toThrow(InvalidAttrsError);
+    // The rejected removal is a no-op: the block stands.
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2, align: "center" } });
+  });
+
+  it("an absent key is the no-op stand (no write, no event, no stamp)", () => {
+    const doc = newDoc();
+    const h = doc.insertBlock("heading", { level: 2 });
+    const changes: unknown[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    const stamp = doc.lastUpdatedAt;
+
+    doc.removeBlockAttr(h, "no-such-key");
+    doc.removeBlockAttr(h, "no-such-key");
+
+    expect(changes).toEqual([]);
+    expect(doc.lastUpdatedAt).toBe(stamp);
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2 } });
+    off();
+  });
+
+  it("one command = one undo step; the undo restores the attr", () => {
+    const doc = newDoc();
+    const h = doc.insertBlock("heading", { level: 2 });
+    doc.updateBlock(h, { align: "right" });
+    doc.removeBlockAttr(h, "align");
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2 } });
+
+    doc.undo();
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2, align: "right" } });
+    doc.undo();
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2 } });
+  });
+
+  it("throws the typed errors: the unknown block, the no-attrs type", () => {
+    const doc = newDoc();
+    const h = doc.insertBlock("heading", { level: 2 });
+    expect(() => doc.removeBlockAttr("no-such-block", "level")).toThrow(UnknownBlockError);
+    // The root block has no attrs (the registry's stand; the doc id is
+    // the root block's id).
+    const root = "r";
+    expect(() => doc.removeBlockAttr(root, "any")).toThrow(InvalidAttrsError);
+    // The rejected command is a no-op: the block stands.
+    expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 2 } });
   });
 });
 

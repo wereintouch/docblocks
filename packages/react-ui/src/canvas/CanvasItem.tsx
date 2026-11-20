@@ -8,7 +8,6 @@ import type { BlockId } from "docblocks-core";
 
 import { BlockView } from "../blocks/BlockView";
 import { TextBlock } from "../blocks/TextBlock";
-import type { Box, MovePreview } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { useBlockContext } from "../shared/providers/block-context";
@@ -21,6 +20,7 @@ import { ShapeText } from "./ShapeText";
 import { CANVAS_KB_FOCUS_OUTLINE, CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./geometry";
 import { SHAPE_FONT_STACKS, textStyleOf } from "./text-fonts";
+import { EMPTY_MOVE_DELTA, useKbFocus, useMovePreviewDelta, useResizePreviewBox } from "./viewport";
 
 /** The canvas item's accessible label's i18n key (the block type's stand
  * — the `canvas` namespace's `item.*`; the consumer's renderer's type
@@ -50,34 +50,43 @@ const CANVAS_ITEM_LABEL_KEYS: Record<string, string> = {
  * stand, the explicit zIndex — the DOM order is the paint
  * order, the line can stand over or under a figure); `interactive`
  * toggles the line's hit path (the page view's surface stands it inert).
- */
+ *
+ * The in-flight session's previews are NOT props: the wrapper
+ * subscribes to the viewport's store's per-item slices (the move
+ * preview's delta over the dragged item only, the resize box over the
+ * resized item only, the keyboard focus over the focused item only).
+ * A pointermove re-renders the touched items only — the resting items
+ * stand their memo (the stable EMPTY stand over the selector's
+ * bail-out). */
+/** The canvas-text's side inset from the box's edges (the shape's text's
+ * padding parity — the rect's 8 px x). The text stands inside the box's
+ * edges (the edge's stick's stand is the missing inset's gap). */
+export const CANVAS_TEXT_PADDING_X = 8;
+
 const CanvasItem = memo(
   function CanvasItem({
     id,
     pendingConnector = null,
-    movePreview = null,
-    resizeBox = null,
     interactive = true,
-    kbFocused = false,
   }: {
     id: BlockId;
     pendingConnector?: string | null;
-    /** The in-flight move preview (canvas px); the wrapper stands offset. */
-    movePreview?: MovePreview | null;
-    /** The in-flight resize preview (the canvas box); the wrapper adopts it. */
-    resizeBox?: Box | null;
     /** The line's interactivity (the hit path / the selection reach): the
      *  canvas view stands it, the page view's surface stands it inert. */
     interactive?: boolean;
-    /** The keyboard focus's stand (the canvas view's arrow navigation —
-     *  the dashed outline over the selection's solid one). */
-    kbFocused?: boolean;
   }) {
     const { t } = useTranslation("canvas");
     const { store, renderers } = useEditorContext();
     const { siblings } = useBlockContext();
     const block = useBlock(id);
     const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
+    // The per-item session's subscriptions (the narrow slice stand — the
+    // inert consumers re-provide the EMPTY viewport store: the stable
+    // stand, no re-renders).
+    const movePreview = useMovePreviewDelta(id);
+    const moveActive = movePreview !== EMPTY_MOVE_DELTA;
+    const resizeBox = useResizePreviewBox(id);
+    const kbFocused = useKbFocus(id);
     // The connector's lenient posture: an endpoint that does not resolve
     // within the surface (a docId ref, an absent block, or attrs missing
     // in raw data) is marked here — the overlay skips the line. The read
@@ -114,9 +123,9 @@ const CanvasItem = memo(
         ) : block.type === "canvas-text" ? (
           <TextBlock id={id} block={block} tag="div" />
         ) : block.type === "frame" ? (
-          <FrameBlock id={id} selected={selected} />
+          <FrameBlock id={id} selected={selected} chipMode={interactive ? "hidden" : "inert"} />
         ) : block.type === "group" ? (
-          <GroupBlock id={id} block={block} selected={selected} />
+          <GroupBlock id={id} block={block} selected={selected} chipMode={interactive ? "hidden" : "inert"} />
         ) : block.type === "connector" ? (
           <ConnectorLine id={id} interactive={interactive} />
         ) : null;
@@ -130,13 +139,17 @@ const CanvasItem = memo(
     // svg root, the hit path re-enables the stroke): the wrapper is a
     // box standing at the origin — it must not catch pointers (the press
     // falls through to the item below / the empty canvas) and carries no
-    // geometry to move.
-    if (block.type === "connector" || block.type === "group") style.pointerEvents = "none";
+    // geometry to move. The group's / the frame's interior stands
+    // pointer-transparent too (the members / the figures under the box
+    // stand their own press): the press targets stand in the renderer's
+    // pointer-events: auto strips over the none's wrapper (the border's
+    // hit band + the title chip).
+    if (block.type === "connector" || block.type === "group" || block.type === "frame") style.pointerEvents = "none";
     // The move preview stands the wrapper offset from its committed
     // position (the release commit writes the geometry; the preview is
     // pure view state); the resize box stands the same way (the live box
     // replaces the committed one).
-    if (movePreview !== null || resizeBox !== null) {
+    if (moveActive || resizeBox !== null) {
       if (resizeBox !== null) {
         style.left = `calc(50% + ${resizeBox.x}px)`;
         style.top = `calc(50% + ${resizeBox.y}px)`;
@@ -144,7 +157,7 @@ const CanvasItem = memo(
         style.height = `${resizeBox.h}px`;
       }
       const parts = ["translate(-50%, -50%)"];
-      if (movePreview !== null) parts.push(`translate(${movePreview.dx}px, ${movePreview.dy}px)`);
+      if (moveActive) parts.push(`translate(${movePreview.dx}px, ${movePreview.dy}px)`);
       style.transform = parts.join(" ");
     }
     if (block.type === "canvas-text") {
@@ -165,6 +178,12 @@ const CanvasItem = memo(
       const textStyle = textStyleOf(attrs?.textStyle);
       style.fontWeight = textStyle.fontWeight;
       if (textStyle.fontStyle !== undefined) style.fontStyle = textStyle.fontStyle;
+      // The side insets from the box's edges (the shape's text's parity —
+      // the rect's 8 px x): the wrapper's border box stands the item's
+      // geometry — the selection's frame and the position are unmoved
+      // (the preflight's border-box), the text's wrap width stands the
+      // inset's width.
+      style.padding = `0 ${CANVAS_TEXT_PADDING_X}px`;
     }
 
     return (
@@ -201,16 +220,13 @@ const CanvasItem = memo(
       </div>
     );
   },
-  // The wide blocks read stands the point boolean subscription, so the
-  // props are the whole render input: a resting item (the null previews,
-  // the stable ids) bails on the move / resize session's pointermoves.
+  // The per-item session's subscriptions stand the move / resize / kb
+  // stand inside the component, so the props are the whole render input
+  // for the PARENT-driven re-renders: a resting item (the stable id,
+  // the stand props) bails on the move / resize session's pointermoves
+  // (the touched items re-render over their own subscription).
   (prev, next) =>
-    prev.id === next.id &&
-    prev.pendingConnector === next.pendingConnector &&
-    prev.movePreview === next.movePreview &&
-    prev.resizeBox === next.resizeBox &&
-    prev.interactive === next.interactive &&
-    prev.kbFocused === next.kbFocused
+    prev.id === next.id && prev.pendingConnector === next.pendingConnector && prev.interactive === next.interactive
 );
 
 export { CanvasItem };

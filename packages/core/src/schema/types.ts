@@ -12,6 +12,50 @@ type BlockId = string;
 
 type TextAlign = "left" | "center" | "right";
 
+/**
+ * A mention reference (the preset user attribute's value form, like the
+ * in-text `mention` mark minus its kind): the stable target id. The mark is
+ * the identity — the display label is the consumer's resolution (its own
+ * catalog / the `renderAttribute`'s stand). The legacy `label` snapshot
+ * (pre-id-only stands) stands tolerated and ignored by the writer.
+ */
+type MentionRef = {
+  id: string;
+  /** The legacy label snapshot (tolerated over the lenient read).
+   * @deprecated The writer stands the id-only ref; the label is the
+   *  consumer's resolution over the id. */
+  label?: string;
+};
+
+/**
+ * A custom attribute's declared type (the consumer's type-picker's
+ * vocabulary — the `ATTRIBUTE_TYPES` constant). The type is the value's
+ * form contract: the typed value stands the declared type + the value over
+ * its form.
+ */
+type AttributeType = "string" | "number" | "boolean" | "list" | "mention";
+
+/**
+ * A typed attribute value (the custom attribute's storage form): the
+ * declared `type` + the `value` over that type's form. A preset attribute
+ * stands its plain value (the type is implicit over its key); a custom
+ * attribute stands this wrapper (the type stands over an empty value, too).
+ */
+type TypedAttributeValue =
+  | { type: "string"; value: string }
+  | { type: "number"; value: number }
+  | { type: "boolean"; value: boolean }
+  | { type: "list"; value: string[] }
+  | { type: "mention"; value: MentionRef };
+
+/**
+ * A document attribute's value (`DocMeta.attributes`): a scalar or a
+ * string list, a mention reference, or the typed value (the custom
+ * attribute's storage form). Arbitrary nested objects are not supported (an
+ * unsupported value is preserved as-is by the lenient reader only).
+ */
+type DocAttributeValue = string | number | boolean | string[] | MentionRef | TypedAttributeValue;
+
 /** Document metadata. */
 interface DocMeta {
   /** Schema version. */
@@ -22,6 +66,25 @@ interface DocMeta {
   title: string;
   /** The page avatar (a short string / a few emoji; absent or empty = none). */
   avatar?: string;
+  /**
+   * Document-level attributes (the consumer's own metadata — the markdown
+   * frontmatter's stand): a plain `key → value` record; absent or empty =
+   * none. The keys are non-empty strings (the doc meta fields and the
+   * Object.prototype keys are reserved); the values are `string | number |
+   * boolean | string[]`, the mention reference (`{ id }`, id-only; the
+   * legacy `label` snapshot is tolerated), or the typed value (`{ type,
+   * value }` — the custom attribute's storage form).
+   */
+  attributes?: Record<string, DocAttributeValue>;
+  /**
+   * The attribute keys' display order (additive, the custom attribute's
+   * drag-reorder's persistence): the order over the `attributes` record's
+   * keys (the writer maintains a permutation of the record's keys; the
+   * UI's preset rows stand a fixed order of their own and ignore the
+   * preset keys' entries). Absent = the record's key order stands (the
+   * reader's fallback).
+   */
+  attributesOrder?: string[];
   /** Creation time, ISO 8601. */
   createdAt: string;
 }
@@ -116,6 +179,23 @@ interface CodeAttrs {
   wrap?: boolean;
   /** The mermaid view mode (default "code"). */
   mermaidMode?: "code" | "preview";
+  /**
+   * The diagram viewport's persisted zoom (the scale factor; 1 = 100%).
+   * The mermaid preview's stand — the plain code's rendering stands it
+   * inert. Absent or `null` = the identity (the null idiom — attrs are
+   * never removed).
+   */
+  zoom?: number | null;
+  /** The diagram viewport's persisted horizontal pan offset (px); absent or `null` = 0. */
+  panX?: number | null;
+  /** The diagram viewport's persisted vertical pan offset (px); absent or `null` = 0. */
+  panY?: number | null;
+  /**
+   * The diagram viewport's height (px). Absent or `null` = the diagram's
+   * natural's height (the auto's stand); a set value stands the clipped
+   * window (the pan/zoom's viewport over the large diagram's stand).
+   */
+  height?: number | null;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }
@@ -283,11 +363,13 @@ interface DividerBlock {
 }
 
 export type {
+  AttributeType,
   BlockId,
   CalloutAttrs,
   CalloutBlock,
   CodeAttrs,
   CodeBlock,
+  DocAttributeValue,
   DocJSON,
   DocMeta,
   DividerAttrs,
@@ -302,6 +384,7 @@ export type {
   ImageBlock,
   ListItemAttrs,
   ListItemBlock,
+  MentionRef,
   OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
@@ -311,6 +394,7 @@ export type {
   RootBlock,
   TableCellAttrs,
   TextAlign,
+  TypedAttributeValue,
   SyncEmbedAttrs,
   SyncEmbedBlock,
   SyncEmbedRef,

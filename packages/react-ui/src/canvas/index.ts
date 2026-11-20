@@ -11,6 +11,7 @@ export type { CanvasClipboard } from "./clipboard";
 export { ConnectorToolbar } from "./ConnectorToolbar";
 export { canvasContentBox, fitView } from "./fit";
 export { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "./insert";
+export { autoMembership } from "./membership";
 export { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "./nudge";
 export { ShapeToolbar, CanvasTextToolbar, ShapeTextControls } from "./shape-toolbar";
 export {
@@ -21,6 +22,7 @@ export {
   textStyleOf,
 } from "./text-fonts";
 export { zPositionOf } from "./ZOrderMenu";
+export { ZOrderToolbar } from "./ZOrderToolbar";
 export {
   MOVE_THRESHOLD_PX,
   canvasToScreen,
@@ -30,6 +32,7 @@ export {
   rectsIntersect,
   screenToCanvas,
   useCanvasViewport,
+  CanvasViewportStoreContext,
 } from "./viewport";
 export {
   connectorPressStand,
@@ -44,6 +47,7 @@ export type {
   CanvasPoint,
   CanvasTool,
   CanvasViewportState,
+  CanvasViewportStore,
   MovePreview,
   ResizeHandle,
 } from "./viewport";

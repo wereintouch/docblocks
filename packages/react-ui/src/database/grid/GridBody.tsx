@@ -2,69 +2,41 @@
  * undo/redo, the filter popover), the column tracks (the header cells,
  * the add-column chip + the create form (the name input + the
  * type-specific attributes)), the data rows and the cell selection / the
- * column drag / the column resize sessions. */
+ * column drag / the column resize sessions. The sessions' stands: the
+ * form's state over `use-column-form` (+ the create / edit commits), the
+ * toolbar over `GridToolbar`, the table over `GridTable` (+ `GridRows`),
+ * the pending row's lifecycle over `use-grid-pending-row`, the state's
+ * surfaces over `GridStateCards`. */
 import { useTranslation } from "react-i18next";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 
 import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 
-import { Badge } from "../../shared/ui/Badge";
 import { Button } from "../../shared/ui/Button";
 import { Card, CardContent } from "../../shared/ui/Card";
-import { Checkbox } from "../../shared/ui/Checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
-import { Input } from "../../shared/ui/Input";
-import { Label } from "../../shared/ui/Label";
-import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
 import { cn } from "../../shared/ui/cn";
-import { Plus } from "../../shared/ui/icons";
-import { preventDefault } from "../../shared/utils";
-import type { BatchOp, BridgeColumn } from "../bridge";
-import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
-import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
-import { newMutationContext, useDatabaseTable } from "../use-database-table";
-import { ColumnManager } from "./ColumnManager";
+import type { DatabaseBridge } from "../bridge";
+import { useDatabaseTable } from "../use-database-table";
 import { EnumOptionsEditor } from "./EnumOptionsEditor";
-import { HeaderCell } from "./HeaderCell";
-import { DatabaseCell, RowMenuCell } from "./cells";
-import { columnTypeIcon } from "./column-type-icon";
-import { ADD_COLUMN_TYPES, NEW_TABLE_PICK, PICKER_SIDE_OFFSET_PX, REF_NONE_PICK } from "./constants";
-import type { AddColumnFormDraft, AddColumnTypeEntry, EnumOptionDraft } from "./models";
-import { useBridgeTables } from "./use-bridge-tables";
+import { GridBrokenCard, GridLoadingCard } from "./GridStateCards";
+import { GridTable } from "./GridTable";
+import { GridToolbar } from "./GridToolbar";
+import { GRID_CHROME_FRAME } from "./constants";
+import { useColumnForm } from "./use-column-form";
 import { useEnumOptionsMotion } from "./use-enum-options-motion";
 import { useGridCellInteraction } from "./use-grid-cell-interaction";
-import { useGridColumnDrag } from "./use-grid-column-drag";
-import { useGridSeamResize } from "./use-grid-seam-resize";
-import { loadFullPages, refEntryKey, useRefTables } from "./use-ref-tables";
+import { useGridPendingRow } from "./use-grid-pending-row";
+import { refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
-import { emptyColumnForm } from "./utils";
-import { cellKeyOf, visibleColumns } from "./utils";
-
-// The grid's chrome frame: the --docblocks-* table's look (the border's
-// width / color, the radius, the transparent's background) — the call
-// site's classes merge over the primitive's stand (the call site's win);
-// the dark's variant re-sits the same tokens. The portaled's content
-// (the filter's popover) does not use it — the standard's tokens reach
-// there.
-const GRID_CHROME_FRAME =
-  "rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) " +
-  "border-(--docblocks-table-border-color) bg-transparent " +
-  "dark:border-(--docblocks-table-border-color) dark:bg-transparent";
-
-// The chrome button's hover: the opacity's dim stand — the primitive's
-// hover's background / text stand is suppressed (the grid's hover is the
-// dim, not the accent's fill).
-const GRID_BUTTON_HOVER =
-  "cursor-pointer hover:opacity-70 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent";
+import { visibleColumns } from "./utils";
 
 interface GridBodyProps {
   /** The block id's structural hook (the data attribute's stand — the
    *  standalone's stand is absent, the data attribute stands off). */
   blockId?: BlockId;
-  bridge: import("../bridge").DatabaseBridge;
+  bridge: DatabaseBridge;
   tableId: string;
   filter?: DatabaseFilterPayload;
   columnOrder?: string[];
@@ -96,17 +68,8 @@ function GridBody({
 }: GridBodyProps) {
   const { t } = useTranslation("database");
   const data = useDatabaseTable(bridge, tableId, filter);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filterDraft, setFilterDraft] = useState<DatabaseFilterPayload | null>(filter ?? null);
-  const [columnMenu, setColumnMenu] = useState<string | null>(null);
-  const [rowMenu, setRowMenu] = useState<string | null>(null);
-  const [addingColumn, setAddingColumn] = useState(false);
-  const [columnFormOpen, setColumnFormOpen] = useState(false);
-  const [columnForm, setColumnForm] = useState<AddColumnFormDraft | null>(null);
-  // The form's type-specific block stand (the catalog's flag — the number's
-  // display attributes / the ref table's pick over the name).
-  const columnFormNumber = columnForm?.numberKind !== undefined;
-  const columnFormRef = columnForm?.refKind !== undefined;
+  const tableRef = useRef<HTMLDivElement | null>(null);
+
   // The ref tables' data (the enum's dict options / the row-link's
   // displays — the live stand over the ref tables' own events; the
   // entry's key stands the table + the column's declared display column
@@ -124,367 +87,14 @@ function GridBody({
     return [...map.values()];
   }, [data.table?.columns]);
   const refTableData = useRefTables(bridge, refTableEntries);
+
   // The motion's options' editor's variant (the framer's Reorder's stand
   // over the `./motion`'s subpath — the null's stand stands the plain
   // editor, the base's boundary's contract).
   const motionEnumOptionsEditor = useEnumOptionsMotion();
   const OptionsEditor = motionEnumOptionsEditor ?? EnumOptionsEditor;
-  // The table catalog (the ref form's pick list; the new-table creation
-  // stands the fresh catalog over the refresh bump).
-  const [catalogRefresh, setCatalogRefresh] = useState(0);
-  const bridgeTables = useBridgeTables(bridge, catalogRefresh);
 
-  /** The form's create commit (the button's press only): the name over the
-   *  input, the type-specific block over the draft; the ref's new-table
-   *  creation stands before the column's (the `createTable` → the
-   *  `refTableId` data). The enum stands its own hidden system table (the
-   *  options' rows over the `name` / the `color` columns — the table's
-   *  name is derived over the data table + the column's name, so the
-   *  two tabs' seeds share one table). */
-  const commitColumnForm = () => {
-    const draft = columnForm;
-    if (draft === null || draft.name.trim() === "") return;
-    const name = draft.name.trim();
-    if (draft.editColumnId !== undefined) {
-      commitColumnEdit(draft);
-      return;
-    }
-    const commitRef = async (refTableId: string | undefined): Promise<void> => {
-      const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
-      const column: BridgeColumn = { id: `col${columnSuffix}`, name, type: draft.type };
-      if (draft.numberKind !== undefined) {
-        column.thousands = draft.thousands;
-        if (draft.prefix !== "") column.prefix = draft.prefix;
-        if (draft.suffix !== "") column.suffix = draft.suffix;
-        column.allowNegative = draft.allowNegative;
-        if (draft.numberKind === "decimal") column.decimals = draft.decimals;
-      }
-      if (draft.refKind !== undefined) {
-        column.refKind = draft.refKind;
-        if (draft.refMany) column.refMany = true;
-        column.refTableId = refTableId;
-      }
-      try {
-        const liveColumnId = await data.addColumn(column);
-        // The create commit keeps the view's column order complete: the
-        // block's explicit `columnOrder` (a previous drag committed it)
-        // stands the visible order, so the new column is appended to its
-        // end over the bridge-assigned id (the draft's placeholder stands
-        // the form's local only) — one `updateBlock` (the view attr, CRDT /
-        // undo as the current ones). Read fresh over the stand: the enum's
-        // commit runs in the async's tail, where the render-time
-        // `columnOrder` prop stands stale. Without an explicit order the
-        // bridge's schema order stands (the create appends to the end) and
-        // the attr is left untouched.
-        const currentOrder = readColumnOrder();
-        if (currentOrder !== undefined) {
-          onViewChange({ columnOrder: [...currentOrder, liveColumnId] });
-        }
-      } catch (error) {
-        // The create's failure: the form stands open (the retry is the
-        // form's own create press); the hook's operation failure stands
-        // the hook's transient display, the log stands the diagnostic's
-        // stand (the view attr's write's throw sets no state).
-        console.error("docblocks: the column's create failed — the form stays open", error);
-        return;
-      }
-      setColumnFormOpen(false);
-      setColumnForm(null);
-    };
-    if (draft.refKind === "enum") {
-      void (async () => {
-        try {
-          // The system table + its two named columns (the option's label +
-          // the chip's color); the cell's keys stand the created columns'
-          // ids (the bridge assigns them).
-          const enumTableId = (
-            await bridge.createTable(
-              {
-                name: `${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-                system: true,
-              },
-              newMutationContext()
-            )
-          ).result.id;
-          const nameColumnId = (
-            await bridge.createColumn(
-              enumTableId,
-              { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
-              newMutationContext()
-            )
-          ).result.id;
-          const colorColumnId = (
-            await bridge.createColumn(
-              enumTableId,
-              { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
-              newMutationContext()
-            )
-          ).result.id;
-          for (const option of draft.enumOptions ?? []) {
-            if (option.name.trim() === "") continue;
-            const cells: Record<string, unknown> = { [nameColumnId]: option.name.trim() };
-            if (option.color !== null) cells[colorColumnId] = option.color;
-            await bridge.batchRows(
-              enumTableId,
-              { ops: [{ op: "create", row: cells, beforeRowId: null }] },
-              newMutationContext()
-            );
-          }
-          setCatalogRefresh((key) => key + 1);
-          await commitRef(enumTableId);
-        } catch (error) {
-          // The system table's create failure (the partial sequence — the
-          // created rows over the failed column stand a residue): the form
-          // stands open (the retry is the form's own press), the catalog
-          // re-reads (the partial's stand), the error stands the log.
-          console.error("docblocks: the enum's system table create failed — the catalog re-reads", error);
-          setCatalogRefresh((key) => key + 1);
-        }
-      })();
-      return;
-    }
-    if (draft.refKind === undefined) {
-      void commitRef(undefined);
-      return;
-    }
-    if (draft.refPick === NEW_TABLE_PICK) {
-      const tableName = draft.newTableName.trim();
-      if (tableName === "") return;
-      void (async () => {
-        try {
-          const tableId = (await bridge.createTable({ name: tableName }, newMutationContext())).result.id;
-          setCatalogRefresh((key) => key + 1);
-          await commitRef(tableId);
-        } catch (error) {
-          // The table's create failure: the form stands open (the commit
-          // stands none — the retry is the form's own create press); the
-          // error stands the log.
-          console.error("docblocks: the table's create failed — the form stays open", error);
-        }
-      })();
-      return;
-    }
-    if (draft.refPick === "") return; // the ref stand is required
-    void commitRef(draft.refPick);
-  };
-
-  /** The create form's entry press (the menu's pick): every entry stands
-   *  the create form (the name input + the type-specific block over it) —
-   *  the create commits on the form's button only. */
-  const openCreateForm = (entry: AddColumnTypeEntry) => {
-    setColumnForm(emptyColumnForm(entry));
-    setAddingColumn(false);
-    setColumnFormOpen(true);
-  };
-
-  /** The form's field updaters (each patches its own key; the draft's
-   *  absence is a no-op — the form's open stand sets it). */
-  const patchColumnForm = (patch: Partial<AddColumnFormDraft>) => {
-    setColumnForm((draft) => (draft === null ? draft : { ...draft, ...patch }));
-  };
-  const onColumnNameChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    patchColumnForm({ name: event.target.value });
-  const onColumnDecimalsChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    patchColumnForm({ decimals: Number(event.target.value) || 0 });
-  const onColumnThousandsChange = (checked: boolean | "indeterminate") =>
-    patchColumnForm({ thousands: checked === true });
-  const onColumnPrefixChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    patchColumnForm({ prefix: event.target.value });
-  const onColumnSuffixChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    patchColumnForm({ suffix: event.target.value });
-  const onColumnAllowNegativeChange = (checked: boolean | "indeterminate") =>
-    patchColumnForm({ allowNegative: checked === true });
-  const onColumnEnumOptionsChange = (next: EnumOptionDraft[]) => patchColumnForm({ enumOptions: next });
-  const onColumnRefPickChange = (next: string) =>
-    patchColumnForm({ refPick: next === REF_NONE_PICK ? "" : next, newTableName: "" });
-  const onColumnNewTableNameChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    patchColumnForm({ newTableName: event.target.value });
-
-  /** The form's edit commit (the enum's options over the existing system
-   *  table): the diff over the table's current rows (the matched's
-   *  name / color's updates, the removed's removals, the added's inserts,
-   *  the order's stand over the `moveRow`'s ops) + the column's name over
-   *  the `renameColumn` (the undo entry's stand). The bridge's calls stand
-   *  direct (the system table's rows keep no per-block undo — the create
-   *  form's table-creation contract). */
-  const commitColumnEdit = (draft: AddColumnFormDraft) => {
-    const columnId = draft.editColumnId;
-    const refTableId = draft.refPick;
-    const column = data.table?.columns.find((entry) => entry.id === columnId);
-    if (columnId === undefined || refTableId === "" || column === undefined) return;
-    void (async () => {
-      try {
-        // The option's columns stand by their names (the bridge assigns
-        // the ids); the cell's keys read the ids. The full page set's
-        // stand (the cursor's continuation to the tail): the single
-        // page's limit would truncate the catalog over 200 options (the
-        // diff's delete set over the truncated rows stands the
-        // silent-ignored delete of the truncated option).
-        const pageSet = await loadFullPages(bridge, refTableId);
-        // The partial page set (the cursor's churn over the retry bound):
-        // the diff's delete set over the truncated rows stands no stand —
-        // the commit stands none (the retry is the form's own press, the
-        // refresh re-reads the full set).
-        if (pageSet === null) throw new Error("the catalog's page set stood partial over the cursor's churn");
-        const snapshot = pageSet;
-        const nameColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_NAME_COLUMN)?.id;
-        const colorColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_COLOR_COLUMN)?.id;
-        const current: { rowId: string; name: string; color: string | null }[] = snapshot.rows.map((row) => ({
-          rowId: row.id,
-          name:
-            nameColumnId !== undefined && typeof row.cells[nameColumnId] === "string"
-              ? (row.cells[nameColumnId] as string)
-              : row.id,
-          color:
-            colorColumnId !== undefined && typeof row.cells[colorColumnId] === "string"
-              ? (row.cells[colorColumnId] as string)
-              : null,
-        }));
-        const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
-        const keptRowIds = new Set<string>();
-        const cellOf = (option: { rowId?: string; name: string; color: string | null }): Record<string, unknown> => {
-          const cells: Record<string, unknown> = {};
-          if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
-          if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
-          return cells;
-        };
-        // The mixed-batch stand (the negotiated capability): the creates /
-        // the updates / the deletes stand ONE commit (the atomic stand —
-        // the sequential calls stood the partial commit over the mid-list
-        // failure); the moves stand the second commit (the created ids are
-        // known only over the first receipt — the static batch stands no
-        // reference to them). The absent capability stands the sequential
-        // stand (the legacy's non-atomic stand).
-        let createdIds: string[] = [];
-        if (data.capabilities.includes("mixedBatch")) {
-          const ops: BatchOp[] = [];
-          for (const option of draftOptions) {
-            if (option.rowId === undefined) {
-              ops.push({ op: "create", row: cellOf(option), beforeRowId: null });
-              continue;
-            }
-            keptRowIds.add(option.rowId);
-            const before = current.find((entry) => entry.rowId === option.rowId);
-            if (before === undefined) continue;
-            const cells: Record<string, unknown> = {};
-            if (before.name !== option.name.trim() && nameColumnId !== undefined)
-              cells[nameColumnId] = option.name.trim();
-            if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
-              cells[colorColumnId] = option.color;
-            }
-            if (Object.keys(cells).length > 0) {
-              ops.push({ op: "update", rowId: option.rowId, cells });
-            }
-          }
-          for (const entry of current) {
-            if (!keptRowIds.has(entry.rowId)) ops.push({ op: "delete", rowId: entry.rowId });
-          }
-          if (ops.length > 0) {
-            const created = await bridge.batchRows(refTableId, { ops }, newMutationContext());
-            // The receipt's rows stand the created rows over the create
-            // op's order (the draft order over the new options).
-            createdIds = created.result.rows.map((row) => row.id);
-          }
-        } else {
-          const addedRowIds: string[] = [];
-          for (const option of draftOptions) {
-            if (option.rowId === undefined) {
-              const created = await bridge.batchRows(
-                refTableId,
-                { ops: [{ op: "create", row: cellOf(option), beforeRowId: null }] },
-                newMutationContext()
-              );
-              addedRowIds.push(created.result.rows[0]!.id);
-              continue;
-            }
-            keptRowIds.add(option.rowId);
-            const before = current.find((entry) => entry.rowId === option.rowId);
-            if (before === undefined) continue;
-            const cells: Record<string, unknown> = {};
-            if (before.name !== option.name.trim() && nameColumnId !== undefined)
-              cells[nameColumnId] = option.name.trim();
-            if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
-              cells[colorColumnId] = option.color;
-            }
-            if (Object.keys(cells).length > 0) {
-              await bridge.batchRows(
-                refTableId,
-                { ops: [{ op: "update", rowId: option.rowId, cells }] },
-                newMutationContext()
-              );
-            }
-          }
-          for (const entry of current) {
-            if (!keptRowIds.has(entry.rowId)) {
-              await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
-            }
-          }
-          createdIds = addedRowIds;
-        }
-        // The order's stand (the draft order over the kept + the created):
-        // the single batch's moves (the one commit — the no-op pair stands
-        // the skip over the bridge's stand). The created id's index stands
-        // the new option's own order (the draft's position over the mixed
-        // kept / new list is not the created's index).
-        let addedIndex = 0;
-        const orderedIds = draftOptions.map((option) => option.rowId ?? createdIds[addedIndex++]);
-        const moveOps: BatchOp[] = [];
-        for (let i = 0; i < orderedIds.length - 1; i++) {
-          const rowId = orderedIds[i];
-          const beforeRowId = orderedIds[i + 1];
-          if (rowId === undefined || beforeRowId === undefined) continue;
-          moveOps.push({ op: "move", rowId, beforeRowId });
-        }
-        if (moveOps.length > 0) {
-          await bridge.batchRows(refTableId, { ops: moveOps }, newMutationContext());
-        }
-        if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
-        setColumnFormOpen(false);
-        setColumnForm(null);
-      } catch (error) {
-        // The commit's failure: the form stands open (the retry is the
-        // form's own save press); the partial's stand (the mixed batch's
-        // atomic commit + the move's second commit) re-reads the catalog
-        // (the move over the failed batch stands applied), the error
-        // stands the log.
-        console.error("docblocks: the column's enum commit failed — the catalog re-reads", error);
-        setCatalogRefresh((key) => key + 1);
-      }
-    })();
-  };
-
-  /** The edit form's open (the enum's options over the column's system
-   *  table): the draft prefills from the column + the ref table's data
-   *  (the row order's stand, the `name`'s display, the `color`'s hex). */
-  const openColumnFormEdit = (column: BridgeColumn) => {
-    if (column.refKind !== "enum" || column.refTableId === undefined) return;
-    const refData = refTableData[refEntryKey({ tableId: column.refTableId, displayColumn: column.refDisplayColumn })];
-    const options = (refData?.rowIds ?? []).map((rowId) => ({
-      rowId,
-      name: refData?.displays[rowId] ?? rowId,
-      color: refData?.colors[rowId] ?? null,
-    }));
-    setColumnForm({
-      key: column.id,
-      type: "enum",
-      name: column.name,
-      decimals: 0,
-      thousands: false,
-      prefix: "",
-      suffix: "",
-      allowNegative: true,
-      refKind: "enum",
-      refMany: column.refMany === true,
-      refPick: column.refTableId,
-      newTableName: "",
-      enumOptions: options,
-      editColumnId: column.id,
-    });
-    setColumnFormOpen(true);
-  };
-  const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const tableRef = useRef<HTMLDivElement | null>(null);
-  const pendingDismissTimerRef = useRef<number | null>(null);
+  const form = useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, onViewChange });
 
   const columns = visibleColumns(data.table?.columns, columnOrder, hiddenColumns);
 
@@ -492,42 +102,10 @@ function GridBody({
     onViewChange(patch);
   };
 
-  const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
-    useGridSeamResize({ columns, columnWidths, updateView });
-
-  const { drag, onColumnPointerDown, onColumnPointerMove, onColumnPointerUp } = useGridColumnDrag({
-    columns,
-    allColumns: data.table?.columns,
-    columnOrder,
-    hiddenColumns,
-    columnWidths,
-    updateView,
-    tableRef,
-  });
-
-  // The parting preview: the stationary columns' shift (px) over the live
-  // drop index (the dragged column's own cells stand the pointer's dx).
-  const dragFrom = drag === null ? -1 : columns.findIndex((entry) => entry.id === drag.id);
-  const dragShiftOf = (index: number): number => {
-    if (drag === null || drag.toIndex === null || index === dragFrom) return 0;
-    const to = drag.toIndex;
-    const shift = index < dragFrom ? (index >= to ? 1 : 0) : index - 1 < to ? -1 : 0;
-    return shift * drag.startWidth;
-  };
-
-  // --- The display name: the bridge's table name (the name is the
-  //     table's attribute — every block over the tableId stands it live;
-  //     the block's legacy `name` attr is ignored over the display).
-  const displayName = data.table?.name ?? tableId;
-  // The standalone's stand (the block's id's absence — the consumer's own
-  // page's table): the table's name stands off — the standalone's grid is
-  // the consumer's own visual element (the consumer's heading stands the
-  // name), so the toolbar keeps no name display or rename over it.
-  const showName = blockId !== undefined;
-
+  // The inserted row's temporary visibility (the `pendingRow` over the
+  // filtered page's rows).
   const pendingRow =
     data.pendingRow !== null && !data.rows.some((row) => row.rowId === data.pendingRow?.rowId) ? data.pendingRow : null;
-  const pendingRowId = pendingRow?.rowId ?? null;
   const rows = pendingRow === null ? data.rows : [...data.rows, pendingRow];
 
   const {
@@ -540,201 +118,17 @@ function GridBody({
     onTablePaste,
   } = useGridCellInteraction({ rows, columns, data, tableRef, readOnly });
 
-  const pendingEditKey =
-    pendingRowId !== null && columns[0] !== undefined ? cellKeyOf(pendingRowId, columns[0].id) : null;
-  useEffect(() => {
-    if (pendingEditKey !== null) setEditingCell(pendingEditKey);
-  }, [pendingEditKey, setEditingCell]);
-
-  const dismissPending = useCallback(() => {
-    if (pendingRowId === null) return;
-    setEditingCell(null);
-    if (pendingDismissTimerRef.current !== null) window.clearTimeout(pendingDismissTimerRef.current);
-    // The editor commits its draft when the session closes; the row stays
-    // mounted through that effect and leaves the filtered view afterwards.
-    pendingDismissTimerRef.current = window.setTimeout(() => {
-      data.dismissPendingRow(pendingRowId);
-      pendingDismissTimerRef.current = null;
-    }, 0);
-  }, [pendingRowId, data.dismissPendingRow, setEditingCell]);
-
-  useEffect(() => {
-    if (pendingRowId === null) return;
-    const onDown = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target === null) return;
-      if (target.closest("[data-radix-popper-content-wrapper], [data-filter-pending='true']") !== null) return;
-      dismissPending();
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => {
-      document.removeEventListener("pointerdown", onDown, true);
-      if (pendingDismissTimerRef.current !== null) {
-        window.clearTimeout(pendingDismissTimerRef.current);
-        pendingDismissTimerRef.current = null;
-      }
-    };
-  }, [pendingRowId, dismissPending]);
+  const { pendingRowId, onTableBlur } = useGridPendingRow({ pendingRow, data, columns, tableRef, setEditingCell });
 
   if (data.phase === "loading") {
-    return (
-      <Card data-slot="docblocks/block" data-block-type="database" data-block-id={blockId} className="min-h-0 flex-1">
-        <CardContent data-slot="docblocks/database" data-state="loading" className="p-(--docblocks-block-spacing)">
-          <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
-            {t("state.loading")}
-          </span>
-        </CardContent>
-      </Card>
-    );
+    return <GridLoadingCard blockId={blockId} />;
   }
-
-  const retryLoad = () => data.retry();
 
   if (data.phase === "broken" || data.table === null) {
-    return (
-      <Card
-        data-slot="docblocks/block"
-        data-block-type="database"
-        data-block-id={blockId}
-        className="
-          my-(--docblocks-block-spacing) min-h-0 flex-1 rounded-(--docblocks-radius)
-          border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
-        "
-      >
-        <CardContent
-          data-slot="docblocks/database"
-          data-state="broken"
-          className="flex items-center justify-between gap-(--docblocks-block-spacing) p-(--docblocks-block-spacing)"
-        >
-          <div className="flex flex-col">
-            <span
-              data-slot="docblocks/database-broken"
-              className="text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
-            >
-              {t("state.notFound")}
-            </span>
-            <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
-              {data.error ?? t("state.unknownTable", { tableId })}
-            </span>
-          </div>
-          <Button
-            data-slot="docblocks/database-retry"
-            variant="outline"
-            size="sm"
-            className={cn(
-              GRID_CHROME_FRAME,
-              GRID_BUTTON_HOVER,
-              "h-auto px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none"
-            )}
-            onClick={retryLoad}
-          >
-            {t("state.retry")}
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return <GridBrokenCard blockId={blockId} tableId={tableId} error={data.error} onRetry={() => data.retry()} />;
   }
 
-  const applyFilter = () => {
-    updateView({ filter: filterDraft });
-    setFilterOpen(false);
-  };
-  const commitName = (draft: string) => {
-    setNameDraft(null);
-    const trimmed = draft.trim();
-    if (trimmed === "" || trimmed === data.table?.name) return;
-    // The rename is the bridge's (the table's attribute): every block over
-    // the tableId stands the new name over the table event — no doc write,
-    // the grid's undo stack covers it.
-    void data.renameTable(trimmed).catch(() => undefined);
-  };
-
-  const lastRowId = rows.length > 0 ? rows[rows.length - 1]!.rowId : null;
-
-  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setNameDraft(event.target.value);
-  const onNameBlur = (event: React.FocusEvent<HTMLInputElement>) => commitName(event.target.value);
-  const onNameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-    if (event.key === "Escape") setNameDraft(null);
-  };
-  const beginNameEdit = () => setNameDraft(displayName);
-  const undoStep = () => void data.undo().catch(() => undefined);
-  const redoStep = () => void data.redo().catch(() => undefined);
-  const onFilterOpenChange = (open: boolean) => {
-    setFilterOpen(open);
-    if (open) setFilterDraft(filter ?? null);
-  };
-  const resetFilterDraft = () => setFilterDraft(emptyFilter());
-  const onColumnFormOpenChange = (open: boolean) => {
-    setColumnFormOpen(open);
-    // The close (the outside press / the Escape) drops the draft — the next
-    // open stands a fresh one.
-    if (!open) setColumnForm(null);
-  };
   const insertEmptyRow = () => void data.insertRow({}).catch(() => undefined);
-  // The header's per-column handlers stand the column / the seam's index
-  // over the grid's shared pointer handlers (the map's per-item stand).
-  const columnMenuChange = (column: BridgeColumn) => (open: boolean) => setColumnMenu(open ? column.id : null);
-  const columnRename = (column: BridgeColumn) => (renameName: string) =>
-    void data.renameColumn(column.id, renameName).catch(() => undefined);
-  const columnEditOptions = (column: BridgeColumn) =>
-    column.refKind === "enum" && column.refTableId !== undefined ? () => openColumnFormEdit(column) : undefined;
-  const columnHide = (column: BridgeColumn) => () => {
-    if (columns.length <= 1) return;
-    updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] });
-  };
-  const columnShow = (column: BridgeColumn) => () =>
-    updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) });
-  const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id).catch(() => undefined);
-  const columnPointerDown = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerDown>[1]) => {
-    // The read-only stand (view / published): the column's drag's session is
-    // off (the order's write stands no write).
-    if (readOnly) return;
-    onColumnPointerDown(column, event);
-  };
-  const seamPointerDownAt = (seamIndex: number) => (event: Parameters<ReturnType<typeof onSeamPointerDown>>[0]) => {
-    // The read-only stand (view / published): the seam's resize's session is
-    // off (the width's write stands no write).
-    if (readOnly) return;
-    onSeamPointerDown(seamIndex)(event);
-  };
-  const columnPointerUp = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerUp>[1]) =>
-    onColumnPointerUp(column, event);
-  const cellChange =
-    (row: (typeof rows)[number], column: BridgeColumn) => (value: unknown, expectedRevision?: string) => {
-      // Every cell commit crosses this gate, including immediate boolean toggles.
-      if (readOnly) return;
-      // The rejection's stand: the error stands the hook's state (the
-      // rollback + the refetch apply over it) — the rethrow is the caller's
-      // contract, not the grid's (the cell's commit has no caller to
-      // handle it).
-      void data.updateRow(row.rowId, { [column.id]: value }, expectedRevision).catch(() => undefined);
-    };
-  const cellEditStart = (cellKey: string) => () => {
-    // The read-only stand (view / published): the edit's session's entry is
-    // off (the double press stands no stand).
-    if (readOnly) return;
-    setEditingCell(cellKey);
-  };
-  const cellEditEnd = () => setEditingCell(null);
-  const onTableBlur = (event: React.FocusEvent<HTMLDivElement>) => {
-    if (pendingRowId === null) return;
-    const next = event.relatedTarget;
-    if (!(next instanceof Node)) return;
-    if (tableRef.current?.contains(next)) return;
-    if (next instanceof Element && next.closest("[data-radix-popper-content-wrapper]") !== null) return;
-    dismissPending();
-  };
-  const rowMoveUp = (row: (typeof rows)[number]) => () => {
-    const index = rows.indexOf(row);
-    if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId).catch(() => undefined);
-  };
-  const rowMoveDown = (row: (typeof rows)[number]) => () => {
-    const index = rows.indexOf(row);
-    if (index < rows.length - 1)
-      void data.moveRow(row.rowId, index + 2 < rows.length ? rows[index + 2]!.rowId : null).catch(() => undefined);
-  };
-  const rowRemove = (row: (typeof rows)[number]) => () => void data.removeRow(row.rowId).catch(() => undefined);
 
   return (
     <Card
@@ -757,535 +151,46 @@ function GridBody({
         data-slot="docblocks/database"
         className="flex min-h-0 flex-1 flex-col gap-(--docblocks-block-spacing) p-(--docblocks-block-spacing)"
       >
-        <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
-          {showName &&
-            (nameDraft !== null ? (
-              <Input
-                size="sm"
-                data-slot="docblocks/database-name-input"
-                className={cn(
-                  GRID_CHROME_FRAME,
-                  `
-                    h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size)
-                    font-(--docblocks-heading-font-weight)
-                  `
-                )}
-                value={nameDraft}
-                autoFocus
-                onChange={onNameChange}
-                onBlur={onNameBlur}
-                onKeyDown={onNameKeyDown}
-              />
-            ) : readOnly ? (
-              // The read-only stand (view / published): the name's display is
-              // plain (the rename's entry is off).
-              <span data-slot="docblocks/database-name" className="font-(--docblocks-heading-font-weight)">
-                {displayName}
-              </span>
-            ) : (
-              <Button
-                data-slot="docblocks/database-name"
-                variant="ghost"
-                size="sm"
-                title={t("common:rename")}
-                className={
-                  // The frame-less stand (the look's own: no border) — the
-                  // primitive's chrome frame stands off.
-                  " h-auto cursor-text border-0 bg-transparent px-1 text-(length:--docblocks-font-size) " +
-                  "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
-                  "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
-                }
-                onClick={beginNameEdit}
-              >
-                {displayName}
-              </Button>
-            ))}
-          <Badge data-slot="docblocks/database-count" variant="secondary">
-            {data.rows.length} {t("rowCount", { count: data.rows.length })}
-          </Badge>
-          <div className="ml-auto flex items-center gap-2">
-            {readOnly ? null : (
-              <>
-                <Button
-                  data-slot="docblocks/database-undo"
-                  variant="outline"
-                  size="sm"
-                  data-disabled={data.canUndo ? undefined : true}
-                  disabled={!data.canUndo}
-                  onClick={undoStep}
-                >
-                  {t("toolbar.undo")}
-                </Button>
-                <Button
-                  data-slot="docblocks/database-redo"
-                  variant="outline"
-                  size="sm"
-                  data-disabled={data.canRedo ? undefined : true}
-                  disabled={!data.canRedo}
-                  onClick={redoStep}
-                >
-                  {t("toolbar.redo")}
-                </Button>
-              </>
-            )}
-            {readOnly ? null : (
-              <ColumnManager
-                columns={data.table.columns}
-                columnOrder={columnOrder}
-                hiddenColumns={hiddenColumns}
-                columnWidths={columnWidths}
-                onViewChange={updateView}
-              />
-            )}
-            {readOnly ? null : (
-              <Popover open={filterOpen} onOpenChange={onFilterOpenChange}>
-                <PopoverTrigger asChild>
-                  <Button
-                    data-slot="docblocks/database-filter"
-                    variant="outline"
-                    size="sm"
-                    data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                  >
-                    {t("toolbar.filter")}
-                    {filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-fit max-w-xl min-w-110">
-                  <div className="flex flex-col gap-2.5">
-                    <FilterBuilder
-                      value={filterDraft}
-                      columns={data.table.columns}
-                      onChange={setFilterDraft}
-                      refTableData={refTableData}
-                    />
-                    {/* The footer's stand: the apply/clear over the separator's line (not stuck to the add rows — the popover's own 10px rhythm over both sides of the line). */}
-                    <div
-                      data-slot="docblocks/filter-footer"
-                      className="flex items-center gap-2 border-t border-border pt-2.5"
-                    >
-                      <Button data-slot="docblocks/filter-clear" variant="outline" size="sm" onClick={resetFilterDraft}>
-                        {t("common:clear")}
-                      </Button>
-                      <Button
-                        data-slot="docblocks/filter-apply"
-                        variant="outline"
-                        size="sm"
-                        disabled={!filterIsComplete(filterDraft, data.table.columns)}
-                        className="bg-accent text-accent-foreground"
-                        onClick={applyFilter}
-                      >
-                        {t("toolbar.apply")}
-                      </Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-        </div>
-
+        <GridToolbar
+          tableId={tableId}
+          table={data.table}
+          data={data}
+          filter={filter}
+          columnOrder={columnOrder}
+          hiddenColumns={hiddenColumns}
+          columnWidths={columnWidths}
+          onViewChange={updateView}
+          refTableData={refTableData}
+          showName={blockId !== undefined}
+          readOnly={readOnly}
+        />
         <ScrollArea data-slot="docblocks/database-grid" className="min-h-0 flex-1">
-          <div
-            ref={tableRef}
-            data-slot="docblocks/database-table"
-            tabIndex={0}
-            // The grid's pointer model stands the cell / column selection —
-            // the native text selection over the drag is suppressed (the
-            // editable inputs stand the explicit `select-text`).
-            className="grid w-full outline-none select-none"
-            onKeyDown={onTableKeyDown}
-            onPaste={onTablePaste}
-            onBlur={onTableBlur}
-            // The fixed row track (the standard row height): every row —
-            // over any column type mix — stands the one height (the header
-            // stands its own auto row; the enum's trigger fits the content
-            // box, so a new enum column grows no row). The multi-line's
-            // editor stands the portaled layer (no track's shift).
-            style={{
-              gridTemplateRows: "auto",
-              gridAutoRows: "var(--docblocks-database-row-height)",
-              gridTemplateColumns: `${columns
-                .map((_, index) => {
-                  // The session's locked width (every column — the flexible
-                  // ones' live shrink is kept off) over the committed / the
-                  // flexible track.
-                  const preview = resizePreview !== null ? resizePreview.widths[index] : undefined;
-                  const width = preview ?? columnWidths?.[index];
-                  return width !== undefined ? `${width}px` : "minmax(7rem, 1fr)";
-                })
-                .join(" ")} 2.5rem`,
-            }}
-          >
-            {columns.map((column, index) => (
-              <HeaderCell
-                key={column.id}
-                readOnly={readOnly}
-                column={column}
-                colIndex={index}
-                first={index === 0}
-                resizing={resizePreview !== null && resizePreview.col === index}
-                dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
-                dragShifted={drag !== null && drag.id !== column.id}
-                menuOpen={columnMenu === column.id}
-                // The read-only stand (view / published): the column's menu
-                // stands locked off (the rename / the options' / the
-                // hide / show / the delete's paths stand no write).
-                onMenuChange={readOnly ? () => undefined : columnMenuChange(column)}
-                onRename={columnRename(column)}
-                onEditOptions={columnEditOptions(column)}
-                onHide={columnHide(column)}
-                onShow={columnShow(column)}
-                onDelete={columnDelete(column)}
-                hidden={(hiddenColumns ?? []).includes(column.id)}
-                onPointerDown={columnPointerDown(column)}
-                onResizePointerDown={seamPointerDownAt(index)}
-                onResizePointerMove={onSeamPointerMove}
-                onResizePointerUp={onSeamPointerUp}
-                onResizePointerCancel={onSeamPointerCancel}
-                onPointerMove={onColumnPointerMove}
-                onPointerUp={columnPointerUp(column)}
-              />
-            ))}
-            <div
-              data-slot="docblocks/database-add-column"
-              className="
-                relative flex items-center justify-center border-b-(length:--docblocks-table-border-width)
-                border-(--docblocks-table-border-color)
-              "
-            >
-              {!readOnly && (
-                <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      data-slot="docblocks/database-add-column-trigger"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        GRID_CHROME_FRAME,
-                        "size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent",
-                        "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-                      )}
-                    >
-                      <Plus className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-32">
-                    {ADD_COLUMN_TYPES.map((entry) => {
-                      const EntryIcon = columnTypeIcon(entry.type, entry.refKind, entry.refMany);
-                      return (
-                        <DropdownMenuItem
-                          key={entry.key}
-                          data-column-entry={entry.key}
-                          onClick={() => openCreateForm(entry)}
-                        >
-                          <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
-                          {t(entry.labelKey)}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {/* The create form (every menu entry opens it: the name
-                  input + the type-specific attributes — the number's
-                  display attributes stand the bridge's column data). */}
-              <Popover open={columnFormOpen && columnForm !== null} onOpenChange={onColumnFormOpenChange}>
-                <PopoverTrigger asChild>
-                  <span data-slot="docblocks/database-add-column-form-anchor" className="absolute size-0" />
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  className="w-72 p-3"
-                  // The menu's entry stands the form: the menu's close
-                  // restores the focus to the plus trigger (outside the
-                  // popover content) — the focus-outside would close the
-                  // form the very tick it opens. The outside press (the
-                  // interact-outside) and the Escape keep the close (no
-                  // create — the commit stands the form's button only).
-                  onFocusOutside={preventDefault}
-                  // The nested popovers' portals (the color's palette / the
-                  // select's content) stand outside the form's content (the
-                  // body's portals): an away-click on one of them stands no
-                  // dismiss (the draft's loss over the palette's pick — the
-                  // enum's options' editor's stand; the real outside press
-                  // keeps the close).
-                  onInteractOutside={(event) => {
-                    const target = event.target as HTMLElement | null;
-                    if (target?.closest('[data-slot="popover-content"], [data-slot="select-content"]')) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
-                    <Label>
-                      {t("form.name")}
-                      <Input
-                        size="sm"
-                        type="text"
-                        data-slot="docblocks/database-add-column-name"
-                        className="cursor-text focus:bg-muted/60"
-                        value={columnForm?.name ?? ""}
-                        onChange={onColumnNameChange}
-                      />
-                    </Label>
-                    {columnFormNumber && (
-                      <>
-                        {columnForm?.numberKind === "decimal" && (
-                          <Label>
-                            {t("form.decimals")}
-                            <Input
-                              size="sm"
-                              type="number"
-                              min={0}
-                              max={10}
-                              data-slot="docblocks/database-add-column-decimals"
-                              className="w-16 cursor-text px-1 focus:bg-muted/60"
-                              value={columnForm?.decimals ?? 0}
-                              onChange={onColumnDecimalsChange}
-                            />
-                          </Label>
-                        )}
-                        <Label className="cursor-pointer">
-                          <Checkbox
-                            data-slot="docblocks/database-add-column-thousands"
-                            checked={columnForm?.thousands ?? false}
-                            onCheckedChange={onColumnThousandsChange}
-                          />
-                          {t("form.thousandsSeparator")}
-                        </Label>
-                        <Label>
-                          {t("form.prefix")}
-                          <Input
-                            size="sm"
-                            type="text"
-                            data-slot="docblocks/database-add-column-prefix"
-                            className="cursor-text focus:bg-muted/60"
-                            value={columnForm?.prefix ?? ""}
-                            onChange={onColumnPrefixChange}
-                          />
-                        </Label>
-                        <Label>
-                          {t("form.suffix")}
-                          <Input
-                            size="sm"
-                            type="text"
-                            data-slot="docblocks/database-add-column-suffix"
-                            className="cursor-text focus:bg-muted/60"
-                            value={columnForm?.suffix ?? ""}
-                            onChange={onColumnSuffixChange}
-                          />
-                        </Label>
-                        <Label className="cursor-pointer">
-                          <Checkbox
-                            data-slot="docblocks/database-add-column-negative"
-                            checked={columnForm?.allowNegative ?? true}
-                            onCheckedChange={onColumnAllowNegativeChange}
-                          />
-                          {t("form.allowNegative")}
-                        </Label>
-                      </>
-                    )}
-                    {columnFormRef && columnForm?.refKind === "enum" && (
-                      /* The enum's options' editor (the create / the edit's
-                          stand): the ref table's pick is out (the options
-                          stand over the column's own system table — the
-                          created / the edited stand). The motion's variant
-                          (the framer's Reorder's rows) stands over the
-                          slot's context; the plain's editor is the stand
-                          over its absence. */
-                      <OptionsEditor options={columnForm.enumOptions ?? []} onChange={onColumnEnumOptionsChange} />
-                    )}
-                    {columnFormRef && columnForm?.refKind === "row" && (
-                      <>
-                        {/* The row-link's table's pick: the existing tables
-                            + the new-table creation. The package's Select
-                            (the native select is gone) — the "none" stand
-                            is the sentinel pick (Radix takes no empty
-                            value), the portaled list stands the standard
-                            tokens (the --docblocks-* do not reach the
-                            body). */}
-                        <Label>
-                          {t("form.table")}
-                          <Select
-                            value={
-                              columnForm === null || columnForm.refPick === "" ? REF_NONE_PICK : columnForm.refPick
-                            }
-                            onValueChange={onColumnRefPickChange}
-                          >
-                            <SelectTrigger
-                              data-slot="docblocks/database-add-column-ref"
-                              className="w-full justify-start px-2 py-0.5 text-xs shadow-none data-[size=default]:h-7"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX}>
-                              <SelectItem value={REF_NONE_PICK}>{t("form.selectTable")}</SelectItem>
-                              {bridgeTables.map((table) => (
-                                <SelectItem key={table.id} value={table.id}>
-                                  {table.name}
-                                </SelectItem>
-                              ))}
-                              <SelectItem value={NEW_TABLE_PICK}>{t("common:newTable")}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </Label>
-                        {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
-                          <Label>
-                            {t("form.name")}
-                            <Input
-                              size="sm"
-                              type="text"
-                              data-slot="docblocks/database-add-column-ref-new"
-                              placeholder={t("form.newTableName")}
-                              className="cursor-text focus:bg-muted/60"
-                              value={columnForm?.newTableName ?? ""}
-                              onChange={onColumnNewTableNameChange}
-                            />
-                          </Label>
-                        )}
-                      </>
-                    )}
-                    <Button
-                      data-slot="docblocks/database-add-column-create"
-                      variant="outline"
-                      size="sm"
-                      // The create / the save commits on the press only
-                      // (the outside press / the Escape close without the
-                      // commit); the empty name / the unpicked row's table
-                      // stand the disabled stand (the commit is impossible
-                      // over it).
-                      disabled={
-                        columnForm === null ||
-                        columnForm.name.trim() === "" ||
-                        (columnFormRef &&
-                          columnForm.refKind === "row" &&
-                          (columnForm.refPick === "" ||
-                            (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
-                      }
-                      className="bg-accent px-2 py-1 hover:opacity-70"
-                      onClick={commitColumnForm}
-                    >
-                      {columnForm?.editColumnId !== undefined ? t("form.save") : t("form.addColumn")}
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {rows.map((row, rowIndex) => (
-              <Fragment key={row.rowId}>
-                {columns.map((column, index) => {
-                  const key = cellKeyOf(row.rowId, column.id);
-                  // The row's live revision (the cell's draft session pins
-                  // it at the open — the mid-session's refetch re-baselines
-                  // it over the peer's commit).
-                  return (
-                    <DatabaseCell
-                      key={column.id}
-                      rowId={row.rowId}
-                      column={column}
-                      value={row.cells[column.id]}
-                      revision={data.revisionOf(row.rowId)}
-                      rowIndex={rowIndex}
-                      colIndex={index}
-                      first={index === 0}
-                      lastRow={row.rowId === lastRowId}
-                      filterPending={row.rowId === pendingRowId}
-                      dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
-                      dragShifted={drag !== null && drag.id !== column.id}
-                      selected={selectedCells.has(key)}
-                      singleSelected={selectedCells.has(key) && selectedCells.size === 1}
-                      editing={editingCell === key}
-                      onChange={cellChange(row, column)}
-                      onPointerDown={onCellPointerDown(row.rowId, column.id, rowIndex, index)}
-                      onEditStart={cellEditStart(key)}
-                      refTableData={
-                        column.refTableId !== undefined
-                          ? refTableData[
-                              refEntryKey({ tableId: column.refTableId, displayColumn: column.refDisplayColumn })
-                            ]
-                          : undefined
-                      }
-                      onEditEnd={cellEditEnd}
-                      booleanPress={booleanPressRef}
-                    />
-                  );
-                })}
-                {readOnly ? (
-                  // The read-only stand (view / published): the row's menu's
-                  // stand is off (the track stands the empty's stand).
-                  <div
-                    data-slot="docblocks/database-row-menu"
-                    data-filter-pending={row.rowId === pendingRowId ? "true" : undefined}
-                    className={cn(
-                      `
-                        flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)
-                        border-(--docblocks-table-border-color)
-                      `,
-                      row.rowId !== lastRowId && "border-b-(length:--docblocks-table-border-width)"
-                    )}
-                  />
-                ) : (
-                  <RowMenuCell
-                    row={row}
-                    rowMenu={rowMenu}
-                    setRowMenu={setRowMenu}
-                    canMoveUp={row.rowId !== pendingRowId && rows.indexOf(row) > 0}
-                    canMoveDown={
-                      row.rowId !== pendingRowId &&
-                      rows.indexOf(row) < rows.length - 1 &&
-                      rows[rows.indexOf(row) + 1]?.rowId !== pendingRowId
-                    }
-                    onMoveUp={rowMoveUp(row)}
-                    onMoveDown={rowMoveDown(row)}
-                    onRemove={rowRemove(row)}
-                    lastRow={row.rowId === lastRowId}
-                    filterPending={row.rowId === pendingRowId}
-                  />
-                )}
-              </Fragment>
-            ))}
-
-            {data.nextCursor !== null && (
-              <div
-                data-slot="docblocks/database-load-more-row"
-                className="flex items-center justify-center"
-                style={{ gridColumn: "1 / -1" }}
-              >
-                <Button
-                  data-slot="docblocks/database-load-more"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    GRID_CHROME_FRAME,
-                    `
-                      h-auto cursor-pointer px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
-                      select-none
-                    `,
-                    "text-(--docblocks-placeholder-color) hover:bg-transparent",
-                    "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-                  )}
-                  onClick={() => void data.loadMore().catch(() => undefined)}
-                >
-                  {t("rows.loadMore")}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {rows.length === 0 && (
-            <div
-              data-slot="docblocks/database-empty"
-              className="
-                px-(--docblocks-table-cell-padding) py-(--docblocks-block-spacing) text-(length:--docblocks-font-size)
-                text-(--docblocks-placeholder-color) select-none
-              "
-            >
-              {filter !== undefined ? t("rows.noneFiltered") : t("rows.none")}
-            </div>
-          )}
+          <GridTable
+            columns={columns}
+            allColumns={data.table.columns}
+            columnOrder={columnOrder}
+            hiddenColumns={hiddenColumns}
+            columnWidths={columnWidths}
+            onViewChange={updateView}
+            data={data}
+            rows={rows}
+            selectedCells={selectedCells}
+            editingCell={editingCell}
+            setEditingCell={setEditingCell}
+            onCellPointerDown={onCellPointerDown}
+            booleanPressRef={booleanPressRef}
+            pendingRowId={pendingRowId}
+            refTableData={refTableData}
+            filter={filter}
+            readOnly={readOnly}
+            tableRef={tableRef}
+            onTableKeyDown={onTableKeyDown}
+            onTablePaste={onTablePaste}
+            onTableBlur={onTableBlur}
+            form={form}
+            OptionsEditor={OptionsEditor}
+          />
         </ScrollArea>
-
         {readOnly ? null : (
           <Button
             data-slot="docblocks/database-add-row"

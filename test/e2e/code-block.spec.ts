@@ -255,6 +255,32 @@ test("the caption types in A and stands in B; erase + blur drops the line in bot
   await close();
 });
 
+test("the caption's press over the code's live caret stands the input's focus (no container's reseat's steal)", async ({
+  browser,
+}) => {
+  const { a, close } = await openPanes(browser, "ux16-code-caption-caret");
+  const id = await seedCode(a, "a", "const x = 1;");
+  await a.waitForTimeout(600);
+
+  const block = blockWrapper(a, "a", id);
+  // The live caret over the code's inner (the user's editing state): the
+  // press's input's seat stood stolen over the page's container's position
+  // reseat (the reseat's seat's focus's move stood the blur, the empty
+  // line's unmount — the caption's caret's disappear).
+  await innerOf(a, "a", id).click();
+  await block.hover();
+  await block.locator('[data-slot="docblocks/code-caption-toggle"]').click();
+
+  const captionA = pane(a, "a").locator('[data-slot="docblocks/code-caption"]');
+  await expect(captionA).toBeVisible();
+  await expect(captionA).toBeFocused();
+  await captionA.fill("Figure one");
+  await expect.poll(async () => blockOf(a, "a", id), SETTLE).toMatchObject({ attrs: { caption: "Figure one" } });
+  // The typing lands the caption's attr, never the code's text.
+  expect((await blockOf(a, "a", id))?.content?.[0]?.text).toBe("const x = 1;");
+  await close();
+});
+
 test("the more menu's toggles flip over the wire (defaults ON); off removes the numbers column", async ({
   browser,
 }) => {

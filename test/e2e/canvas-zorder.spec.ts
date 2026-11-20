@@ -260,6 +260,121 @@ test("the connector's 'send to back' stands the line under the figures (the pain
   }
 });
 
+test("the container's arrange toolbar: the group's z-order over the wire", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-zorder-group");
+  try {
+    await toCanvas(a, "a");
+    await toCanvas(b, "b");
+    // The seed: the shape, the group (the member's container), the shape —
+    // the group stands at the middle's slot.
+    const { surface, ids } = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      const surface = doc.insertBlock("surface");
+      const a1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      const group = doc.insertBlock("group", { members: [a1] }, { parent: surface });
+      const b1 = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      doc.setGeometry(a1, { x: 0, y: 0, w: 80, h: 60 });
+      doc.setGeometry(group, { x: 0, y: 0, w: 160, h: 120 });
+      doc.setGeometry(b1, { x: 240, y: 0, w: 80, h: 60 });
+      return { surface, ids: [a1, group, b1] };
+    }, {});
+    const [a1, group, b1] = ids as [string, string, string];
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual(ids);
+    expect(await zIndexOf(a, "a", group)).toBe(2);
+
+    // The group's selection over the border's top edge (the interior's
+    // pointer-transparent stand — the member's center stands the member's
+    // selection).
+    const groupWrapper = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${group}"]`);
+    const box = (await groupWrapper.boundingBox())!;
+    await a.mouse.click(box.x + box.width / 2, box.y + 1);
+    expect(await groupWrapper.getAttribute("data-selected"), "the group's selection").not.toBeNull();
+
+    // The unified's toolbar stands (the z-order menu is the bar's whole
+    // content — the container carries no style attrs of its own).
+    const trigger = a.getByLabel("Arrange container");
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    expect(await itemDisabled(a, "Send backward")).toBe(false);
+    expect(await itemDisabled(a, "Bring to front")).toBe(false);
+
+    // "Send to back": the group stands under both figures — the paint
+    // order's head, the dense's indices, the other pane's parity over the
+    // wire.
+    await pickItem(a, "Send to back");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([group, a1, b1]);
+    expect(await zIndexOf(a, "a", group)).toBe(1);
+    expect(await zIndexOf(a, "a", b1)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([group, a1, b1]);
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual([group, a1, b1]);
+    expect(await zIndexOf(b, "b", group)).toBe(1);
+    expect(await paintOrder(b, "b")).toEqual([group, a1, b1]);
+  } finally {
+    await close();
+  }
+});
+
+test("the frame's arrange toolbar: the frame's z-order over the wire (the view-back's pin's stand off)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-zorder-frame");
+  try {
+    await toCanvas(a, "a");
+    await toCanvas(b, "b");
+    // The seed: the shape, the frame (the clear's region — no figure under
+    // the box's center), the shape.
+    const { surface, ids } = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      const surface = doc.insertBlock("surface");
+      const a1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      const frame = doc.insertBlock("frame", { title: "F" }, { parent: surface });
+      const b1 = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      doc.setGeometry(a1, { x: -120, y: 0, w: 80, h: 60 });
+      doc.setGeometry(frame, { x: 60, y: 0, w: 160, h: 120 });
+      doc.setGeometry(b1, { x: 240, y: 0, w: 80, h: 60 });
+      return { surface, ids: [a1, frame, b1] };
+    }, {});
+    const [a1, frame, b1] = ids as [string, string, string];
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual(ids);
+    expect(await zIndexOf(a, "a", frame)).toBe(2);
+    // The frame stands its data's slot (the paint order's parity — no
+    // view-back's pin over the DOM).
+    expect(await paintOrder(a, "a")).toEqual([a1, frame, b1]);
+
+    // The frame's selection over the border's top edge (the interior's
+    // pointer-transparent stand — the interior's press stands the figure /
+    // the page card's press).
+    const frameWrapper = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
+    const box = (await frameWrapper.boundingBox())!;
+    await a.mouse.click(box.x + box.width / 2, box.y + 1);
+    expect(await frameWrapper.getAttribute("data-selected"), "the frame's selection").not.toBeNull();
+
+    // The unified's toolbar stands over the frame (the parity over the
+    // shapes' mechanism).
+    const trigger = a.getByLabel("Arrange frame");
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    expect(await itemDisabled(a, "Bring to front")).toBe(false);
+    expect(await itemDisabled(a, "Send to back")).toBe(false);
+
+    // "Bring to front": the frame stands over both figures — the paint
+    // order's tail (the region marker's border / the chip stand over the
+    // figures), the dense's indices, the other pane's parity over the
+    // wire.
+    await pickItem(a, "Bring to front");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([a1, b1, frame]);
+    expect(await zIndexOf(a, "a", frame)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([a1, b1, frame]);
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual([a1, b1, frame]);
+    expect(await zIndexOf(b, "b", frame)).toBe(3);
+    expect(await paintOrder(b, "b")).toEqual([a1, b1, frame]);
+  } finally {
+    await close();
+  }
+});
+
 test("a new figure stands on top (max + 1)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "canvas-zorder-new");
   try {

@@ -8,10 +8,13 @@ import { SETTLE, canvasView, seedShape, switchPaneView, twoPanes } from "./helpe
 
 /** Seeds one rect shape on the pane's doc. */
 
-/** Click-selects the shape (the press on its canvas-item wrapper). */
+/** Click-selects the shape (the press on its left edge's band — the
+ * explicitly transparent figure's press zone is its outline, not its
+ * box). */
 async function selectShape(page: Page, client: "a" | "b", id: string): Promise<void> {
   const wrapper = canvasView(page, client).locator(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-  await wrapper.click();
+  const box = (await wrapper.boundingBox())!;
+  await page.mouse.click(box.x + 1, box.y + box.height / 2);
   await expect(page.getByRole("toolbar", { name: "Shape options" })).toBeVisible();
 }
 

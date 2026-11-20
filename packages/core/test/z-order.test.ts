@@ -7,9 +7,9 @@ import { validateDoc } from "../src/schema";
 
 /**
  * The canvas z-order command (setZOrder) + the dense zIndex invariant. The
- * canvas elements (shape / connector / canvas-text / group) of a surface
- * carry an explicit `zIndex` (dense 1..N, the children order's mirror —
- * 1 = bottom). The command reorders the surface's canvas elements
+ * canvas elements (shape / connector / canvas-text / group / frame) of a
+ * surface carry an explicit `zIndex` (dense 1..N, the children order's
+ * mirror — 1 = bottom). The command reorders the surface's canvas elements
  * (forward / back / toFront / toBack) and rewrites the `zIndex` (dense, in
  * the new order) in one transaction.
  */
@@ -247,5 +247,79 @@ describe("the zIndex reconciliation (insert / move / remove)", () => {
     expect(doc.getChildren(surface)).toEqual([a, b, group]);
     expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("a frame stands in the same index (the setZOrder over the region marker)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    // a=1, frame=2, b=3 (the frame's slot over the children's order).
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    doc.setZOrder(frame, "toFront"); // the frame's move to the top: a=1, b=2, frame=3.
+    expect(doc.getChildren(surface)).toEqual([a, b, frame]);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(zOf(doc, frame)).toBe(3);
+    doc.setZOrder(frame, "toBack"); // the frame's move to the bottom: frame=1, a=2, b=3.
+    expect(doc.getChildren(surface)).toEqual([frame, a, b]);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("a new frame takes max + 1 (on top, the elements' parity)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    expect(zOf(doc, frame)).toBe(2);
+  });
+
+  it("a page-frame block stands no z-order (the root context's stand)", () => {
+    const doc = newDoc();
+    doc.insertBlock("surface");
+    const pageFrame = doc.insertBlock("frame", { frameId: "f-1" });
+    expect(() => doc.setZOrder(pageFrame, "forward")).toThrow(InvalidOperationError);
+  });
+});
+
+describe("the bulk stand (the large surface's quadratic guard)", () => {
+  it("a tail append over the large surface stands no mirror rewrite (the wire update stays bounded)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    doc.transact(() => {
+      for (let i = 0; i < 500; i += 1) {
+        doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      }
+    });
+    // The dense's stand over the bulk (the 1..500 mirror).
+    expect(zIndexesOf(doc, surface)).toEqual(Array.from({ length: 500 }, (_, i) => i + 1));
+    // The wire delta's baseline (the state vector's stand — the full state
+    // stands the `encodeUpdate`'s no-argument form).
+    const baseline = Y.encodeStateVector(doc.raw);
+    // The tail's append: the unchanged siblings' mirror stands no write
+    // (the yjs's equal-value set's allocation stand — the bulk insert's
+    // quadratic's guard). The delta carries the new block + the order
+    // slot + the new element's index only.
+    const added = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    expect(zIndexesOf(doc, surface)).toEqual(Array.from({ length: 501 }, (_, i) => i + 1));
+    const delta = Y.encodeStateAsUpdate(doc.raw, baseline);
+    expect(delta.length).toBeLessThan(4096);
+    expect(zOf(doc, added)).toBe(501);
+  });
+
+  it("the derived read stands the in-flight order (the mid-transaction's parity)", () => {
+    const doc = newDoc();
+    const { surface, ids } = surfaceWith(doc, ["rect", "rect"]);
+    // The mid-transaction read (the cache's invalidation over the
+    // beforeTransaction): the in-flight append stands its position.
+    let mid: unknown;
+    doc.transact(() => {
+      const third = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      mid = (doc.getBlock(third) as { attrs?: { zIndex?: number } } | null)?.attrs?.zIndex;
+    });
+    expect(mid).toBe(3);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(ids.length).toBe(2);
   });
 });

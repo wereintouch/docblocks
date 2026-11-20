@@ -168,6 +168,30 @@ async function pressHandle(page: Page, kind: "row" | "column", index: number, co
   await page.mouse.up();
 }
 
+/** A swatch's pick over the handle's Background sub: the pointer's open
+ * (the press over the handle's chip) + the force's single presses over the
+ * Background trigger and the target's swatch. The force's stand: the
+ * actionability's retry loop re-presses the trigger a few seconds later
+ * over the load (the press lands on the trigger again and the toggle
+ * closes the whole menu), so the verified-press's wait is dropped — one
+ * press, one state hop. The swatch's press stands over the current
+ * center (the popper's entry's reposition is outlasted by the fresh's
+ * box at the press's moment). */
+async function pickSwatch(a: Page, kind: "row" | "column", swatch: "orange" | "green" | "none"): Promise<void> {
+  const menu = kind === "row" ? rowMenu(a) : colMenu(a);
+  await pressHandle(a, kind, 0, 2);
+  await expect(menu).toBeVisible();
+  await menu.getByText("Background", { exact: true }).click({ force: true });
+  const palette = menu.locator('[data-slot="docblocks/table-color-palette"][data-state="open"]');
+  await expect(palette).toBeVisible(SETTLE);
+  const target = palette.locator(
+    swatch === "none"
+      ? '[data-slot="docblocks/palette-none"]'
+      : `[data-slot="docblocks/palette-swatch"][data-color="var(--docblocks-palette-${swatch})"]`
+  );
+  await target.click({ force: true, timeout: 5000 });
+}
+
 /**
  * Seeds the table's hover from a cell (the handles' chips need it to stand
  * pointer-events on — the handle band itself does not set the hover) and
@@ -443,17 +467,11 @@ test("the column color over the row color (the intersection); the remove reveals
     // The row 0 color (the amber) on its cells. The swatch's entry is a
     // theme token; the commit resolves it to the active theme's hex (the
     // harness stands dark — the muted amber / emerald).
-    await pressHandle(a, "row", 0, 2);
-    await expect(rowMenu(a)).toBeVisible();
-    await rowMenu(a).getByText("Background", { exact: true }).click();
-    await a.locator('[data-slot="docblocks/table-swatch"][data-color="var(--docblocks-palette-orange)"]').click();
+    await pickSwatch(a, "row", "orange");
 
     // The column 0 color (the emerald) on its cells — the intersection cell
     // (0,0) stands the COLUMN color (the column over the row).
-    await pressHandle(a, "column", 0, 2);
-    await expect(colMenu(a)).toBeVisible();
-    await colMenu(a).getByText("Background", { exact: true }).click();
-    await a.locator('[data-slot="docblocks/table-swatch"][data-color="var(--docblocks-palette-green)"]').click();
+    await pickSwatch(a, "column", "green");
 
     // Computed backgrounds (A and B): the intersection = the column's
     // emerald; the row-only cell (0,1) = the row's amber.
@@ -480,18 +498,14 @@ test("the column color over the row color (the intersection); the remove reveals
     expect(snap?.rows[1]?.[0]?.columnColor).toBe("#63b87e");
     expect(snap?.rows[1]?.[0]?.rowColor).toBeUndefined();
 
-    // The remove (the column's) reveals the row's color at the intersection.
-    await pressHandle(a, "column", 0, 2);
-    await expect(colMenu(a)).toBeVisible();
-    await expect(colMenu(a).locator('[data-slot="docblocks/table-remove-color"]')).toBeVisible();
-    await colMenu(a).locator('[data-slot="docblocks/table-remove-color"]').click();
+    // The clear (the column's, the none's swatch over the shared's palette)
+    // reveals the row's color at the intersection.
+    await pickSwatch(a, "column", "none");
     await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgb(207, 145, 85)");
 
-    // The row's remove clears the background (no color stands — the
-    // computed color falls back to the transparent).
-    await pressHandle(a, "row", 0, 2);
-    await expect(rowMenu(a)).toBeVisible();
-    await rowMenu(a).locator('[data-slot="docblocks/table-remove-color"]').click();
+    // The row's clear (the none's swatch) clears the background (no color
+    // stands — the computed color falls back to the transparent).
+    await pickSwatch(a, "row", "none");
     await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgba(0, 0, 0, 0)");
     const afterRemoval = await expect
       .poll(async () => (await tableSnapshot(b, "b", tableId))?.rows[0]?.[0]?.rowColor, SETTLE)
@@ -500,10 +514,16 @@ test("the column color over the row color (the intersection); the remove reveals
     expect(afterRemoval?.rows[0]?.[0]?.rowColor).toBeUndefined();
     expect(afterRemoval?.rows[0]?.[0]?.columnColor).toBeUndefined();
 
-    // Without a color the remove item stands absent (the conditional item).
+    // The none's swatch stands unconditional (the shared's palette's stand —
+    // the inactive's aria over the absent color).
     await pressHandle(a, "row", 0, 2);
     await expect(rowMenu(a)).toBeVisible();
-    await expect(rowMenu(a).locator('[data-slot="docblocks/table-remove-color"]')).toHaveCount(0);
+    await rowMenu(a).getByText("Background", { exact: true }).click({ force: true });
+    await expect(
+      rowMenu(a).locator(
+        '[data-slot="docblocks/table-color-palette"][data-state="open"] [data-slot="docblocks/palette-none"]'
+      )
+    ).toBeVisible();
   } finally {
     await close();
   }

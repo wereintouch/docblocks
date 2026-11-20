@@ -10,6 +10,7 @@
  * theme's). */
 import type { BlockId, ConnectorBlock } from "docblocks-core";
 
+import { effectiveColorOf } from "./canvas-color";
 import {
   CONNECTOR_SELECTED_STROKE,
   CONNECTOR_STROKE,
@@ -58,4 +59,14 @@ function connectorStrokeOf(block: ConnectorBlock, selected: boolean): string {
   return attrs.strokeColor;
 }
 
-export { arrowDefId, connectorStrokeOf, connectorStrokeWidthOf };
+/** The connector's effective stroke over the themes (the render-time's
+ * transform — the data stands the source hex): the dark theme's light
+ * fixed `strokeColor` stands the dark corridor's value (the parity with
+ * the shape's fill / stroke); the token's stands (the theme's default /
+ * the selection's accent) stand pass-through on their own. */
+function effectiveConnectorStrokeOf(block: ConnectorBlock, selected: boolean, isDark: boolean): string {
+  const stroke = connectorStrokeOf(block, selected);
+  return effectiveColorOf(stroke, isDark) ?? stroke;
+}
+
+export { arrowDefId, connectorStrokeOf, connectorStrokeWidthOf, effectiveConnectorStrokeOf };

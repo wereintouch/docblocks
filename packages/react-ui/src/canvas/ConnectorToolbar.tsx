@@ -239,7 +239,7 @@ function ConnectorToolbar({
           target="stroke"
           label={t("connector.lineColor")}
           current={strokeColor}
-          chipStyle={{ border: `2px solid ${strokeColor ?? "currentColor"}` }}
+          mode="stroke"
           icon={<Stroke className="size-4" />}
           open={openSection === "stroke"}
           onOpenChange={openStrokeSection}

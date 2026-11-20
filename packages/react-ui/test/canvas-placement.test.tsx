@@ -13,7 +13,14 @@ import { CanvasDock } from "../src/canvas/CanvasDock";
 import { SHAPE_TOOLS } from "../src/canvas/canvas-view/constants";
 import { PLACE_TOOLS } from "../src/canvas/canvas-view/constants";
 import { isPlaceTool, isShapeTool } from "../src/canvas/canvas-view/utils";
-import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
+import {
+  DEFAULT_SHAPE_FILL,
+  placeCanvasText,
+  placeConnector,
+  placeFrame,
+  placePenStroke,
+  placeShape,
+} from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
 import { placeDragBox } from "../src/canvas/viewport/utils";
@@ -35,7 +42,7 @@ describe("placeShape", () => {
     const block = doc.getBlock(id);
     const shape = block?.type === "shape" ? block : null;
     expect(shape).not.toBeNull();
-    expect(shape?.attrs).toEqual({ variant: "ellipse", zIndex: 1 });
+    expect(shape?.attrs).toEqual({ variant: "ellipse", fill: DEFAULT_SHAPE_FILL, zIndex: 1 });
     expect(shape?.geometry).toEqual({ x: 12, y: -8, w: 100, h: 80 });
     // The target: the (created) first surface — the only root child (a
     // fresh doc has no page blocks: the starter paragraph is the consumer's).
@@ -179,6 +186,10 @@ describe("the dock", () => {
       connectorLabelEditing: null,
       setConnectorLabelEditing: noop,
       kbFocusId: null,
+      cycle: null,
+      cycleIndicator: null,
+      setCycle: noop,
+      setCycleIndicator: noop,
       setKbFocusId: noop,
       resizePreview: null,
       resizeSession: false,
@@ -187,7 +198,6 @@ describe("the dock", () => {
       setPan: noop,
       setMode: noop,
       setActiveTool: noop,
-      setPendingConnector: noop,
       setPendingStand: noop,
       setMarquee: noop,
       setPenPoints: noop,
@@ -242,19 +252,14 @@ describe("the dock", () => {
   it("picks a shape tool from the menu and cancels it on the re-pick", () => {
     const setActiveTool = vi.fn();
     const setMode = vi.fn();
-    const setPendingConnector = vi.fn();
-    const { rerender } = render(
-      <CanvasDock viewport={fakeViewport({ activeTool: null, setActiveTool, setMode, setPendingConnector })} />
-    );
+    const { rerender } = render(<CanvasDock viewport={fakeViewport({ activeTool: null, setActiveTool, setMode })} />);
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith("rect");
     // The pick moves the mode back to the default.
     expect(setMode).toHaveBeenLastCalledWith("default");
     // The re-pick (the tool is now active) cancels it.
-    rerender(
-      <CanvasDock viewport={fakeViewport({ activeTool: "rect", setActiveTool, setMode, setPendingConnector })} />
-    );
+    rerender(<CanvasDock viewport={fakeViewport({ activeTool: "rect", setActiveTool, setMode })} />);
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith(null);

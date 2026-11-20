@@ -11,6 +11,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { ZOrderMenu } from "../src/canvas/ZOrderMenu";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -57,20 +58,16 @@ function renderCanvas(doc: TestDoc) {
       <Editor view="canvas" />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view: view as HTMLElement };
 }
 
-/** Click-select the block (the pointerdown on its canvas-item / hit path). */
-function selectBlock(container: HTMLElement, id: string, viaHitPath = false): void {
-  const selector = viaHitPath
-    ? `[data-connector-hit="${id}"]`
-    : `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`;
-  const target = container.querySelector<HTMLElement>(selector);
-  if (target === null) throw new Error(`the ${viaHitPath ? "hit path" : "canvas item"} ${id} is missing`);
-  fireEvent.pointerDown(target, { clientX: 10, clientY: 10, pointerId: 1 });
-  fireEvent.pointerUp(target, { pointerId: 1 });
+/** Click-select the block (the press over the block's own zone — the
+ * resolver's answer over the geometry: the figure's outline band, the
+ * line's stroke band over the route). */
+function selectBlock(view: HTMLElement, doc: TestDoc, id: string): void {
+  pressBlock(view, doc, id);
 }
 
 /** The z-order trigger (the three-dots button) of the open toolbar. */
@@ -135,7 +132,7 @@ describe("the shape toolbar's z-order menu", () => {
     const { view } = renderCanvas(doc);
     expect(zOrderTrigger()).toBeNull();
 
-    selectBlock(view, "m0002");
+    selectBlock(view, doc, "m0002");
     const trigger = zOrderTrigger();
     expect(trigger).not.toBeNull();
     expect(trigger?.getAttribute("aria-label")).toBe("Arrange shape");
@@ -147,7 +144,7 @@ describe("the shape toolbar's z-order menu", () => {
 
     // The bottommost (m0002, zIndex 1): the backward / back picks are
     // disabled, the forward / front picks stand.
-    selectBlock(view, "m0002");
+    selectBlock(view, doc, "m0002");
     fireEvent.pointerDown(zOrderTrigger()!);
     expect(isDisabled(zOrderItem("Send backward"))).toBe(true);
     expect(isDisabled(zOrderItem("Send to back"))).toBe(true);
@@ -161,7 +158,7 @@ describe("the shape toolbar's z-order menu", () => {
 
     // The topmost (m0004, zIndex 3): the forward / front picks are
     // disabled, the backward / back picks stand.
-    selectBlock(view, "m0004");
+    selectBlock(view, doc, "m0004");
     fireEvent.pointerDown(zOrderTrigger()!);
     expect(isDisabled(zOrderItem("Bring forward"))).toBe(true);
     expect(isDisabled(zOrderItem("Bring to front"))).toBe(true);
@@ -174,7 +171,7 @@ describe("the shape toolbar's z-order menu", () => {
     const { view } = renderCanvas(doc);
     expect(doc.getChildren("m0001")).toEqual(["m0002", "m0003", "m0004"]);
 
-    selectBlock(view, "m0003");
+    selectBlock(view, doc, "m0003");
     fireEvent.pointerDown(zOrderTrigger()!);
     fireEvent.click(zOrderItem("Bring forward"));
 
@@ -192,7 +189,7 @@ describe("the shape toolbar's z-order menu", () => {
     const doc = seededDoc();
     const { view } = renderCanvas(doc);
 
-    selectBlock(view, "m0004");
+    selectBlock(view, doc, "m0004");
     fireEvent.pointerDown(zOrderTrigger()!);
     fireEvent.click(zOrderItem("Send to back"));
 
@@ -210,7 +207,7 @@ describe("the connector toolbar's z-order menu", () => {
     const { view } = renderCanvas(doc);
     expect(zOrderTrigger()).toBeNull();
 
-    selectBlock(view, "m0004", true);
+    selectBlock(view, doc, "m0004");
     const trigger = zOrderTrigger();
     expect(trigger).not.toBeNull();
     expect(trigger?.getAttribute("aria-label")).toBe("Arrange line");
@@ -226,7 +223,7 @@ describe("the connector toolbar's z-order menu", () => {
     );
     expect(itemsBefore).toEqual(["m0002", "m0003", "m0004"]);
 
-    selectBlock(view, "m0004", true);
+    selectBlock(view, doc, "m0004");
     fireEvent.pointerDown(zOrderTrigger()!);
     fireEvent.click(zOrderItem("Send to back"));
 

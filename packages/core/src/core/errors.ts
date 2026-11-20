@@ -55,6 +55,16 @@ class InvalidSelectionError extends DocBlocksError {
   }
 }
 
+/** A document attribute is invalid: a reserved key (a doc meta field or an
+ *  Object.prototype key) or a value outside the `string | number | boolean |
+ *  string[]` contract. */
+class InvalidAttributeError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidAttributeError";
+  }
+}
+
 /** Block attributes fail the registry rules. */
 class InvalidAttrsError extends DocBlocksError {
   constructor(message: string) {
@@ -165,6 +175,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   ExternalDatabaseError,
+  InvalidAttributeError,
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,

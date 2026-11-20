@@ -81,7 +81,26 @@ const PICKER_SIDE_OFFSET_PX = 4;
 
 const GRID_DRAG_TRANSITION = "transform 120ms ease-out";
 
+// The grid's chrome frame: the --docblocks-* table's look (the border's
+// width / color, the radius, the transparent's background) — the call
+// site's classes merge over the primitive's stand (the call site's win);
+// the dark's variant re-sits the same tokens. The portaled's content
+// (the filter's popover) does not use it — the standard's tokens reach
+// there.
+const GRID_CHROME_FRAME =
+  "rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) " +
+  "border-(--docblocks-table-border-color) bg-transparent " +
+  "dark:border-(--docblocks-table-border-color) dark:bg-transparent";
+
+// The chrome button's hover: the opacity's dim stand — the primitive's
+// hover's background / text stand is suppressed (the grid's hover is the
+// dim, not the accent's fill).
+const GRID_BUTTON_HOVER =
+  "cursor-pointer hover:opacity-70 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent";
+
 export {
+  GRID_BUTTON_HOVER,
+  GRID_CHROME_FRAME,
   GRID_DRAG_TRANSITION,
   PICKER_SIDE_OFFSET_PX,
   ADD_COLUMN_TYPES,

@@ -1,4 +1,4 @@
-import { LINE_ANCHOR_SLOT } from "../text";
+import { LINE_ANCHOR_SLOT, MENTION_SLOT } from "../text";
 
 /**
  * Map DOM positions to flat character offsets over a block's inline text
@@ -50,6 +50,26 @@ function isLineAnchor(node: Node | null): boolean {
   if (node === null) return false;
   if (node instanceof Element && node.getAttribute("data-slot") === LINE_ANCHOR_SLOT) return true;
   return node.parentElement?.getAttribute("data-slot") === LINE_ANCHOR_SLOT;
+}
+
+/** The mention chip element owning the node (the atomic island's stand). */
+function mentionChipOf(node: Node | null): HTMLElement | null {
+  if (node === null) return null;
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement ?? null);
+  return element?.closest<HTMLElement>(`[data-slot="${MENTION_SLOT}"]`) ?? null;
+}
+
+/**
+ * The element slot adjacent to the mention chip in its own parent (the
+ * caret seat before / after the atomic island — the browser cannot seat a
+ * caret inside the contenteditable=false chip's text, and a seat at the
+ * child slot keeps the offset domain (the caretOffsetIn's walk counts the
+ * chip's text over the preceding children)).
+ */
+function chipSlot(chip: HTMLElement, after: boolean): DomPosition {
+  const parent = chip.parentElement ?? chip;
+  const index = Array.prototype.indexOf.call(parent.childNodes, chip);
+  return { node: parent, offset: (index < 0 ? parent.childNodes.length : index) + (after ? 1 : 0) };
 }
 
 /** The flat-text length a node contributes (elements sum their descendants; the line anchor contributes 0). */
@@ -111,17 +131,43 @@ function caretOffsetIn(root: HTMLElement, node: Node | null, offset: number): nu
 function locatePosition(root: HTMLElement, flatOffset: number): DomPosition {
   if (flatOffset <= 0) {
     // The start resolves to the first text node where one stands (not a
-    // line anchor): the caret over an element container's offset 0 renders
-    // as a zero rect in the engines (the range's bounding box is the
-    // text-position's), and the text anchor keeps the read-back's domain
-    // (the caretOffsetIn's walk is the text anchor's native path).
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let current = walker.nextNode();
-    while (current !== null) {
-      if (!isLineAnchor(current)) return { node: current, offset: 0 };
-      current = walker.nextNode();
+    // line anchor, not the mention chip's atomic text): the caret over an
+    // element container's offset 0 renders as a zero rect in the engines
+    // (the range's bounding box is the text-position's), and the text
+    // anchor keeps the read-back's domain (the caretOffsetIn's walk is the
+    // text anchor's native path).
+    const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let firstText: Text | null = null;
+    let textNode: Node | null = textWalker.nextNode();
+    while (textNode !== null) {
+      if (textNode instanceof Text && !isLineAnchor(textNode) && mentionChipOf(textNode) === null) {
+        firstText = textNode;
+        break;
+      }
+      textNode = textWalker.nextNode();
     }
-    return { node: root, offset: 0 };
+    if (firstText === null) return { node: root, offset: 0 };
+    // A text that leads with a chip (the chip's text precedes the first
+    // seatable text): the slot before the first chip stands offset 0 (the
+    // chip's text is not a seatable start — the island's stand). The
+    // compare's PRECEDING flag = the chip precedes the first text.
+    const elementWalker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let firstChip: HTMLElement | null = null;
+    let element: Node | null = elementWalker.nextNode();
+    while (element !== null) {
+      if (element instanceof Element) {
+        const chip = mentionChipOf(element);
+        if (chip !== null) {
+          firstChip = chip;
+          break;
+        }
+      }
+      element = elementWalker.nextNode();
+    }
+    if (firstChip !== null && firstText.compareDocumentPosition(firstChip) & Node.DOCUMENT_POSITION_PRECEDING) {
+      return chipSlot(firstChip, false);
+    }
+    return { node: firstText, offset: 0 };
   }
   const anchor = lineAnchorOf(root);
   // The anchor is a seat for the final empty line only while it is still
@@ -137,6 +183,19 @@ function locatePosition(root: HTMLElement, flatOffset: number): DomPosition {
     if (current.nodeType === Node.TEXT_NODE) {
       if (isLineAnchor(current)) return null; // the anchor carries no logical character
       const length = current.nodeValue?.length ?? 0;
+      const chip = mentionChipOf(current);
+      if (chip !== null) {
+        // The atomic island: a caret cannot stand inside the chip's text.
+        // A flat offset over the chip snaps to the nearest boundary (the
+        // element slot before / after the chip — the pick's seat stands
+        // after the chip, the type's continuation keeps the editable).
+        if (flatOffset <= total + length) {
+          const after = flatOffset - total > length / 2 || flatOffset === total + length;
+          return chipSlot(chip, after && flatOffset > total);
+        }
+        total += length;
+        return null;
+      }
       if (flatOffset <= total + length) return { node: current, offset: flatOffset - total };
       total += length;
       return null;

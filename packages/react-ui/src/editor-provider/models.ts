@@ -3,7 +3,8 @@
  *  context value, and the provider's props. */
 import type { ComponentType, ReactNode } from "react";
 
-import type { BlockId, Doc, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
+import type { BlockId, Doc, MentionKind, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
+import type { AttributeType, DocAttributeValue } from "docblocks-core";
 
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
@@ -53,6 +54,15 @@ interface MentionProvider {
   searchUsers(query: string): Promise<MentionEntry[]>;
   /** The documents matching the query (the `doc` mention kind). */
   searchDocs(query: string): Promise<MentionEntry[]>;
+  /**
+   * The chip's live label over the target's id (the synchronous read — the
+   * consumer's cache over the catalog / the doc's meta). The chip's text
+   * stands this label where it resolves (the rename's live stand), and the
+   * insertion-time label (the run's text) otherwise; `null` / the absent
+   * stand the insertion-time label (the removed's target's display is the
+   * consumer's own fallback over this hook).
+   */
+  resolveLabel?(kind: MentionKind, id: string): string | null;
 }
 
 /**
@@ -60,7 +70,7 @@ interface MentionProvider {
  * data — the package stands the position and the lifecycle only, over a
  * plain portaled host) and the chip's click (the consumer decides what
  * opens). The target stands the document's `mention` mark (the core's
- * `MentionMark`: the kind, the stable id, and the label snapshot) — the
+ * `MentionMark`: the kind + the stable id) — the consumer resolves the
  * consumer resolves the current data over the id (the catalog, the URL).
  * Optional over the provider: without it the chip stands as before (no
  * card, the click is the browser's stand).
@@ -74,7 +84,137 @@ interface MentionInteractions {
    *  keeps the caret in place (the atomic chip's default stand moves it).
    *  The package stands no default behavior and opens nothing. */
   onClick?: (mention: MentionMark, event: MouseEvent) => void;
+  /**
+   * The picker's empty state (the no-matches stand over the active query;
+   *  the query is blank when only the `@` stands). The consumer's own
+   *  content (the "start typing"'s phrase over the blank query — the
+   *  package's i18n's stand is not overridable); `null` stands the built-in
+   *  `common.noMatches` (the default).
+   */
+  renderEmptyState?: (query: string) => ReactNode | null;
 }
+
+/**
+ * A consumer-owned tag entry (the consumer's tag catalog): the stable id
+ * (the removal / the event's identity) + the display label (the default
+ * chip's text). The consumer's own type may extend it (the extra fields
+ * stay opaque to the package).
+ */
+interface DocTag {
+  id: string;
+  label: string;
+}
+
+/**
+ * The consumer-owned tags contract (the `docTags` provider prop): the tags
+ * are NEVER document data — the consumer's store is the source (the
+ * document never stores or syncs them), and the panel displays the passed
+ * list and reports the user's tag actions over the callbacks (the full
+ * event surface — over the consumer-owned data there are no document
+ * events: no wire, no undo). The panel's add affordance hands the
+ * creation's flow to the consumer (its own picker over the tag catalog,
+ * the creation's flow — the package opens nothing). Without the prop the
+ * row stands the `notSet`'s display-only stand (the legacy's stored
+ * `attributes.tags` data stands inert — the consumer's migration's read
+ * over `doc.meta.attributes`).
+ */
+interface DocTags {
+  /** The document's tags (the consumer's store's read; `[]` = none). */
+  tags: readonly DocTag[];
+  /**
+   * The add affordance's click (the panel's "+ tag"'s trigger): the
+   * consumer opens its own creation's UI and updates the passed list over
+   * its own state. Without it the add affordance stands absent.
+   */
+  onTagAdd?: () => void;
+  /**
+   * The chip's removal (the chip's `x`'s click): the consumer removes the
+   * tag over its own store and passes the updated list back over `tags`.
+   * Without it the chip stands without a removal affordance.
+   */
+  onTagRemove?: (tag: DocTag) => void;
+  /**
+   * The chip's click (the chip's body — the removal's `x` does not fire
+   * this): the native `MouseEvent`; the package opens nothing and
+   * preventDefaults nothing (the navigation's stand — the tag's page — is
+   * the consumer's). Stands over the read-only modes too (the observing
+   * gesture's parity).
+   */
+  onTagClick?: (tag: DocTag, event: MouseEvent) => void;
+}
+
+/**
+ * The consumer-owned description contract (the `docDescription` provider
+ * prop): the description is NEVER document data — the consumer's store is
+ * the source (the document never stores or syncs it), and the panel's
+ * `description` row displays the passed value and reports the user's edit
+ * over `onEdit` (over the consumer-owned data there are no document events:
+ * no wire, no undo). The inline editor's commit passes the entered string
+ * verbatim — the empty string stands the removal's stand (the consumer
+ * clears its store over the callback). Without the prop the row keeps the
+ * built-in stand (the value over the doc's `attributes.description`
+ * record); the legacy's stored `attributes.description` data stands inert
+ * over the prop's presence (the consumer's migration's read over
+ * `doc.meta.attributes`).
+ */
+interface DocDescription {
+  /** The document's description (the consumer's store's read; `null` = none). */
+  value: string | null;
+  /**
+   * The edit's commit (the panel's inline editor's Enter / blur — the
+   * entered string verbatim; the empty string stands the removal's stand):
+   * the consumer persists the value over its own store and passes the
+   * updated stand back over `value`. Without it the row stands
+   * display-only (the edit's and the removal's affordances stand absent,
+   * over the edit mode too).
+   */
+  onEdit?: (value: string) => void;
+}
+
+/**
+ * The consumer's cover preset gallery (the `coverPresets` provider prop):
+ * the ready-made cover's file ids (the consumer's own blob store's ids) per
+ * placement mode. The upload modal renders the current mode's ids over
+ * the preset's grid (the 4-column's scrollable's stand); a pick commits
+ * the id over the mode WITHOUT an upload (the consumer's catalog's curation's
+ * stand — the upload's gate is never run over a preset), and the thumbnails
+ * resolve over the store's `get` (the bytes' transfer's stand). Without the
+ * prop (or over an absent / empty set) the grid stands absent.
+ */
+interface CoverPresetSets {
+  /** The tile mode's preset's file ids; `[]` / the absent stands no grid over the tile's stand. */
+  tile?: readonly string[];
+  /** The centering mode's preset's file ids; `[]` / the absent stands no grid over the centering's stand. */
+  center?: readonly string[];
+}
+
+/** The props an attribute-value renderer receives (the `renderAttribute` provider prop). */
+interface RenderAttributeProps {
+  /** The attribute's key (the preset key or the custom key). */
+  key: string;
+  /** The attribute's current value (`undefined` when unset). */
+  value: DocAttributeValue | undefined;
+  /** The write commit (one `setAttribute`). */
+  onChange: (value: DocAttributeValue) => void;
+  /** The removal commit (one `removeAttribute`). */
+  onRemove: () => void;
+  /** The read-only stand (the view / published's modes): display-only. */
+  readOnly: boolean;
+}
+
+/** The consumer's per-key attribute-value renderer (the `renderAttribute` provider prop): the value zone of a named row (a preset or a custom key); `null` / the absent stand the built-in editor. */
+type RenderAttribute = (props: RenderAttributeProps) => ReactNode;
+
+/** The props an attribute type-picker receives (the `attributeTypePicker` provider prop). */
+interface AttributeTypePickerProps {
+  /** The selected type (the panel's pick — the default `"string"` over the add's popover). */
+  value: AttributeType;
+  /** Commits the type pick (the built-in picker's enum is `ATTRIBUTE_TYPES`). */
+  onChange: (type: AttributeType) => void;
+}
+
+/** The consumer's replacement of the default type picker (the `attributeTypePicker` provider prop): the custom-attribute's add popover's type selection. The built-in's enum (`ATTRIBUTE_TYPES`) is the shared vocabulary. */
+type AttributeTypePicker = ComponentType<AttributeTypePickerProps>;
 
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
@@ -114,7 +254,7 @@ interface PresenceConfig {
 /** The consumer's user access level: the available document modes. "viewer" is locked to the published's view (the current state is never rendered); "editor" (the default) may edit and view. Session state — not document data, never on the wire. */
 type AccessLevel = "viewer" | "editor";
 
-/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing); "published" is the `publishedDoc`'s snapshot read-only (static). */
+/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing) with its text selectable and copyable; "published" is the `publishedDoc`'s snapshot read-only (static) with no selection and no copy. */
 type EditorMode = "edit" | "view" | "published";
 
 /** Per-instance editor context: the store, the doc, the selection handle, and the customization values. */
@@ -139,6 +279,18 @@ interface EditorContextValue {
   mentionProvider: MentionProvider | null;
   /** The consumer's mention interactions (the hover card + the click); null when none was supplied (the chip stands inert). */
   mentionInteractions: MentionInteractions | null;
+  /** The attribute keys hidden from the document-attributes panel (the preset and the system keys); an empty list stands the full panel. */
+  hiddenAttributes: readonly string[];
+  /** The consumer's per-key attribute-value renderer (the `renderAttribute` prop); null stands the built-in editors. */
+  renderAttribute: RenderAttribute | null;
+  /** The consumer's attribute type picker (the `attributeTypePicker` prop); null stands the built-in picker. */
+  attributeTypePicker: AttributeTypePicker | null;
+  /** The consumer's tags contract (the `docTags` prop); null stands the display-only stand (the `notSet` over the row). */
+  docTags: DocTags | null;
+  /** The consumer's description contract (the `docDescription` prop); null stands the built-in stand (the value over the doc's record). */
+  docDescription: DocDescription | null;
+  /** The consumer's cover preset gallery (the `coverPresets` prop); null stands the built-in's stand (the preset's grid stands absent). */
+  coverPresets: CoverPresetSets | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -258,15 +410,103 @@ interface EditorProviderProps {
   mentionProvider?: MentionProvider;
   /**
    * Optional mention interactions: the hover card's content
-   * (`renderCard`) and the chip's click's delivery (`onClick`). The
-   * package stands the card's position + lifecycle only (the portaled
-   * host, the hover's delay/grace, the Escape's close, the anchor's
-   * removal's close) — the design and the data are the consumer's, the
-   * click's stand is the consumer's. Like `mentionProvider`, the value is
-   * read per render into the provider context: pass a stable reference.
-   * A nested provider that supplies none inherits the enclosing one.
+   * (`renderCard`), the chip's click's delivery (`onClick`), and the
+   * picker's empty state (`renderEmptyState` — the no-matches' content
+   * over the active query). The package stands the card's position +
+   * lifecycle only (the portaled host, the hover's delay/grace, the
+   * Escape's close, the anchor's removal's close) — the design and the
+   * data are the consumer's, the click's stand is the consumer's. Like
+   * `mentionProvider`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies
+   * none inherits the enclosing one.
    */
   mentionInteractions?: MentionInteractions;
+  /**
+   * Optional attribute keys to hide from the document-attributes panel
+   * (the page column's above-the-first-block stand): the preset keys
+   * (`description` / `tags` / `createdBy` / `cover` / `status` /
+   * `publishedAt`), the custom keys, and the system rows (`id` /
+   * `createdAt` / `updatedAt`). Consumer session state — never document
+   * data. Like the other customization values, pass a stable reference.
+   */
+  hiddenAttributes?: readonly string[];
+  /**
+   * Optional consumer-owned tags contract (the document-attributes panel's
+   * `tags` row): the tags are never document data (the consumer's store is
+   * the source — the document never stores or syncs them). The panel
+   * displays the passed list and reports the user's tag actions: the add
+   * affordance's click (`onTagAdd` — the consumer's own creation's UI: the
+   * tag's picker over its catalog, the creation's flow), the chip's
+   * removal (`onTagRemove`), and the chip's click (`onTagClick` — the
+   * native event, the package opens nothing). Like the other
+   * customization values, the value is read per render into the provider
+   * context: pass a stable reference (a memoized object). A nested
+   * provider that supplies none inherits the enclosing one.
+   */
+  docTags?: DocTags;
+  /**
+   * Optional consumer-owned description contract (the document-attributes
+   * panel's `description` row): the description is never document data
+   * (the consumer's store is the source — the document never stores or
+   * syncs it). The panel displays the passed value and reports the user's
+   * edit over the `onEdit` callback (the panel's inline editor's commit —
+   * the entered string verbatim; the empty string stands the removal's
+   * stand — the consumer clears its store over the callback; the row's
+   * removal's affordance stands over the non-empty's value and commits the
+   * empty string's stand; without it the row stands display-only, over the
+   * edit mode too). Over the prop's
+   * presence the row stands out of the `renderAttribute`'s reach (the
+   * consumer's value is the source). Like the other customization values,
+   * the value is read per render into the provider context: pass a stable
+   * reference (a memoized object). A nested provider that supplies none
+   * inherits the enclosing one.
+   */
+  docDescription?: DocDescription;
+  /**
+   * Optional cover preset gallery (the document-attributes panel's cover row,
+   * the upload modal's stand): the consumer's ready-made cover's file ids
+   * (the consumer's blob store's ids — the same ids the store's `get`
+   * resolves) per placement mode: the `tile`'s set and the `center`'s set
+   * (each optional — a mode without a set stands no grid over it). The
+   * modal renders the current mode's set over the preset's grid (the
+   * 4-column's scrollable's stand; the mode's switch stands the set's switch
+   * over the same grid's stand), and a pick commits the id over the mode
+   * without an upload (the consumer's catalog's curation's stand — the
+   * upload's gate is never run over a preset). The thumbnails resolve over
+   * the store's `get`. Without the prop the grid stands absent (the modal
+   * keeps the enlarged's base's stand).
+   *
+   * Like the other customization values, the value is read per render into
+   * the provider context: pass a stable reference (a memoized object). A
+   * nested provider that supplies none inherits the enclosing one.
+   */
+  coverPresets?: CoverPresetSets;
+  /**
+   * Optional per-key replacement of the document-attributes panel's value
+   * zone (a preset key — `description` / `createdBy` / `cover` /
+   * `status` / `publishedAt` — or a custom key; the `tags` row is the
+   * consumer-owned stand over the `docTags`'s prop and stands out of
+   * this renderer's reach; the `description` row stands out of it over
+   * the `docDescription`'s prop's presence — the consumer's value is the
+   * source over the stand). The renderer receives the
+   * key, the current value, the commit / removal entries, and the
+   * read-only stand; `null` (or the absent stand) selects the built-in
+   * editor for that key. The row's label (the key's display name) is the
+   * panel's — the consumer renders the value only. Like the other
+   * customization values, the value is read per render into the provider
+   * context: pass a stable reference.
+   */
+  renderAttribute?: RenderAttribute;
+  /**
+   * Optional replacement of the custom-attribute add flow's type picker
+   * (the document-attributes panel's "add attribute" stand). The component
+   * receives the selected type and the pick's commit; the type's vocabulary
+   * is the shared `ATTRIBUTE_TYPES` enum (the consumer's picker stands its
+   * own design over it). Like the other customization values, the value is
+   * read per render into the provider context: pass a stable reference (the
+   * component is module-level).
+   */
+  attributeTypePicker?: AttributeTypePicker;
   /**
    * Optional embed sandbox policy: the iframe's `sandbox` value for a given
    * embed src; `null` stands no sandbox (a fully trusted embed). Without it
@@ -314,6 +554,12 @@ interface EditorProviderProps {
 
 export type {
   AccessLevel,
+  AttributeTypePicker,
+  AttributeTypePickerProps,
+  CoverPresetSets,
+  DocDescription,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -324,6 +570,8 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   PresenceConfig,
+  RenderAttribute,
+  RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
 };

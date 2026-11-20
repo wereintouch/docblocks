@@ -1,17 +1,19 @@
 /** One color section of the shape toolbar (the fill or the stroke). The
  * open state is the toolbar's (the sections are mutually exclusive — the
  * non-modal popover does not close on an outside click, so a per-section
- * state would let both palettes stand open at once). */
+ * state would let both palettes stand open at once). The custom's stand is
+ * the rainbow's swatch (the dot over the current custom's value) + the hex
+ * input (the shared mechanism — the native dialog's no-stand). */
 import { useTranslation } from "react-i18next";
 
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useFormatPalette } from "../../shared/providers/format-palette-context";
 import { Button, Input } from "../../shared/ui";
+import { ColorChip } from "../../shared/ui/ColorChip";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
-import { X } from "../../shared/ui/icons";
 import { preventDefault, stopPropagation } from "../../shared/utils";
 import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { normalizeHex } from "./utils";
@@ -20,20 +22,22 @@ function ColorSection({
   target,
   label,
   current,
-  chipStyle,
+  mode = "fill",
   icon,
   open,
   onOpenChange,
   onApply,
   allowNone = true,
+  onReset,
   slotPrefix = "docblocks/shape",
 }: {
   target: "fill" | "stroke" | "text";
   /** The section's accessible label (translated — the caller's i18n lookup). */
   label: string;
   current: string | undefined;
-  /** The button's chip style (the current value's preview). */
-  chipStyle: CSSProperties;
+  /** The chip's preview mode: the fill's background (the default) or the
+   * stroke's hollow border. */
+  mode?: "fill" | "stroke";
   icon: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,6 +45,10 @@ function ColorSection({
   /** The "no color" entry (absent for the text color — the unset stand is
    * the inheritance, and the hex spec rejects the "none" value). */
   allowNone?: boolean;
+  /** The reset's stand (the cross's button after all the swatches — the
+   * text color's explicit reset: the attr's removal over the literal
+   * "none" (the hex spec rejects it)). Off by default. */
+  onReset?: () => void;
   /** The data-slot's namespace base (the shape's `docblocks/shape`, the
    * canvas-text's `docblocks/canvas-text` — the trigger's slots stand
    * `${slotPrefix}-toolbar-...`, the palette / hex the
@@ -50,7 +58,12 @@ function ColorSection({
   const { t } = useTranslation("canvas");
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
+  const hexRef = useRef<HTMLInputElement>(null);
   const none = allowNone && (current === undefined || current === "none");
+  // The reset's cross: the active stand is a set color (the attr's
+  // removal restores the contrast's resolution / the theme's
+  // foreground).
+  const resetActive = onReset !== undefined && current !== undefined;
   const lower = current?.toLowerCase();
 
   // The draft is the open popover's state — a closed section starts
@@ -98,15 +111,7 @@ function ColorSection({
         >
           <span className="flex items-center gap-1">
             {icon}
-            {none ? (
-              <X className="size-3 text-(--docblocks-muted-foreground)" />
-            ) : (
-              <span
-                className="size-3 rounded-(--docblocks-radius)"
-                style={{ ...chipStyle, border: "1px solid var(--docblocks-formatbar-border-color, #888)" }}
-                aria-hidden
-              />
-            )}
+            <ColorChip value={current} mode={mode} />
           </span>
         </Button>
       </PopoverTrigger>
@@ -131,11 +136,15 @@ function ColorSection({
           current={lower}
           onSelect={onApply}
           label={target}
-          allowNone={allowNone}
-          noneActive={none}
-          onSelectNone={allowNone ? selectNone : undefined}
+          allowNone={allowNone || onReset !== undefined}
+          noneActive={allowNone ? none : resetActive}
+          onSelectNone={allowNone ? selectNone : onReset}
+          noneAsCross={!allowNone && onReset !== undefined}
+          allowCustom
+          onCustom={() => hexRef.current?.focus()}
         />
         <Input
+          ref={hexRef}
           size="sm"
           data-slot={`${slotPrefix}-${target}-hex`}
           aria-label={t("colorHex", { label })}

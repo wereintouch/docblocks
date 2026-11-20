@@ -8,9 +8,9 @@
  * caller's box-local point — the frameWindowOffset's stand over the
  * effective geometry), so the copy stands over the world's parity and the
  * box's slide over the preview is the window's pan (the content re-stands
- * its world coordinates). The session's props stand the committed stand
- * (null/false — the window's copy stands the still content, not the
- * in-flight previews).
+ * its world coordinates). The inert layer's EMPTY viewport store's
+ * re-provide stands the committed stand (the window's copy stands the
+ * still content, not the in-flight previews).
  */
 import type { BlockId } from "docblocks-core";
 
@@ -41,20 +41,7 @@ function FrameWindowContent({
   return (
     <div data-slot="docblocks/frame-window-content" className={cn("pointer-events-none absolute inset-0", className)}>
       <div className="absolute" style={{ left: offset.left, top: offset.top, width: 0, height: 0 }}>
-        <SurfaceLayer
-          id={surfaceId}
-          children={children}
-          pendingConnector={null}
-          movePreview={null}
-          resizePreview={null}
-          endpointDrag={null}
-          endpointPreview={null}
-          showPorts={false}
-          endpointSnap={null}
-          kbFocusId={null}
-          inert
-          excludedIds={excludedIds}
-        />
+        <SurfaceLayer id={surfaceId} children={children} pendingConnector={null} inert excludedIds={excludedIds} />
         <ConnectorLabelChips children={children} />
       </div>
     </div>

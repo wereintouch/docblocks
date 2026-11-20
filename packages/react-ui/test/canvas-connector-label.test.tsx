@@ -16,6 +16,7 @@ import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock, pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -55,7 +56,7 @@ function renderCanvas(doc: TestDoc) {
       <Editor view="canvas" />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view };
 }
@@ -73,11 +74,12 @@ function hitPath(container: HTMLElement, id: string): SVGPathElement {
   return path;
 }
 
-/** The double-click over the line (the hit path's dblclick bubbles to the
- * container's handler — the press keeps no capture, so the target is the
- * line itself). */
-function dblclickLine(view: HTMLElement, id: string): void {
-  fireEvent.doubleClick(hitPath(view, id));
+/** The double-click over the line (the label's edit entry stands the
+ * resolver's answer over the point — the line's stroke band along its
+ * route; the hit path's target keeps the empty-canvas' ghost entry off). */
+function dblclickLine(view: HTMLElement, doc: TestDoc, id: string): void {
+  const point = pressPointOf(doc, id);
+  fireEvent.doubleClick(hitPath(view, id), { clientX: point.x, clientY: point.y });
 }
 
 describe("the label's chip + the inline edit", () => {
@@ -169,7 +171,7 @@ describe("the label's chip + the inline edit", () => {
     });
     expect(document.querySelector(`[data-connector-label="${connector}"]`)).not.toBeNull();
 
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]');
     expect(input).not.toBeNull();
     expect(input!.value).toBe("link"); // the committed label's seed
@@ -198,7 +200,7 @@ describe("the label's chip + the inline edit", () => {
         doc.updateBlock(connector, { label: "the line" });
       });
     });
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     fireEvent.doubleClick(input);
     // The select-all stands (the Backspace / the Delete clear the
@@ -210,7 +212,7 @@ describe("the label's chip + the inline edit", () => {
   it("the typed commit stands the attr (the Enter / the blur; the one undo step; the doc stays valid)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
 
     // The typed commit (the Enter): one updateBlock (one undo step).
@@ -225,7 +227,7 @@ describe("the label's chip + the inline edit", () => {
     expect(labelOf(doc, connector)).toBeUndefined();
 
     // The blur's commit (the outside click's stand).
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input2 = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     fireEvent.change(input2, { target: { value: "over the wire" } });
     fireEvent.blur(input2);
@@ -241,7 +243,7 @@ describe("the label's chip + the inline edit", () => {
         doc.updateBlock(connector, { label: "old" });
       });
     });
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     // The select-all + the clear (the Backspace over the selection
     // stands the empty value — the synthetic input stand).
@@ -263,7 +265,7 @@ describe("the label's chip + the inline edit", () => {
         doc.updateBlock(connector, { label: "link" });
       });
     });
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     const before = JSON.stringify(doc.toJSON());
     // The focus + the blur without the typed change writes nothing.
@@ -276,7 +278,7 @@ describe("the label's chip + the inline edit", () => {
         doc.updateBlock(connector, { label: "peer" });
       });
     });
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input2 = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     const beforePeer = JSON.stringify(doc.toJSON());
     fireEvent.blur(input2); // the value stands "peer" (the fresh seed)
@@ -287,10 +289,10 @@ describe("the label's chip + the inline edit", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
     // The line's click selects it (the Delete would remove it).
-    selectLine(view as HTMLElement, connector);
+    selectLine(view as HTMLElement, doc, connector);
     const selected = (view as HTMLElement).querySelector<SVGPathElement>(`[data-connector-id="${connector}"]`);
     expect(selected?.getAttribute("data-selected")).toBe("true");
-    dblclickLine(view as HTMLElement, connector);
+    dblclickLine(view as HTMLElement, doc, connector);
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]')!;
     // The Backspace over the edit (the character's delete stand) deletes
     // no block (the editing surface's guard stands the canvas's delete
@@ -301,11 +303,10 @@ describe("the label's chip + the inline edit", () => {
   });
 });
 
-/** The line's click (the hit path's pointerdown — the selection's stand). */
-function selectLine(container: HTMLElement, id: string): void {
-  const target = hitPath(container, id);
-  fireEvent.pointerDown(target, { clientX: 10, clientY: 10, pointerId: 1 });
-  fireEvent.pointerUp(target, { pointerId: 1 });
+/** The line's press over its own zone (the resolver's answer over the
+ * geometry: the line's stroke band along its route). */
+function selectLine(view: HTMLElement, doc: TestDoc, id: string): void {
+  pressBlock(view, doc, id);
 }
 
 beforeEach(() => window.localStorage.clear());

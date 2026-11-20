@@ -59,9 +59,10 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
 
   /**
    * The pick: one transact — the `@query` phrase strip + the mention insert
-   * (the label run) + the mention mark over it (one undo step), and the
-   * caret seats after the mention. A stale phrase (the `@` gone) is a no-op
-   * close.
+   * (the label run) + the id-only mention mark over it (one undo step), and
+   * the caret seats after the mention (the chip's atomic stand — the seat
+   * stands the editable side of the chip, the type's continuation). A stale
+   * phrase (the `@` gone) is a no-op close.
    */
   const pick = useCallback(
     (pick: MentionPick) => {
@@ -90,7 +91,6 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
             type: "mention",
             kind: pick.kind,
             id: pick.id,
-            label: pick.label,
           });
         });
         focusCaretIn(s.blockId, s.atOffset + labelLen, scope);

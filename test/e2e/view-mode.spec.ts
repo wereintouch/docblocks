@@ -1,11 +1,12 @@
 // The document mode (the consumer-controlled access's contract) — the view's
 // mode's read-only's stands: the page's read-only's stand (the caret's and
-// the selection's and the gutter's and the toolbar's stands off, the type's
-// stand no write), the canvas's read-only's stand (the dock's stand off, the
-// zoom's and the pan's stands on, the dblclick's stands off), the empty text
-// chains' collapse (the edit's mode stands the full stand — the collapse
-// stands over the view's modes only), and the table's / the cell's
-// read-only's stand.
+// the gutter's and the toolbar's stands off, the type's stand no write; the
+// text's copy stands over its own spec — `view-copy.spec.ts`), the canvas's
+// read-only's stand (the dock's stand off, the zoom's and the pan's stands
+// on, the dblclick's stands off; the world keeps the no-select stand), the
+// empty text chains' collapse (the edit's mode stands the full stand — the
+// collapse stands over the view's modes only), and the table's / the
+// cell's read-only's stand.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
 import { RELAY, SETTLE, canvasCenter, editorContext, insertBlockType, openPane, seedShape, twoPanes } from "./helpers";
@@ -97,6 +98,15 @@ test("the view mode stands the canvas read-only (the dock's stand off, the zoom'
   try {
     await seedShape(page, "a");
     await toViewMode(page);
+    // The world keeps the no-select stand over the view's mode (the
+    // page's text stands selectable, the canvas's world does not — the
+    // native range would fight the pan's drag).
+    expect(
+      await page
+        .locator('[data-slot="docblocks/canvas-world"]')
+        .first()
+        .evaluate((el) => getComputedStyle(el).userSelect)
+    ).toBe("none");
     // The dock's stand off; the zoom controls' stand on (the zoom is the
     // view state — the read-only's stand keeps it).
     await expect(page.locator('[data-slot="docblocks/canvas-dock"]')).toHaveCount(0);

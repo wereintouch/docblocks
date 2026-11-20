@@ -8,6 +8,7 @@
 import type { BlockId, Doc, SelectionView } from "docblocks-core";
 
 import { caretOffsetIn, editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
+import { setWriterAnchorHint } from "../../selection-mapping";
 
 /** Run `fn` in the next animation frame (setTimeout where frames do not exist). */
 function afterFrame(fn: () => void): void {
@@ -281,7 +282,13 @@ function reseatHistorySelection(doc: Doc, view: SelectionView, scope: ParentNode
  * (`selection-mapping`'s cross-editable branch) reads the range there.
  * The direction's read-back stands the range's (the anchor reads as the
  * range's start): the core model is document-ordered, so the direction
- * carries no behavior.
+ * carries no behavior — except the writer's anchor's hint (the backward
+ * cross seat's stand): the base stands the selection's anchor (the
+ * gesture's fixed end), and the addRange's read-back flips the anchor to
+ * the range's start (the far end), so the intended anchor (the base, the
+ * range's end's stand) is recorded over the seat's endpoints for the
+ * mapping's reverse's stand (the extension's chain reads the anchor from
+ * the view's direction then, not the DOM's read-back).
  */
 function applyDomSelection(baseNode: Node, baseOffset: number, focusNode: Node, focusOffset: number): void {
   const selection = window.getSelection();
@@ -306,6 +313,17 @@ function applyDomSelection(baseNode: Node, baseOffset: number, focusNode: Node, 
   }
   selection.removeAllRanges();
   selection.addRange(range);
+  // The backward seat's writer's hint (the anchor's identity's stand):
+  // the intended anchor is the base (the range's end), the read-back's
+  // anchor stands the range's start — the mapping honors the hint over
+  // the exact-match seat (the extension's chain reads the direction from
+  // the view's reverse then).
+  if (!baseFirst) {
+    const root = editorRootOf(baseNode) ?? editorRootOf(focusNode);
+    if (root !== null) {
+      setWriterAnchorHint(root, baseNode, baseOffset, focusNode, focusOffset, baseNode, baseOffset);
+    }
+  }
 }
 
 /**

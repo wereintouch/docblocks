@@ -196,13 +196,17 @@ interface FrameAttrs {
   frameId?: string;
   /** Nesting depth in the page sequence (default 0); ignored in the canvas z-order. */
   indent?: number;
+  /** The explicit z-order index (dense 1..N over the surface's canvas
+   * elements; the order's mirror — the paint order, 1 = bottom). */
+  zIndex?: number;
 }
 
 /**
  * The frame: a viewport window into its own surface's content (the
  * positioned box on the canvas; the window's content belongs to the
  * surface, not the frame — the frame carries no children and no content).
- * The paint position is the surface's children order (no z-order index).
+ * The paint position is the surface's children order (the explicit
+ * zIndex's mirror — the frame stands a first-class z-order element).
  */
 interface FrameBlock {
   type: "frame";

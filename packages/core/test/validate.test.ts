@@ -463,6 +463,30 @@ describe("attributes", () => {
     expectValid(withBlock("co", { type: "code", attrs: { mermaidMode: "code" }, content: [run("a")] }));
   });
 
+  it("accepts the code block's diagram viewport attrs (the persisted view + the stretched height)", () => {
+    expectValid(
+      withBlock("co", {
+        type: "code",
+        attrs: { language: "mermaid", mermaidMode: "preview", zoom: 0.5, panX: -10, panY: 12.5, height: 320 },
+        content: [run("a")],
+      })
+    );
+    // The null idiom's stand (the view cleared / the auto's height).
+    expectValid(
+      withBlock("co", {
+        type: "code",
+        attrs: { zoom: null, panX: null, panY: null, height: null },
+        content: [run("a")],
+      })
+    );
+  });
+
+  it("rejects out-of-domain values on the code viewport attrs", () => {
+    expectError(withBlock("co", { type: "code", attrs: { zoom: 0 } }), "blocks.co.attrs.zoom", "positive");
+    expectError(withBlock("co", { type: "code", attrs: { height: -5 } }), "blocks.co.attrs.height", "positive");
+    expectError(withBlock("co", { type: "code", attrs: { panX: "left" } }), "blocks.co.attrs.panX", "number");
+  });
+
   it("rejects out-of-domain values on the code display attrs", () => {
     expectError(
       withBlock("co", { type: "code", attrs: { collapsed: "yes" } }),
@@ -571,11 +595,16 @@ describe("runs and marks", () => {
       "blocks.p.content[0].marks.mention.id",
       "non-empty"
     );
-    // Missing label.
+    // The id-only stand: a missing label is valid (the label is the run's
+    // text + the consumer's resolution — the mark stands the identity only).
+    expectValid(
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1" } as unknown as MarkSet["mention"] } }])
+    );
+    // An empty label (when present) is rejected.
     expectError(
-      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1" } as unknown as MarkSet["mention"] } }]),
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1", label: "" } } }]),
       "blocks.p.content[0].marks.mention.label",
-      "requires"
+      "non-empty"
     );
     // A non-string field.
     expectError(

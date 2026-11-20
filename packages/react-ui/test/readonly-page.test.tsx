@@ -10,6 +10,7 @@ import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
+type TestDoc = ReturnType<typeof createDoc>;
 
 /** A doc with a text block and an undo step behind it (the hotkey's target). */
 function makeDoc(id: string, text = "live text"): { doc: ReturnType<typeof createDoc>; blockId: BlockId } {
@@ -99,5 +100,101 @@ describe("the page's read-only stand (the view / published's modes)", () => {
     const checkbox = container.querySelector<HTMLElement>('[data-slot="docblocks/checkbox"]');
     expect(checkbox).not.toBeNull();
     expect(checkbox?.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("stands the mode over the root's data-mode hook (the view and the published's stand)", () => {
+    const first = makeDoc("doc-readonly-6");
+    const view = render(
+      <EditorProvider doc={first.doc} mode="view">
+        <Editor />
+      </EditorProvider>
+    );
+    expect(view.container.querySelector('[data-slot="docblocks/editor"]')?.getAttribute("data-mode")).toBe("view");
+    cleanup();
+    const second = makeDoc("doc-readonly-7");
+    const published = render(
+      <EditorProvider doc={second.doc} accessLevel="viewer">
+        <Editor />
+      </EditorProvider>
+    );
+    const root = published.container.querySelector('[data-slot="docblocks/editor"]');
+    expect(root?.getAttribute("data-mode")).toBe("published");
+    expect(root?.getAttribute("data-readonly")).toBe("true");
+  });
+});
+
+/** Dispatch a copy event with a recording clipboard; the payload's formats. */
+function dispatchCopy(el: HTMLElement): { prevented: boolean; plain: string; html: string } {
+  const written: Record<string, string> = {};
+  const event = new Event("copy", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: { setData: (type: string, data: string) => (written[type] = data) },
+  });
+  const prevented = !el.dispatchEvent(event);
+  return { prevented, plain: written["text/plain"] ?? "", html: written["text/html"] ?? "" };
+}
+
+/** The block's text node (the test docs carry one unmarked run per block). */
+function textNodeOf(id: BlockId): Text {
+  const inner = document.querySelector<HTMLElement>(`[data-block-id="${id}"][data-slot="docblocks/block-content"]`);
+  expect(inner, `the block ${id} should be rendered`).not.toBeNull();
+  return inner!.firstChild as Text;
+}
+
+/** A DOM selection from (block a, offset aOffset) to (block b, bOffset). */
+function selectAcross(a: BlockId, aOffset: number, b: BlockId, bOffset: number): void {
+  const range = document.createRange();
+  range.setStart(textNodeOf(a), aOffset);
+  range.setEnd(textNodeOf(b), bOffset);
+  const selection = window.getSelection();
+  expect(selection).not.toBeNull();
+  selection!.removeAllRanges();
+  selection!.addRange(range);
+}
+
+describe("the read-only modes' copy stand", () => {
+  afterEach(() => {
+    cleanup();
+    window.getSelection()?.removeAllRanges();
+  });
+
+  /** Two paragraphs ("alpha", "beta") with the ids pinned. */
+  function twoParagraphs(id: string): { doc: TestDoc; a: BlockId; b: BlockId } {
+    const doc = createDoc({ id, createdAt: CREATED_AT });
+    const a: BlockId = doc.insertBlock("paragraph");
+    doc.insertText(a, 0, "alpha");
+    const b: BlockId = doc.insertBlock("paragraph");
+    doc.insertText(b, 0, "beta");
+    return { doc, a, b };
+  }
+
+  it("the view's mode copies the selected text (the native range stands over the non-editable inners)", () => {
+    const { doc, a, b } = twoParagraphs("doc-copy-1");
+    const { container } = render(
+      <EditorProvider doc={doc} mode="view">
+        <Editor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
+    selectAcross(a, 0, b, 4);
+    const payload = dispatchCopy(root);
+    expect(payload.prevented).toBe(true);
+    expect(payload.plain).toBe("alpha\nbeta");
+    expect(payload.html).toBe("<div>alpha</div><div>beta</div>");
+  });
+
+  it("the published's stand stands the copy off (the reader's selection stands no stand)", () => {
+    const { doc, a, b } = twoParagraphs("doc-copy-2");
+    const { container } = render(
+      <EditorProvider doc={doc} accessLevel="viewer">
+        <Editor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
+    selectAcross(a, 0, b, 4);
+    const payload = dispatchCopy(root);
+    expect(payload.prevented).toBe(false);
+    expect(payload.plain).toBe("");
+    expect(payload.html).toBe("");
   });
 });

@@ -68,31 +68,53 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
   beforeEach(() => window.localStorage.clear());
   afterEach(cleanup);
 
-  it("the DOM order follows the dense zIndex (the reorder's paint change)", () => {
+  it("the DOM order follows the dense zIndex (the reorder's paint change; the frame's parity)", () => {
     const doc = renderCanvas(threeShapeDoc());
     const surface = "z0001";
     const a = "z0002";
     const b = "z0004";
-    // The children order IS the z-order: a=1, b=2 (the frame stands no
-    // zIndex — it is not a figure).
+    // The children order IS the z-order over every canvas type (the frame
+    // stands a first-class element — a=1, frame=2, b=3).
     expect(zIndexOf(doc, a)).toBe(1);
-    expect(zIndexOf(doc, b)).toBe(2);
-    expect(zIndexOf(doc, "z0003")).toBe(-1);
-    // The frame stands the view back (the window's parity — it renders
-    // behind the figures; its zIndex's data slot stands no paint role).
-    expect(canvasItemIds()).toEqual(["z0003", a, b]);
+    expect(zIndexOf(doc, "z0003")).toBe(2);
+    expect(zIndexOf(doc, b)).toBe(3);
+    // The paint order is the children's order (the frame stands its data's
+    // slot — no view-back's pin).
+    expect(canvasItemIds()).toEqual([a, "z0003", b]);
 
     act(() => {
       doc.setZOrder(a, "toFront");
     });
     // a stands on top: the paint order (the DOM order) reorders with it,
-    // the indices re-densify over the canvas elements (the frame stands
-    // no index), the frame's view-back position stands.
-    expect(doc.getChildren(surface)).toEqual([b, "z0003", a]);
+    // the indices re-densify over the canvas elements (the frame's
+    // position stands its slot — the frame now takes the bottom's
+    // place).
+    expect(doc.getChildren(surface)).toEqual(["z0003", b, a]);
     expect(canvasItemIds()).toEqual(["z0003", b, a]);
-    expect(zIndexOf(doc, a)).toBe(2);
-    expect(zIndexOf(doc, b)).toBe(1);
-    expect(zIndexOf(doc, "z0003")).toBe(-1);
+    expect(zIndexOf(doc, a)).toBe(3);
+    expect(zIndexOf(doc, b)).toBe(2);
+    expect(zIndexOf(doc, "z0003")).toBe(1);
+  });
+
+  it("a frame's setZOrder reorders the paint order (the first-class's stand)", () => {
+    const doc = renderCanvas(threeShapeDoc());
+    const surface = "z0001";
+    const a = "z0002";
+    const b = "z0004";
+    act(() => {
+      doc.setZOrder("z0003", "toFront");
+    });
+    // The frame stands over both figures (the paint order's tail — the
+    // region marker's border / the chip stand over the figures' render).
+    expect(doc.getChildren(surface)).toEqual([a, b, "z0003"]);
+    expect(canvasItemIds()).toEqual([a, b, "z0003"]);
+    expect(zIndexOf(doc, "z0003")).toBe(3);
+    act(() => {
+      doc.setZOrder("z0003", "toBack");
+    });
+    expect(doc.getChildren(surface)).toEqual(["z0003", a, b]);
+    expect(canvasItemIds()).toEqual(["z0003", a, b]);
+    expect(zIndexOf(doc, "z0003")).toBe(1);
   });
 
   it("a connector can stand under a figure (the interleaved paint order)", () => {

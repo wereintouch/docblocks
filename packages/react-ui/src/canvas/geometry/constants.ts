@@ -35,6 +35,13 @@ const ORTHO_AVOID_MARGIN_PX = 12;
 /** The route-avoidance's boundary tolerance (canvas px — a route 0.5px
  * off a figure's edge stands clear of it). */
 const ROUTE_EPS = 0.5;
+/** The single-bend pool's obstacle-edge cap per axis (the NEAREST edges
+ * over the route's span — the pool's size stands off the sibling count).
+ */
+const SINGLE_BEND_EDGE_CAP = 8;
+/** The U pool's obstacle-edge cap per axis (the same nearest stand — the
+ * two-bend-line's corner pool over the dense surfaces). */
+const U_EDGE_CAP = 6;
 
 export {
   CANVAS_SUB_TYPES,
@@ -46,4 +53,6 @@ export {
   ORTHO_STUB_PX,
   PORT_NORMAL,
   ROUTE_EPS,
+  SINGLE_BEND_EDGE_CAP,
+  U_EDGE_CAP,
 };

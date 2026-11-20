@@ -111,7 +111,10 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * press (the multi-click's own mousedown tears the session down and lets
  * the default action stand; the pointer's detail stands 0 under synthetic
  * input, the mousedown's stands the real count, so the decision stands on
- * the mousedown's). The triple press is the editor's: the browser's
+ * the mousedown's). The shift's press stands the same tear-down (the
+ * shift+click's extension's parity — the native extension's stand over
+ * the default's suppression), and the triple press is the editor's: the
+ * browser's
  * "paragraph" select of a pre-wrap block stands at one visual line (the
  * soft-break lines), so a detail-3 press inside a text inner is
  * suppressed and the editor stands the whole-block selection (all the
@@ -127,8 +130,14 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * stand). The browser's native caret's seat stands the press; a double
  * press over the focused frame stands the same stand over the detail's
  * check.
+ *
+ * The read-only stand (`readOnly`): no session starts and the page
+ * flow's mousedown guard / the triple press's stand stand off — the view
+ * mode's native range IS the copy's affordance (the browser's selection
+ * gesture must own the presses; the guard's default's suppression would
+ * kill it).
  */
-function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
+function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc, readOnly = false) {
   const sessionRef = useRef<CrossDragSession | null>(null);
 
   // The window listeners are stable for the hook's lifetime (they read
@@ -215,6 +224,19 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
         tearDown();
         return;
       }
+      // The shift's press (the shift+click's selection's extension): the
+      // extension runs over the mousedown's default (the browser extends
+      // the selection from the anchor to the press's position — the
+      // native gesture stands over the nested editables), so the default's
+      // suppression is off: the session tears down and the browser's
+      // extension + the focus's move stand (the mapping's view sync over
+      // the selectionchange). The suppression's stand would kill the
+      // extension and seat a plain caret (the session's click's stand)
+      // instead — the selection's loss.
+      if (event.shiftKey) {
+        tearDown();
+        return;
+      }
       // The iframe holds the document's focus (the press stands over the
       // editor, the focus stands in a frame): the mousedown's default
       // action is the browser's focus move out of the frame — suppressing
@@ -280,6 +302,7 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
   // page's text inners stand the session's own guard (the single press's
   // suppression, the multi-click's native word/line's select).
   useEffect(() => {
+    if (readOnly) return;
     const guard = (event: MouseEvent) => {
       const root = rootRef.current;
       if (root === null || event.button !== 0) return;
@@ -323,11 +346,12 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
     };
     window.addEventListener("mousedown", guard, true);
     return () => window.removeEventListener("mousedown", guard, true);
-  }, [rootRef]);
+  }, [rootRef, readOnly]);
 
   // A session that outlives its pointer (the window closed over a
   // captured pointer) is torn down with the effect's cleanup.
   useEffect(() => {
+    if (readOnly) return;
     const triple = (event: MouseEvent) => {
       const root = rootRef.current;
       if (root === null || event.button !== 0 || event.detail < 3) return;
@@ -362,7 +386,7 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       window.removeEventListener("pointercancel", handlers.end);
       window.removeEventListener("mousedown", handlers.mousedown, true);
     };
-  }, []);
+  }, [doc, readOnly]);
 
   return { onPointerDown };
 }

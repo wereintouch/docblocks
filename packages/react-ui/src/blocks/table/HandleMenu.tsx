@@ -10,6 +10,8 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import { Button, cn } from "../../shared/ui";
+import { ColorChip } from "../../shared/ui/ColorChip";
+import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +21,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../shared/ui/DropdownMenu";
-import { resolveColorToHex } from "../../shared/ui/color-utils";
 import { Ellipsis, EllipsisVertical } from "../../shared/ui/icons";
 import { EMPTY_IDS, HANDLE_DRAG_TRANSITION } from "./constants";
 import type { HandleAction, HandleKind } from "./models";
@@ -117,13 +118,13 @@ function HandleMenu({
     </DropdownMenu>
   );
 }
-/** The handle's menu items (in the fixed order: the background palette with
- * the conditional remove, the insert / move / duplicate / clear / delete
- * items; the edge moves are disabled). The background
- * color is read from the store (a primitive selector: the menu re-renders
- * when the row/column's cells gain or lose the color — a cell color change
- * does not touch the table block, so the block's own subscription does not
- * fire). */
+/** The handle's menu items (in the fixed order: the background palette (the
+ * shared's swatches — the none's swatch stands the clear), the insert / move
+ * / duplicate / clear / delete items; the edge moves are disabled). The
+ * background color is read from the store (a primitive selector: the menu
+ * re-renders when the row/column's cells gain or lose the color — a cell
+ * color change does not touch the table block, so the block's own
+ * subscription does not fire). */
 function HandleMenuItems({
   tableId,
   kind,
@@ -185,47 +186,27 @@ function HandleMenuItems({
   const selectClear = () => onAction("clear");
   const selectRemove = () => onAction("remove");
   const clearColor = () => onColor(null);
-  // The palette entry is a theme token (or a consumer hex); the cell attr
-  // holds a hex, so the press resolves it first.
-  const selectSwatch = (swatch: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
-    const hex = resolveColorToHex(swatch, event.currentTarget);
-    if (hex !== null) onColor(hex);
-  };
 
   const column = kind === "column";
   return (
     <>
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>
-          <span
-            className="size-3.5 shrink-0 rounded-sm border border-border"
-            style={{ background: color ?? "transparent" }}
-          />
+          <ColorChip value={color} />
           {t("menu.background")}
         </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="grid w-max grid-cols-3 gap-1 p-2">
-          {palette.map((swatch) => (
-            <Button
-              key={swatch}
-              type="button"
-              variant="outline"
-              size="icon"
-              data-slot="docblocks/table-swatch"
-              data-color={swatch}
-              aria-label={t("menu.backgroundSwatch", { color: swatch })}
-              title={swatch}
-              className="size-6"
-              style={{ background: swatch }}
-              onClick={selectSwatch(swatch)}
-            />
-          ))}
+        <DropdownMenuSubContent data-slot="docblocks/table-color-palette" className="w-auto p-2">
+          <ColorSwatches
+            colors={palette}
+            current={color}
+            onSelect={(hex) => onColor(hex)}
+            label={t("menu.background")}
+            allowNone
+            noneActive={color === undefined}
+            onSelectNone={clearColor}
+          />
         </DropdownMenuSubContent>
       </DropdownMenuSub>
-      {color !== undefined && (
-        <DropdownMenuItem data-slot="docblocks/table-remove-color" onSelect={clearColor}>
-          {t("menu.removeBackground")}
-        </DropdownMenuItem>
-      )}
       <DropdownMenuItem onSelect={selectInsertAfter}>
         {column ? t("menu.insertRight") : t("menu.insertBelow")}
       </DropdownMenuItem>

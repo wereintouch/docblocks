@@ -6,7 +6,8 @@
 // move session, the double-click the caret), the empty block's removal
 // (the Escape / the caret's loss over the empty block; the non-empty
 // stands), the Enter's soft break (no split — the surface's children
-// stand), the selection's outline stand, and the font attrs' render (the
+// stand), the selection's outline stand, the side insets from the box's
+// edges (the shape's text's parity), and the font attrs' render (the
 // family's stack, the color, the weight x the slant).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -16,6 +17,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { TOOL_SIZES } from "../src/canvas/viewport";
 import { EditorProvider } from "../src/editor-provider";
+import { dragTo, pressBlock, pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -211,8 +213,7 @@ describe("the press contract (the shape's parity — the single press selects + 
     const r = renderCanvas("seed");
     const before = r.doc.toJSON();
 
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.text);
 
     expect(r.item().hasAttribute("data-selected")).toBe(true);
     expect(r.doc.toJSON()).toEqual(before);
@@ -223,9 +224,10 @@ describe("the press contract (the shape's parity — the single press selects + 
     const before = r.doc.toJSON();
     const geometryBefore = before.blocks[r.text]?.geometry;
 
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerMove(r.view, { clientX: 60, clientY: 40, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 60, clientY: 40, pointerId: 1 });
+    const p = pressPointOf(r.doc, r.text);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    dragTo(r.view, { x: p.x + 50, y: p.y + 30 }, 1);
+    fireEvent.pointerUp(r.view, { pointerId: 1 });
 
     // The geometry lands at the screen delta (zoom 1, pan 0): the +50/+30.
     expect(r.doc.getBlock(r.text)?.geometry).toEqual({
@@ -244,15 +246,15 @@ describe("the press contract (the shape's parity — the single press selects + 
     const geometryBefore = r.doc.getBlock(r.text)?.geometry;
 
     // The first press selects the block.
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.text);
     expect(r.item().hasAttribute("data-selected")).toBe(true);
 
     // The second press: the same press's stand (the block's selection +
     // the move session — the shape's parity, the drag moves it).
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 2 });
-    fireEvent.pointerMove(r.view, { clientX: 70, clientY: 50, buttons: 1, pointerId: 2 });
-    fireEvent.pointerUp(r.view, { clientX: 70, clientY: 50, pointerId: 2 });
+    const p = pressPointOf(r.doc, r.text);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 2 });
+    dragTo(r.view, { x: p.x + 60, y: p.y + 40 }, 2);
+    fireEvent.pointerUp(r.view, { pointerId: 2 });
 
     expect(r.doc.getBlock(r.text)?.geometry).toEqual({
       x: (geometryBefore?.x ?? 0) + 60,
@@ -266,13 +268,11 @@ describe("the press contract (the shape's parity — the single press selects + 
     const r = renderCanvas("seed");
 
     // The shift press selects the block.
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1, shiftKey: true });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.text, { shiftKey: true });
     expect(r.item().hasAttribute("data-selected")).toBe(true);
 
     // The shift press over the selected block deselects it.
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 2, shiftKey: true });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 2 });
+    pressBlock(r.view, r.doc, r.text, { shiftKey: true });
     expect(r.item().hasAttribute("data-selected")).toBe(false);
   });
 });
@@ -352,8 +352,7 @@ describe("the empty block's removal (the Escape / the caret's loss; the non-empt
   it("the blocks-selection's Escape over the non-empty block clears the selection (the stand)", () => {
     const r = renderCanvas("seed");
     // The first press selects the block (the blocks selection).
-    fireEvent.pointerDown(r.item(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.text);
     expect(r.item().hasAttribute("data-selected")).toBe(true);
 
     act(() => {
@@ -459,6 +458,29 @@ describe("the box's text centering (the selection's frame's parity)", () => {
   });
 });
 
+describe("the side insets from the box's edges (the shape's text's parity)", () => {
+  it("the item's wrapper stands the horizontal padding (the rect's 8 px x)", () => {
+    const r = renderCanvas("seed");
+    const item = r.item();
+    // The border-box's stand (the preflight's box-sizing): the item's
+    // border box stands the geometry — the selection's frame and the
+    // position are unmoved, the text's wrap width stands the inset.
+    expect(item.style.padding).toBe("0px 8px");
+    expect(item.style.paddingTop).toBe("0px");
+    expect(item.style.paddingLeft).toBe("8px");
+    expect(item.style.paddingRight).toBe("8px");
+  });
+
+  it("the ghost's inner stands the same side inset (the commit's visual continuity)", async () => {
+    const r = renderCanvas("seed");
+    fireEvent.doubleClick(r.view, { clientX: 100, clientY: 80 });
+    const ghost = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-text-ghost-inner']");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.style.paddingLeft).toBe("8px");
+    expect(ghost!.style.paddingRight).toBe("8px");
+  });
+});
+
 describe("the container's membership (the shape's parity)", () => {
   /** The scene: a group (the container) + a canvas-text outside its box. */
   function renderMembership(): {
@@ -500,8 +522,9 @@ describe("the container's membership (the shape's parity)", () => {
 
     // The press (the two-click's first press's select + session) + the
     // drag over the container's box.
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerMove(r.view, { clientX: 230, clientY: 70, buttons: 1, pointerId: 1 });
+    const p = pressPointOf(r.doc, r.text);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    dragTo(r.view, { x: p.x + 220, y: p.y + 60 }, 1);
 
     // The drop indicator stands the join (the "in" stand over the
     // canvas-text's live box — the shape's parity).
@@ -510,7 +533,7 @@ describe("the container's membership (the shape's parity)", () => {
     );
     expect(indicator).not.toBeNull();
 
-    fireEvent.pointerUp(r.view, { clientX: 230, clientY: 70, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { pointerId: 1 });
 
     // The release's commit: the geometry's delta + the membership's join
     // (the group's members gain the canvas-text).
@@ -538,13 +561,14 @@ describe("the container's membership (the shape's parity)", () => {
     r.doc.setGeometry(r.text, { x: 170, y: 110, w: 100, h: 40 });
 
     // The drag out (the box's delta over the container's edge).
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerMove(r.view, { clientX: -150, clientY: 10, buttons: 1, pointerId: 1 });
+    const p = pressPointOf(r.doc, r.text);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    dragTo(r.view, { x: p.x - 160, y: p.y }, 1);
     const indicator = document.querySelector<HTMLElement>(
       '[data-slot="docblocks/canvas-drop-indicator"][data-drop="out"]'
     );
     expect(indicator).not.toBeNull();
-    fireEvent.pointerUp(r.view, { clientX: -150, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { pointerId: 1 });
 
     // The release's commit: the geometry's delta + the membership's leave
     // (the box's left edge over the container's left edge — the not-
@@ -565,8 +589,7 @@ describe("the selection's outline stand", () => {
     expect(r.item().hasAttribute("data-selected")).toBe(false);
     expect(r.item().className).not.toContain("outline-(--docblocks-canvas-selection-border-color)");
 
-    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.text);
 
     expect(r.item().hasAttribute("data-selected")).toBe(true);
     expect(r.item().className).toContain("outline-(--docblocks-canvas-selection-border-color)");

@@ -1,10 +1,10 @@
 /**
  * The canvas z-order command: setZOrder. The canvas elements (shape /
- * connector / canvas-text / group) of a surface carry an explicit `zIndex`
- * (dense 1..N, the children order's mirror — 1 = bottom). This command
- * reorders the surface's canvas elements (forward / back / to front / to
- * back) and rewrites the `zIndex` (dense, in the new order) in one
- * transaction — one undo step, one wire update.
+ * connector / canvas-text / group / frame) of a surface carry an explicit
+ * `zIndex` (dense 1..N, the children order's mirror — 1 = bottom). This
+ * command reorders the surface's canvas elements (forward / back / to
+ * front / to back) and rewrites the `zIndex` (dense, in the new order) in
+ * one transaction — one undo step, one wire update.
  *
  * The page blocks on the canvas (if any) do not carry a `zIndex`; they keep
  * their children-array position (the z-order is the children order).
@@ -12,6 +12,7 @@
 import * as Y from "yjs";
 
 import { CANVAS_ZORDER_TYPES } from "@docblocks-core/schema";
+import type { BlockId } from "@docblocks-core/schema";
 
 import { InvalidOperationError, UnknownBlockError } from "../errors";
 import { localTransact } from "../layout";
@@ -35,15 +36,57 @@ function derivedZIndex(ydoc: Y.Doc, id: string): number | null {
   if (type === null || !CANVAS_ZORDER_TYPES.has(type)) return null;
   const surfaceId = findParent(ydoc, id);
   if (surfaceId === null || blockTypeOf(ydoc, surfaceId) !== "surface") return null;
+  const cache = surfaceZCacheOf(ydoc);
+  let positions = cache.surfaces.get(surfaceId);
+  if (positions === undefined) {
+    positions = deriveSurfaceZIndex(ydoc, surfaceId);
+    cache.surfaces.set(surfaceId, positions);
+  }
+  return positions.get(id) ?? null;
+}
+
+/** The per-surface z-order derivation's cache (the doc's transaction's
+ * stand): the dense position's map over the surface's canvas elements,
+ * derived once per surface per transaction (the per-block's fresh walk
+ * over the surface's whole children stood the bulk read's quadratic
+ * stand). The `beforeTransaction`'s clear (local or remote) is the
+ * invalidation — a mid-transaction read stands the fresh walk over the
+ * in-flight order, the legacy's parity. */
+interface SurfaceZCache {
+  surfaces: Map<BlockId, Map<BlockId, number>>;
+}
+
+const surfaceZCaches = new WeakMap<Y.Doc, SurfaceZCache>();
+
+function surfaceZCacheOf(ydoc: Y.Doc): SurfaceZCache {
+  let cache = surfaceZCaches.get(ydoc);
+  if (cache === undefined) {
+    const fresh: SurfaceZCache = { surfaces: new Map() };
+    // The yjs 13.6's on() returns the handler (not the unbind): the clear
+    // stands the cache's invalidation over every transaction's start (the
+    // convergence's stand — the walk stands the current's order, never the
+    // stale's mirror).
+    const handler = (): void => {
+      fresh.surfaces.clear();
+    };
+    ydoc.on("beforeTransaction", handler);
+    cache = fresh;
+    surfaceZCaches.set(ydoc, cache);
+  }
+  return cache;
+}
+
+/** The surface's dense positions over its canvas elements (the legacy's
+ * no-stored-`zIndex` stand: the empty map — the read's null over the
+ * whole surface). The phantom / the duplicate's stands stand over the
+ * walk (the lenient reader's parity). */
+function deriveSurfaceZIndex(ydoc: Y.Doc, surfaceId: BlockId): Map<BlockId, number> {
   const children = childrenOf(ydoc, surfaceId);
-  if (children === null) return null;
-  // A concurrent reorder (two full children rewrites) can leave duplicate
-  // ids in the raw array; count each id once (first occurrence), the same
-  // stand the lenient reader (readChildren) uses.
+  const positions = new Map<BlockId, number>();
+  if (children === null) return positions;
   const seen = new Set<string>();
   let pos = 0;
   let anyStored = false;
-  let result: number | null = null;
   for (const childId of children.toArray()) {
     if (seen.has(childId)) continue; // a duplicate (concurrent reorder residue)
     seen.add(childId);
@@ -54,18 +97,21 @@ function derivedZIndex(ydoc: Y.Doc, id: string): number | null {
     const attrs = childBlock !== null ? childBlock.get("attrs") : null;
     if (attrs instanceof Y.Map && typeof attrs.get("zIndex") === "number") anyStored = true;
     pos += 1;
-    if (childId === id) result = pos;
+    positions.set(childId, pos);
   }
-  if (result === null) return null; // not in the owner surface's children
-  // The legacy form (no stored zIndex at all) keeps the children order's lenient
-  // stand — the read path does not add a zIndex to a legacy surface.
-  if (!anyStored) return null;
-  return result;
+  if (!anyStored) positions.clear();
+  return positions;
 }
 
-/** Sets the block's `zIndex` attr (the `attrs` map is created when absent). */
+/** Sets the block's `zIndex` attr (the `attrs` map is created when
+ * absent). The unchanged value stands no write (the yjs's set allocates a
+ * new item over the equal value — the per-command refresh's rewrite of
+ * the unchanged siblings stood the bulk insert's quadratic stand). */
 function writeZIndexAttr(ydoc: Y.Doc, block: Y.Map<unknown>, zIndex: number): void {
   const attrs = block.get("attrs");
+  if (attrs instanceof Y.Map) {
+    if (attrs.get("zIndex") === zIndex) return;
+  }
   const attrsMap: Y.Map<unknown> = attrs instanceof Y.Map ? attrs : new Y.Map<unknown>();
   if (!(attrs instanceof Y.Map)) block.set("attrs", attrsMap);
   attrsMap.set("zIndex", zIndex);

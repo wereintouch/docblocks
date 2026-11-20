@@ -5,6 +5,7 @@
  * per-block / per-mark entry points over the registry specs.
  */
 import type { BlockType } from "../../block-union";
+import { RESERVED_DOC_ATTRIBUTE_KEYS } from "../../constants";
 import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
 import { indentOf } from "../../utils";
@@ -12,10 +13,10 @@ import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../constants";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
-import { isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
+import { isDocAttributeValue, isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
 import { validateAttrs, validateContent, validateMarks } from "./content";
 
-function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): void {
+function validateMeta(doc: Record<string, unknown>, lenient: boolean, errors: ValidationError[]): void {
   for (const field of DOC_FIELDS) {
     if (!(field in doc)) errors.push({ path: field, message: `Missing required field "${field}".` });
   }
@@ -43,16 +44,125 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
       message: `createdAt must be an ISO 8601 date-time (got ${show(doc.createdAt)}).`,
     });
   }
+  // The doc-attributes record (the only doc-level additive channel):
+  // the strict posture checks the key / value forms; the lenient
+  // (cross-minor) load preserves the unsupported values as-is (the
+  // reader's contract).
+  if ("attributes" in doc) validateDocAttributes(doc.attributes, lenient, errors);
+  // The attributes' display order (the custom attribute's reorder's
+  // persistence): the strict posture checks the permutation's form;
+  // the lenient (cross-minor) load stands the array's shape only (the
+  // reader's fallback over a broken stand).
+  if ("attributesOrder" in doc) validateAttributeOrder(doc, lenient, errors);
+}
+
+/**
+ * The `DocMeta.attributes` record: a plain object of
+ * `string | number | boolean | string[]` values. Strict posture: the key
+ * form (non-empty, not a doc meta field, not an Object.prototype key) and
+ * the value form stand the typed errors. Lenient posture: the values stand
+ * preserved as-is (the cross-minor stand — the reader's contract).
+ */
+function validateDocAttributes(attributes: unknown, lenient: boolean, errors: ValidationError[]): void {
+  if (!isPlainObject(attributes)) {
+    errors.push({ path: "attributes", message: `attributes must be a plain object (got ${show(attributes)}).` });
+    return;
+  }
+  if (lenient) return;
+  for (const [key, value] of Object.entries(attributes)) {
+    if (key === "") {
+      errors.push({ path: "attributes", message: `An attribute key must not be empty.` });
+      continue;
+    }
+    if (RESERVED_DOC_ATTRIBUTE_KEYS.has(key)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute key "${key}" is reserved (a document meta field) and cannot be used.`,
+      });
+      continue;
+    }
+    if (isReservedId(key)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute key "${key}" is reserved (it collides with Object.prototype) and cannot be used.`,
+      });
+      continue;
+    }
+    if (!isDocAttributeValue(value)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute value must be a string, a number, a boolean, an array of strings, a mention reference, or a typed value (got ${show(value)}).`,
+      });
+    }
+  }
+}
+
+/**
+ * The `DocMeta.attributesOrder` array: the `attributes` record's keys'
+ * display order. Strict posture: an array of unique strings, every key
+ * present in the record (the writer's permutation stand), and absent
+ * over an empty / absent record. Lenient posture: the array's shape
+ * only (the elements' stand over the reader's normalization).
+ */
+function validateAttributeOrder(doc: Record<string, unknown>, lenient: boolean, errors: ValidationError[]): void {
+  const order = doc.attributesOrder;
+  if (!Array.isArray(order)) {
+    errors.push({
+      path: "attributesOrder",
+      message: `attributesOrder must be an array of strings (got ${show(order)}).`,
+    });
+    return;
+  }
+  const record = doc.attributes;
+  const attributeKeys = record !== undefined && isPlainObject(record) ? (Object.keys(record) as string[]) : [];
+  if (attributeKeys.length === 0 && order.length > 0) {
+    errors.push({
+      path: "attributesOrder",
+      message: `attributesOrder must be absent over an empty attributes record.`,
+    });
+    return;
+  }
+  if (lenient) return;
+  const seen = new Set<string>();
+  for (const key of order) {
+    if (typeof key !== "string") {
+      errors.push({
+        path: "attributesOrder",
+        message: `An attributesOrder entry must be a string (got ${show(key)}).`,
+      });
+      continue;
+    }
+    if (seen.has(key)) {
+      errors.push({ path: "attributesOrder", message: `The attributesOrder entry "${key}" is duplicated.` });
+      continue;
+    }
+    seen.add(key);
+    if (!attributeKeys.includes(key)) {
+      errors.push({
+        path: `attributesOrder.${key}`,
+        message: `The attributesOrder entry "${key}" is not an attribute key.`,
+      });
+    }
+  }
+  for (const key of attributeKeys) {
+    if (!seen.has(key)) {
+      errors.push({
+        path: `attributesOrder.${key}`,
+        message: `The attributes key "${key}" is missing from the attributesOrder.`,
+      });
+    }
+  }
 }
 
 /**
  * The surface's explicit z-order invariant: the canvas elements
- * (shape / connector / canvas-text / group) carry a `zIndex` attr that is the
- * element's position among the surface's canvas elements (dense 1..N, the
- * children order's mirror — 1 = bottom). The invariant is all-or-nothing per
- * surface: if any canvas element carries a `zIndex`, all of them must, and the
- * set must be the dense 1..N sequence. A surface with no `zIndex` at all is
- * the legacy form (the lenient reader derives it from the children position).
+ * (shape / connector / canvas-text / group / frame) carry a `zIndex` attr
+ * that is the element's position among the surface's canvas elements (dense
+ * 1..N, the children order's mirror — 1 = bottom). The invariant is
+ * all-or-nothing per surface: if any canvas element carries a `zIndex`, all
+ * of them must, and the set must be the dense 1..N sequence. A surface with
+ * no `zIndex` at all is the legacy form (the lenient reader derives it from
+ * the children position).
  */
 function validateSurfaceZOrder(blocks: Record<string, unknown>, errors: ValidationError[]): void {
   for (const [, block] of Object.entries(blocks)) {
@@ -255,7 +365,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     return [{ path: "", message: `The document must be a plain object (got ${show(json)}).` }];
   }
 
-  validateMeta(json, errors);
+  validateMeta(json, lenient, errors);
   if (!isPlainObject(json.blocks)) {
     if ("blocks" in json)
       errors.push({ path: "blocks", message: `blocks must be a plain object (got ${show(json.blocks)}).` });

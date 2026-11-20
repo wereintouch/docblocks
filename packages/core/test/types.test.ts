@@ -120,8 +120,26 @@ describe("block registry", () => {
     expect(attrs?.lineNumbers).toEqual({ kind: "boolean" });
     expect(attrs?.wrap).toEqual({ kind: "boolean" });
     expect(attrs?.mermaidMode).toEqual({ kind: "enum", values: ["code", "preview"] });
+    // The mermaid preview's viewport's stand (the persisted view's attrs —
+    // the embed block's parity): the zoom / pan / the stretched's height.
+    expect(attrs?.zoom).toEqual({ kind: "nullable-number", positive: true });
+    expect(attrs?.panX).toEqual({ kind: "nullable-number" });
+    expect(attrs?.panY).toEqual({ kind: "nullable-number" });
+    expect(attrs?.height).toEqual({ kind: "nullable-number", positive: true });
     expect(Object.keys(attrs ?? {}).sort()).toEqual(
-      ["caption", "collapsed", "indent", "language", "lineNumbers", "mermaidMode", "wrap"].sort()
+      [
+        "caption",
+        "collapsed",
+        "height",
+        "indent",
+        "language",
+        "lineNumbers",
+        "mermaidMode",
+        "panX",
+        "panY",
+        "wrap",
+        "zoom",
+      ].sort()
     );
   });
 

@@ -35,6 +35,17 @@
 // language button, and is visible only while the block is hovered (the
 // header controls' reveal).
 //
+// The preview's viewport (the large diagram's stand): the diagram renders
+// over a pan/zoom viewport — the `ctrl`/`cmd` + wheel's zoom at the
+// cursor, the plain wheel's vertical pan, the drag's pan, and the hover
+// toolbar (zoom in / out, the percent, the fit-to-view's button, the
+// reset) stand the persisted
+// view (the block's `zoom` / `panX` / `panY` attrs, the null idiom — the
+// reload restores the view, the panes share it over the wire). The
+// bottom-edge's resize (the editing mode's stand) stretches / clips the
+// diagram's height over the block's `height` attr (absent = the diagram's
+// natural's height — the auto's stand).
+//
 // The side-effect (the `configureMermaidTheme("light")` module-scope
 // stand) is triggered through the import chain: this barrel imports the
 // MermaidCodeRenderer, which imports the MermaidDiagram, which imports

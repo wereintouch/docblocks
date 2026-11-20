@@ -98,7 +98,8 @@ mention catalog). The full props list:
 | `doc`                        | The core `Doc` to render. Must not change after mount (a throw on change is the contract). Required for the `editor` stand; over the `viewer`'s level the doc IS the published snapshot (the security model — the reader's browser never receives the live document), and an absent stand renders the "not published yet" placeholder. |
 | `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                                                                                                                                                                   |
 | `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                                                                                                                                                                               |
-| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                                                                                                                                                                                                                             |
+| `blobStore?`                 | The blob bridge for image / pdf / file blocks and the document-attributes' cover (see below).                                                                                                                                                                                                                                          |
+| `coverPresets?`              | The cover's upload modal's preset gallery: the consumer's ready-made cover's file ids (the consumer's blob store's ids) per placement mode — the `tile` / the `center`'s set. A pick commits the id over the mode without an upload (see Blobs below).                                                                                 |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                 |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                            |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
@@ -200,6 +201,15 @@ document data, never on the wire):
   off); the read-only gestures keep (scroll, the embed pan / zoom, the
   canvas wheel zoom / pan). Consecutive empty text blocks render as one
   over the read-only modes (the document data is untouched).
+- Copy: the `view` mode's text stands selectable and copyable (the
+  editor's payload keeps the marks, the mentions, and the cross-block
+  ranges); a native table block copies as a spreadsheet's grid (the
+  `text/html` flavor is a real `<table>`, the `text/plain` one the TSV —
+  the block's own selection copies the whole table). The `published`
+  mode stands no selection and no copy (the reader gets the rendered page
+  only). The editor root carries the resolved mode over the `data-mode`
+  attribute (the styling hook; `data-readonly` marks both read-only
+  modes).
 - Publishing is a consumer action: snapshot the doc state (`doc.encode()`
   or `doc.toJSON()`), persist it where the reader loads it from, and
   hydrate it (`loadDoc` / `fromJSON`) — for the `editor`'s `published`
@@ -317,7 +327,24 @@ anonymous plaintext selection over the room — the 0.2.0 behavior).
 ### Blobs
 
 File-backed blocks hold only consumer-owned ids: `file.attrs.fileId` for
-attachments and PDFs, and `image.attrs.src` for inline images. Bytes, names,
+attachments and PDFs, and `image.attrs.src` for inline images. The
+document-attributes' `cover` key stands the same contract: it holds the
+consumer's file id for the cover image (the banner over the editor frame's
+top edge + the row's thumbnail in the attributes panel), resolved over the
+same store. The upload modal's optional preset gallery (the
+`coverPresets` provider prop) lists the consumer's ready-made cover's ids
+per placement mode (the `tile` / the `center`'s set) over the 4-column's
+scrollable grid; a pick commits the id over the mode without an upload
+(the thumbnails resolve over the same store). The stored cover also drives
+the editor frame's **tint** (opt-out over the `coverTint` attribute — the
+absence is the default on, the explicit `false` turns it off over the
+attributes panel's checkbox): the card's border mixes the cover's
+alpha-weighted average color with the theme's border token (the `color-mix`
+25% share — pale over the light theme, gray-mixed over the dark one). The
+`useCoverAverageColor()` hook (below) exports the same average for the
+consumer's own chrome — e.g. a glow over the editor's surroundings —
+which stays the consumer's CSS (the package's DOM ends at the card). Bytes,
+names,
 and MIME types never enter the document. `BlobStore` is the only bridge
 between those ids and the stored objects:
 
@@ -339,7 +366,8 @@ interface BlobStore {
 ```
 
 - `get` rejects an unknown id; the block renders a placeholder while loading
-  or when the id is unavailable. The library creates an object URL for the
+  or when the id is unavailable (the cover banner stands absent over the
+  unknown id). The library creates an object URL for the
   returned blob and revokes it on replacement or unmount.
 - **The meta-only stand (opt-in):** with the optional `getMeta` member the
   blocks resolve the metadata first (a cheap head stand, no body transfer).
@@ -713,6 +741,10 @@ value actually changes (the store's reference-stability contract):
   the title changed).
 - `useEditorContext()` — the whole provider context (the store, the
   resolvers, the access stand).
+- `useCoverAverageColor()` — the stored cover's alpha-weighted average
+  color (the `rgb(...)` string or `null` over the absent / the
+  undecodable's stand) — the frame's tint's data and the consumer's
+  surroundings' glow's source.
 - `useDatabaseTable(bridge, tableId, filter?)` — the external database
   block's grid controller (a consumer-owned grid over the bridge).
 

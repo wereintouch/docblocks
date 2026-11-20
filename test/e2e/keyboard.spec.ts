@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, twoPanes } from "./helpers";
+import { SETTLE, insertBlockType, pasteFromClipboard, seedClipboardPayload, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -119,6 +119,159 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
   await a.keyboard.press("Backspace");
   await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one");
   await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one");
+
+  await close();
+});
+
+test("the select-all's copy-paste replaces the selection (the document stands, nothing dropped)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ux10-select-all-paste", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+
+  // Seed three paragraphs (the starter + two inserts).
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("first line");
+  await insertBlockType(a, "a", "paragraph");
+  await inners(a, "a").nth(1).click();
+  await a.keyboard.type("second line");
+  await insertBlockType(a, "a", "paragraph");
+  await inners(a, "a").nth(2).click();
+  await a.keyboard.type("third line");
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(b, "b")).toHaveCount(3);
+
+  // The Ctrl+A's stand (the editor's own select-all over the nested
+  // editables' degenerate native stand — the caret's end's move stands
+  // replaced): the full cross-block's selection.
+  await a.keyboard.press("Control+a");
+  const selection = await a.evaluate(() => {
+    const s = window.getSelection();
+    if (s === null) return { collapsed: true, rangeCount: 0 };
+    return { collapsed: s.isCollapsed, rangeCount: s.rangeCount };
+  });
+  expect(selection.collapsed).toBe(false);
+  expect(selection.rangeCount).toBe(1);
+
+  // The copy's stand (the cross's serialization's shape — one div per
+  // block + the plain's join; the headless engine's no-write from the
+  // keyboard's copy) + the paste (the full-selection's replace: the
+  // document's content stands, nothing dropped — the v1 edge's drop
+  // stands removed).
+  const payload = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const order = doc.getChildren(doc.toJSON().id);
+    const texts = order
+      .map((id) => doc.getBlock(id)?.content)
+      .filter((content) => content !== undefined && content !== null)
+      .map((content) => (content as { text: string }[]).map((run) => run.text).join(""));
+    return { html: texts.map((text) => `<div>${text}</div>`).join(""), plain: texts.join("\n") };
+  });
+  expect(payload, "the pane's doc should stand for the payload's build").not.toBeNull();
+  await seedClipboardPayload(a, payload!);
+  await pasteFromClipboard(a);
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(a, "a").nth(0)).toHaveText("first line");
+  await expect(inners(a, "a").nth(1)).toHaveText("second line");
+  await expect(inners(a, "a").nth(2)).toHaveText("third line");
+  await expect(inners(b, "b")).toHaveCount(3);
+  await expect(inners(b, "b").nth(2)).toHaveText("third line");
+
+  // The undo's restore (the replace's one step's stand).
+  await a.keyboard.press("Control+z");
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(a, "a").nth(1)).toHaveText("second line");
+
+  await close();
+});
+
+/**
+ * The pane's scroller (the consumer-owned scroll container — the editor's
+ * content overflows the pane's fixed height): the nearest scrollable
+ * ancestor of the pane's host.
+ */
+async function paneScroller(page: Page, client: "a" | "b"): Promise<{ scrollTop: number; max: number } | null> {
+  return page.evaluate((client) => {
+    const host = document.querySelector(`[data-testid="doc-${client}"]`);
+    if (host === null) return null;
+    let sc: HTMLElement | null = host.querySelector('[data-slot="docblocks/editor"]');
+    while (sc !== null && !(sc.scrollHeight > sc.clientHeight + 4)) sc = sc.parentElement;
+    if (sc === null) return null;
+    return { scrollTop: sc.scrollTop, max: sc.scrollHeight - sc.clientHeight };
+  }, client);
+}
+
+test("ctrl+home / ctrl+end seat the caret over the document's edges (the scroller's stand)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "doc-edges-caret");
+
+  // Seed a tall doc (30 lines — the pane's overflow's stand).
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("line 00");
+  for (let i = 1; i < 30; i += 1) {
+    await insertBlockType(a, "a", "paragraph");
+    await inners(a, "a").nth(i).click();
+    await a.keyboard.type(`line ${String(i).padStart(2, "0")}`);
+  }
+  await expect(inners(a, "a")).toHaveCount(30);
+
+  // Click a mid-doc line (the scroller's mid position's stand), then the
+  // document's edge's keys: the caret's seat + the scroller's stand (the
+  // programmatic seat stands no native scroll — the editor's own). The
+  // scroller's top clamp stands the pane's chrome over the content (the
+  // scrollTop's 0's no-reach's stand), so the assertions stand the
+  // relative's positions (the mid's over the home's, the end's over the
+  // max's) + the caret's seats (the exact's stand).
+  const mid = inners(a, "a").nth(15);
+  await mid.scrollIntoViewIfNeeded();
+  await mid.click();
+  const midScroll = (await paneScroller(a, "a"))!;
+  expect(midScroll.scrollTop).toBeGreaterThan(100);
+
+  await a.keyboard.press("Control+Home");
+  const firstId = (await inners(a, "a").first().getAttribute("data-block-id"))!;
+  await expect
+    .poll(async () =>
+      a.evaluate(() => {
+        const s = window.getSelection();
+        if (s === null || s.rangeCount === 0) return null;
+        const r = s.getRangeAt(0);
+        const innerEl = (r.startContainer.parentElement ?? null)?.closest('[data-slot="docblocks/block-content"]');
+        return innerEl !== undefined && innerEl !== null
+          ? { id: innerEl.getAttribute("data-block-id"), offset: r.startOffset, collapsed: s.isCollapsed }
+          : null;
+      })
+    )
+    .toEqual({ id: firstId, offset: 0, collapsed: true });
+  const homeScroll = await paneScroller(a, "a");
+  expect(homeScroll!.scrollTop).toBeLessThan(midScroll.scrollTop / 2);
+  // The first line's view's stand (the scroll's to-the-top's effect).
+  const firstRect = (await inners(a, "a").first().boundingBox())!;
+  const paneRect = (await a.locator('[data-testid="doc-a"]').boundingBox())!;
+  expect(firstRect.y).toBeLessThan(paneRect.y + 200);
+
+  await a.keyboard.press("Control+End");
+  const lastId = (await inners(a, "a").last().getAttribute("data-block-id"))!;
+  await expect
+    .poll(async () =>
+      a.evaluate(() => {
+        const s = window.getSelection();
+        if (s === null || s.rangeCount === 0) return null;
+        const r = s.getRangeAt(0);
+        const innerEl = (r.startContainer.parentElement ?? null)?.closest('[data-slot="docblocks/block-content"]');
+        return innerEl !== undefined && innerEl !== null
+          ? { id: innerEl.getAttribute("data-block-id"), offset: r.startOffset, collapsed: s.isCollapsed }
+          : null;
+      })
+    )
+    .toEqual({ id: lastId, offset: 7, collapsed: true });
+  const endScroll = await paneScroller(a, "a");
+  // The bottom's clamp's stand (the page's bottom padding's allowance —
+  // the last line's bottom stands the padding over the content's bottom).
+  expect(endScroll!.scrollTop).toBeGreaterThanOrEqual(endScroll!.max - 100);
 
   await close();
 });

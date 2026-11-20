@@ -4,6 +4,12 @@ export { DEFAULT_EMBED_SANDBOX } from "./constants";
 export { useEditorContext } from "./context";
 export type {
   AccessLevel,
+  AttributeTypePicker,
+  AttributeTypePickerProps,
+  CoverPresetSets,
+  DocDescription,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -14,6 +20,8 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   PresenceConfig,
+  RenderAttribute,
+  RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
 } from "./models";

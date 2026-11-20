@@ -34,8 +34,27 @@ function rootBlockIdOf(ydoc: Y.Doc): string {
   return id;
 }
 
-/** Write the registered meta map on a fresh doc. */
-function writeMeta(ydoc: Y.Doc, id: string, title: string, createdAt: string, avatar?: string): void {
+/**
+ * Write the registered meta map on a fresh doc.
+ *
+ * The `attributes` record stands one nested Y.Map under
+ * `meta.attributes`, written only when non-empty (absent / empty = the
+ * field stands off — the writer's parity: an absent field is never written
+ * as an empty record). The `attributesOrder` array (the record's keys'
+ * display order) stands one Y.Array under `meta.attributesOrder`, written
+ * the same way. A concurrent init of the record resolves as a
+ * whole-record LWW (the meta map's last-writer-wins), so a doc's creation
+ * stays server-coordinated.
+ */
+function writeMeta(
+  ydoc: Y.Doc,
+  id: string,
+  title: string,
+  createdAt: string,
+  avatar?: string,
+  attributes?: Record<string, unknown>,
+  attributesOrder?: string[]
+): void {
   const meta = ydoc.getMap("meta");
   meta.set("v", 1);
   meta.set("id", id);
@@ -44,6 +63,44 @@ function writeMeta(ydoc: Y.Doc, id: string, title: string, createdAt: string, av
   meta.set("updatedAt", createdAt);
   // The avatar is optional: it stands only for a non-empty string (absent/empty = none).
   if (avatar !== undefined && avatar !== "") meta.set("avatar", avatar);
+  if (attributes !== undefined && Object.keys(attributes).length > 0) {
+    const attrs = new Y.Map<unknown>();
+    for (const [key, value] of Object.entries(attributes)) {
+      writeAttributeEntry(attrs, key, value);
+    }
+    meta.set("attributes", attrs);
+  }
+  if (attributesOrder !== undefined && attributesOrder.length > 0) {
+    const order = new Y.Array<string>();
+    order.push(attributesOrder);
+    meta.set("attributesOrder", order);
+  }
+}
+
+/**
+ * The flat value write of the doc-attributes record: primitives stand as-is,
+ * a list stands a Y.Array (the elements are cloned — no aliasing of
+ * caller-owned values into the CRDT), and a plain object (the lenient
+ * preservation of an unsupported value) stands a nested Y.Map.
+ */
+function writeAttributeEntry(map: Y.Map<unknown>, key: string, value: unknown): void {
+  if (Array.isArray(value)) {
+    const arr = new Y.Array<unknown>();
+    for (const item of value) {
+      arr.push(structuredClone(item));
+    }
+    map.set(key, arr);
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    const obj = new Y.Map<unknown>();
+    for (const [k, v] of Object.entries(value)) {
+      obj.set(k, structuredClone(v));
+    }
+    map.set(key, obj);
+    return;
+  }
+  map.set(key, value);
 }
 
 /**

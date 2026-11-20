@@ -18,6 +18,25 @@ export {
   screenToCanvas,
 } from "./geometry";
 export { useCanvasViewport } from "./hooks";
+export {
+  EMPTY_LINE_SESSION,
+  EMPTY_MOVE_DELTA,
+  EMPTY_PREVIEWS,
+  useChipsPreviews,
+  useKbFocus,
+  useLineSession,
+  useMovePreviewDelta,
+  usePortSnap,
+  useResizePreviewBox,
+  useShowPorts,
+} from "./viewport-subscriptions";
+export {
+  CanvasViewportStoreContext,
+  EMPTY_VIEWPORT_STORE,
+  createViewportStore,
+  useCanvasViewportStore,
+} from "./viewport-store";
+export type { CanvasSession, CanvasViewportStore } from "./viewport-store";
 export type {
   Box,
   CanvasMode,

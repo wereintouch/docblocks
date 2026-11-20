@@ -1,12 +1,19 @@
 import * as Y from "yjs";
 
-import { flattenDoc, isReservedId, normalizeZOrder, validateDoc } from "@docblocks-core/schema";
+import {
+  attributeOrderNormalized,
+  flattenDoc,
+  isReservedId,
+  normalizeZOrder,
+  validateDoc,
+} from "@docblocks-core/schema";
 import type {
   Block,
   BlockAttrsPatch,
   BlockId,
   BlockType,
   DatabaseCellValue,
+  DocAttributeValue,
   DocJSON,
   DocMeta,
   Geometry,
@@ -16,6 +23,8 @@ import type {
 } from "@docblocks-core/schema";
 
 import {
+  assertAttributeKey,
+  assertAttributeValue,
   changeBlockType as changeBlockTypeCommand,
   clearTableColumn as clearTableColumnCommand,
   clearTableRow as clearTableRowCommand,
@@ -32,10 +41,15 @@ import {
   moveRow as moveRowCommand,
   moveTableColumn as moveTableColumnCommand,
   moveTableRow as moveTableRowCommand,
+  removeAttribute as removeAttributeCommand,
+  removeBlockAttr as removeBlockAttrCommand,
   removeBlock as removeBlockCommand,
   removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
   removeTableRow as removeTableRowCommand,
+  renameAttribute as renameAttributeCommand,
+  reorderAttributes as reorderAttributesCommand,
+  setAttribute as setAttributeCommand,
   setAvatar as setAvatarCommand,
   setCell as setCellCommand,
   setDatabaseTable as setDatabaseTableCommand,
@@ -100,7 +114,16 @@ class Doc {
     }
     const title = options.title ?? "";
     const createdAt = options.createdAt ?? new Date().toISOString();
-    return new Doc(layoutDoc(id, title, createdAt), generateId);
+    // The doc-attributes record: the boundary validation (the
+    // reserved keys and the value forms stand the typed errors before the
+    // layout write).
+    if (options.attributes !== undefined) {
+      for (const [key, value] of Object.entries(options.attributes)) {
+        assertAttributeKey(key);
+        assertAttributeValue(key, value);
+      }
+    }
+    return new Doc(layoutDoc(id, title, createdAt, undefined, options.attributes), generateId);
   }
 
   /** Factory for a document restored from a CRDT snapshot (see loadDoc). */
@@ -159,7 +182,7 @@ class Doc {
     // The z-order mirror (the canvas elements' dense `zIndex`) can be stale
     // in a saved snapshot after a concurrent merge; re-derive it from the
     // children order before validation (the single source of the z-order).
-    const normalized = normalizeZOrder(json);
+    const normalized = attributeOrderNormalized(normalizeZOrder(json));
     // The JSON import is a reader boundary like the snapshot load: the
     // cross-minor (lenient) posture tolerates the additive unknowns (the
     // structural invariants and the known-data checks stand).
@@ -184,6 +207,12 @@ class Doc {
   /** Document metadata, read live (no Yjs-internal fields). */
   get meta(): DocMeta {
     return readMeta(this.#ydoc);
+  }
+
+  /** The last write stamp (ISO 8601): the Yjs-only `meta.updatedAt` field, deliberately excluded from the JSON meta. */
+  get lastUpdatedAt(): string | null {
+    const value = this.#ydoc.getMap("meta").get("updatedAt");
+    return typeof value === "string" ? value : null;
   }
 
   /** Snapshot of a block; null when the block is missing or its type is unknown (the opaque data stands in the export). */
@@ -224,6 +253,17 @@ class Doc {
     updateBlockCommand(this.#ydoc, id, patch);
   }
 
+  /**
+   * Removes one block attr (one transaction — one undo step, one wire
+   * update). An absent key is a no-op; the post-removal attrs must keep
+   * the registry's invariants (the required attr's removal is a typed
+   * rejection); an unknown block throws the typed UnknownBlockError, a
+   * block type without attrs the typed InvalidAttrsError.
+   */
+  removeBlockAttr(id: BlockId, key: string): void {
+    removeBlockAttrCommand(this.#ydoc, id, key);
+  }
+
   /** Moves a block to `toIndex` under `toParent` (pre-move index semantics). */
   moveBlock(id: BlockId, toParent: BlockId, toIndex: number): void {
     moveBlockCommand(this.#ydoc, id, toParent, toIndex);
@@ -254,6 +294,40 @@ class Doc {
   /** Sets the document's avatar (a short string / a few emoji); `null` or the empty string clears it. */
   setAvatar(avatar: string | null): void {
     setAvatarCommand(this.#ydoc, avatar);
+  }
+
+  /**
+   * Sets one document attribute (one transaction — one undo step, one wire
+   * update; a set of the current value is a no-op). A reserved key or an
+   * unsupported value throws the typed InvalidAttributeError.
+   */
+  setAttribute(key: string, value: DocAttributeValue): void {
+    setAttributeCommand(this.#ydoc, key, value);
+  }
+
+  /** Removes a document attribute (an absent key is a no-op). */
+  removeAttribute(key: string): void {
+    removeAttributeCommand(this.#ydoc, key);
+  }
+
+  /**
+   * Renames a document attribute (one transaction — one undo step, one
+   * wire update; the value's form moves as-is, the display order keeps
+   * the key's position). An absent source key and a same-key rename are
+   * no-ops; a reserved / the taken target key throws the typed
+   * InvalidAttributeError.
+   */
+  renameAttribute(fromKey: string, toKey: string): void {
+    renameAttributeCommand(this.#ydoc, fromKey, toKey);
+  }
+
+  /**
+   * Reorders the document's attributes (the `order` is a permutation of the
+   * record's keys; a missing / extra / duplicated key throws the typed
+   * `InvalidAttributeError`). An order equal to the current stand is a no-op.
+   */
+  reorderAttributes(order: string[]): void {
+    reorderAttributesCommand(this.#ydoc, order);
   }
 
   /** Appends an empty row to a database block and returns its row id. */

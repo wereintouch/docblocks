@@ -1,26 +1,23 @@
 /**
  * The callout's management affordance — the marker-zone icon stands a
  * button; its click opens the block's management menu (the type presets /
- * the background palette over the custom picker / the icon catalog) beside
- * the icon. The menu manages the block's attrs, not the selection's marks,
- * so it stands for an empty callout (no text selection needed). The
- * read-only stands (view / published) render the icon without a button —
- * no pointer events, the editing-surface parity.
+ * the background palette over the custom hex / the icon catalog) beside the
+ * icon. The menu manages the block's attrs, not the selection's marks, so
+ * it stands for an empty callout (no text selection needed). The read-only
+ * stands (view / published) render the icon without a button — no pointer
+ * events, the editing-surface parity.
  *
  * The menu is a non-modal portaled popover: the content's mousedown guard
  * keeps the editor's text selection alive over the open (the format
- * toolbar's menu parity — the guard yields over the picker's inputs, their
- * focus stands the gesture). The pick's stand closes the menu over the
- * color and the icon's apply (the type preset stays open). The custom
- * swatch's press toggles the picker's inline section over the menu's
- * background row; a close without an explicit commit (the Esc / the
- * dismiss) applies the last scrubbed value (the picker's unmount commits
- * it; the grid's custom swatch carries a non-preset current value as its
- * own dot).
+ * toolbar's menu parity — the guard yields over the hex's input, its focus
+ * stands the gesture). The pick's stand closes the menu over the color and
+ * the icon's apply (the type preset stays open). The custom's stand is the
+ * rainbow's swatch (the dot over the non-preset current) + the hex's input
+ * (the shared mechanism — the canvas's palette's parity).
  */
 import { useTranslation } from "react-i18next";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 
 import { CALLOUT_ICONS } from "docblocks-core";
@@ -29,10 +26,11 @@ import type { Block, BlockId } from "docblocks-core";
 import { useEditorContext } from "../editor-provider";
 import { useFormatPalette } from "../shared/providers/format-palette-context";
 import { Button } from "../shared/ui/Button";
-import { ColorPicker } from "../shared/ui/ColorPicker";
 import { ColorSwatches } from "../shared/ui/ColorSwatches";
+import { Input } from "../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { cn } from "../shared/ui/cn";
+import { normalizeHex } from "../shared/ui/color-utils";
 import { preventDefault } from "../shared/utils";
 import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "./callout-icon";
 
@@ -46,7 +44,8 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
   const { doc, viewMode } = useEditorContext();
   const palette = useFormatPalette();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [hexDraft, setHexDraft] = useState("");
+  const hexRef = useRef<HTMLInputElement>(null);
 
   const variant = block.attrs?.variant ?? "info";
   const color = block.attrs?.color ?? null;
@@ -79,8 +78,26 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
   };
 
   const onColorCommit = (hex: string): void => {
-    if (color === hex) return; // no-op (the picker's own guard stands)
+    if (color === hex) return; // no-op
     doc.updateBlock(id, { color: hex });
+  };
+
+  // The hex's draft is the open menu's state (the canvas's parity — a
+  // closed menu starts fresh; the effect covers the programmatic closes
+  // over the pick's paths). The valid's commit (the Enter / the blur)
+  // closes the menu; the invalid draft is ignored (the input keeps its
+  // text), and a close over an uncommitted draft writes nothing (the
+  // canvas's Esc's parity — the draft's discard).
+  useEffect(() => {
+    if (!menuOpen) setHexDraft("");
+  }, [menuOpen]);
+
+  const commitHexDraft = (): void => {
+    const normalized = normalizeHex(hexDraft);
+    if (normalized !== null) {
+      onColorCommit(normalized);
+      setMenuOpen(false);
+    }
   };
 
   const onIconPick = (name: string): void => {
@@ -128,14 +145,7 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
       style={iconStyle}
       contentEditable={false}
     >
-      <Popover
-        modal={false}
-        open={menuOpen}
-        onOpenChange={(next) => {
-          setMenuOpen(next);
-          setPickerOpen(false);
-        }}
-      >
+      <Popover modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -191,7 +201,8 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
             })}
           </div>
           {/* Background (the override; the transparent swatch = the preset,
-            the custom swatch = the picker's inline section). */}
+            the rainbow's swatch = the custom's stand — the hex's input,
+            the shared mechanism). */}
           <div className="mt-2 border-t border-border pt-2">
             <ColorSwatches
               colors={palette}
@@ -202,13 +213,26 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
               noneActive={color === null}
               onSelectNone={onColorNone}
               allowCustom
-              onCustom={() => setPickerOpen((prev) => !prev)}
+              onCustom={() => hexRef.current?.focus()}
             />
-            {pickerOpen && (
-              <div data-slot="docblocks/callout-color-picker" className="mt-2 border-t border-border pt-2">
-                <ColorPicker value={color} onCommit={onColorCommit} onClose={() => setMenuOpen(false)} />
-              </div>
-            )}
+            <Input
+              ref={hexRef}
+              type="text"
+              size="sm"
+              data-slot="docblocks/callout-color-picker"
+              aria-label={t("formatToolbar.callout.hexAria")}
+              className="mt-2 h-7 font-mono text-xs"
+              placeholder="#rrggbb"
+              value={hexDraft}
+              onChange={(event) => setHexDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitHexDraft();
+                }
+              }}
+              onBlur={commitHexDraft}
+            />
           </div>
           {/* Icon (the catalog grid; the type preset resets the override). */}
           <div className="mt-2 border-t border-border pt-2">

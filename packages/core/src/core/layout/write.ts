@@ -214,7 +214,7 @@ function setParents(json: DocJSON, blocks: Y.Map<unknown>): void {
 /** Write a validated JSON document into a fresh doc (used by fromJSON). */
 function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
   ydoc.transact(() => {
-    writeMeta(ydoc, json.id, json.title, json.createdAt, json.avatar);
+    writeMeta(ydoc, json.id, json.title, json.createdAt, json.avatar, json.attributes, json.attributesOrder);
     const blocks = getBlocks(ydoc);
     const rootOrder = rootOrderOf(ydoc);
     for (const [id, block] of Object.entries(json.blocks)) {
@@ -298,10 +298,16 @@ function writeOpaqueBlock(blocks: AnyMap, id: string, block: OpaqueBlock): void 
 }
 
 /** Build a fresh doc holding only meta and the root block (empty page). */
-function layoutDoc(id: string, title: string, createdAt: string): Y.Doc {
+function layoutDoc(
+  id: string,
+  title: string,
+  createdAt: string,
+  avatar?: string,
+  attributes?: Record<string, unknown>
+): Y.Doc {
   const ydoc = new Y.Doc();
   ydoc.transact(() => {
-    writeMeta(ydoc, id, title, createdAt);
+    writeMeta(ydoc, id, title, createdAt, avatar, attributes);
     writeBlock(getBlocks(ydoc), id, { type: "root" });
     // Create the registered (empty) root-order array in the same load step.
     rootOrderOf(ydoc);

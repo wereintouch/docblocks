@@ -8,10 +8,13 @@
  *
  * The stand: circular swatches (rounded-full), a thin theme border
  * (`--border`), the selected one bordered in the accent (`--primary`).
- * Two opt-in extras (off by default): the transparent ("no color") swatch
- * (a theme-background circle crossed by a thin `--destructive` line —
- * reports `onSelectNone`) and the custom swatch (a rainbow circle that
- * reports `onCustom`; the full picker it opens is built on first use). A
+ * Two opt-in extras (off by default): the none entry (reports
+ * `onSelectNone`) — the transparent ("no color") swatch (a
+ * theme-background circle crossed by a thin `--destructive` line, the
+ * default stand) or, over `noneAsCross`, the cross's button (the
+ * text's palette's explicit reset's stand) — and the custom swatch
+ * (a rainbow circle that reports `onCustom`; the full picker it opens
+ * is built on first use). A
  * current value that matches no entry (a non-preset custom color) shows a
  * small dot of its own over the custom swatch — the row's highlight shows
  * a preset's match only, so the dot is the custom value's marker.
@@ -24,6 +27,7 @@ import { DocblocksI18nProvider } from "../../i18n";
 import { Button } from "./Button";
 import { cn } from "./cn";
 import { normalizeHex, resolveColorToHex } from "./color-utils";
+import { X } from "./icons";
 
 interface ColorSwatchesProps {
   /** The swatch entries, in display order (a theme token `var(--…)` or a hex). */
@@ -40,6 +44,10 @@ interface ColorSwatchesProps {
   noneActive?: boolean;
   /** Report the transparent swatch's press (required when `allowNone`). */
   onSelectNone?: () => void;
+  /** Render the none entry as the cross's button (the text's palette's
+   * stand — the explicit reset's affordance) over the transparent's
+   * swatch (off by default). */
+  noneAsCross?: boolean;
   /** Render the custom (rainbow) swatch (off by default). */
   allowCustom?: boolean;
   /** Report the custom swatch's press (the picker opens — built on first use). */
@@ -67,6 +75,7 @@ function ColorSwatchesInner({
   onSelectNone,
   allowCustom = false,
   onCustom,
+  noneAsCross = false,
 }: ColorSwatchesProps) {
   const { t } = useTranslation("editor");
   // The resolved hex per entry (the selected state compares the current
@@ -129,31 +138,50 @@ function ColorSwatchesInner({
           />
         );
       })}
-      {allowNone && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          data-slot="docblocks/palette-none"
-          data-color="none"
-          aria-label={t("common:color.none")}
-          aria-pressed={noneActive}
-          title={t("common:color.none")}
-          className={cn(
-            "relative size-5 overflow-hidden rounded-full border transition-none",
-            noneActive ? "border-2 border-(--primary)" : "border-(--border)"
-          )}
-          style={{ background: "var(--background, #ffffff)" }}
-          onClick={onSelectNone}
-        >
-          <span
-            aria-hidden
-            className="
-              absolute top-1/2 left-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-(--destructive)
-            "
-          />
-        </Button>
-      )}
+      {allowNone &&
+        (noneAsCross ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-slot="docblocks/palette-none"
+            data-color="none"
+            aria-label={t("common:color.reset")}
+            aria-pressed={noneActive}
+            title={t("common:color.reset")}
+            className={cn(
+              "size-5 rounded-full border transition-none",
+              noneActive ? "border-2 border-(--primary)" : "border-(--border)"
+            )}
+            onClick={onSelectNone}
+          >
+            <X className="size-3" />
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-slot="docblocks/palette-none"
+            data-color="none"
+            aria-label={t("common:color.none")}
+            aria-pressed={noneActive}
+            title={t("common:color.none")}
+            className={cn(
+              "relative size-5 overflow-hidden rounded-full border transition-none",
+              noneActive ? "border-2 border-(--primary)" : "border-(--border)"
+            )}
+            style={{ background: "var(--background, #ffffff)" }}
+            onClick={onSelectNone}
+          >
+            <span
+              aria-hidden
+              className="
+                absolute top-1/2 left-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-(--destructive)
+              "
+            />
+          </Button>
+        ))}
       {allowCustom && (
         <Button
           type="button"

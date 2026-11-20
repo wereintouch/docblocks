@@ -4,7 +4,10 @@
 // the fit (the no-stored-state's first visit — the clean storage's default).
 // The change's commit (the zoom / pan's debounced write) stands over the
 // reload / the new tab / the page<->canvas switch (the shared origin).
-// Pure view state — the doc's own data stands.
+// Pure view state — the doc's own data stands. The stale stored state's
+// stand (the off-document's pan's stand): the entry stands the fit over
+// the restored viewport whose rect stands no content (the empty's
+// intersection), the partial's intersection stands the restore.
 import { type Page, expect, test } from "@playwright/test";
 
 import { canvasView, editorContext, openPane, switchPaneView, toCanvas } from "./helpers";
@@ -44,9 +47,15 @@ async function seedWideScene(page: Page): Promise<void> {
     });
   });
   // The canvas items render only in the canvas view (the page view filters
-  // the surface out), so the seed's stand is asserted there.
+  // the surface out), so the seed's stand is asserted there. The count
+  // stands over the doc's data (the wide scene's items stand off-viewport
+  // over the fit's minimum zoom — the viewport's culling stands them no
+  // DOM of their own).
   await toCanvas(page, "a");
-  await expect(page.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"]`)).toHaveCount(2);
+  const shapes = await page.evaluate(
+    () => Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length
+  );
+  expect(shapes).toBe(2);
 }
 
 /** The zoom's step up (the toolbar's zoom-in — a deterministic stand change). */
@@ -165,6 +174,51 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
       const restored = await worldTransform(page, "a");
       expect(restored).toBe(changed);
       expect(restored).not.toBe(fit);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("the stale stored state stands the fit (the off-document's pan's stand)", async ({ browser }) => {
+    const context = await editorContext(browser);
+    const page = await context.newPage();
+    const room = `canvas-vp-stale-${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      await openPane(page, "a", room);
+      await page.evaluate(() => {
+        const doc = window.__paneDocs?.a;
+        if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+        doc.transact(() => {
+          const surface = doc.insertBlock("surface");
+          const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+          doc.setGeometry(a, { x: 9000, y: 0, w: 100, h: 80 });
+          const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+          doc.setGeometry(b, { x: -9000, y: 0, w: 100, h: 80 });
+        });
+      });
+      // The stale stored state's seed (the off-document's pan's stand):
+      // the 100000's world's offset over the content's box (±9050).
+      await page.evaluate(() => {
+        const key = "docblocks.canvas-viewport.v1";
+        const raw = window.localStorage.getItem(key);
+        const map = raw !== null ? JSON.parse(raw) : {};
+        map["d1"] = { zoom: 1, pan: { x: 100000, y: 0 } };
+        window.localStorage.setItem(key, JSON.stringify(map));
+      });
+      await toCanvas(page, "a");
+
+      // The entry stands the FIT (the restored viewport's rect over the
+      // content's box — the empty's intersection's stand): the zoom
+      // stands the fit's stand (the 25% bound over the wide content),
+      // not the stored's 100%.
+      await expect.poll(() => zoomValue(page, "a")).toBeLessThan(100);
+      const entry = await worldTransform(page, "a");
+
+      // The manual fit stands the same (the one math — the entry's fit
+      // is the fit button's stand).
+      await zoomToolbar(page, "a").getByLabel("Fit to screen").click();
+      const manualFit = await worldTransform(page, "a");
+      expect(entry).toBe(manualFit);
     } finally {
       await context.close();
     }

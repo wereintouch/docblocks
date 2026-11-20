@@ -7,58 +7,51 @@
  *  overlay over everything. The surface's hidden arrowhead defs stand
  *  once (the per-line SVGs reference them by the url fragment), and the
  *  ports' dots stand the tool's chrome (always over the paint order). The
- *  context providers are not DOM nodes, so several surfaces merge onto the
- *  same canvas in root order (the later surface paints on top: the DOM
- *  order is the z-order). */
+ *  context providers are not DOM nodes, so several surfaces merge onto
+ *  the same canvas in root order (the later surface paints on top: the
+ *  DOM order is the z-order).
+ *
+ *  The re-render contract (the big-canvas performance stand): the layer
+ *  renders its children over the STABLE props only (the children list,
+ *  the pending stand) — the in-flight session's previews are NOT props.
+ *  The CanvasItems and the ConnectorLines subscribe to the viewport's
+ *  store's narrow slices themselves (the per-item / per-line preview
+ *  stand), so a pointermove over the drag re-renders the moved items and
+ *  the touched lines only — the layer (and its resting children) stands
+ *  their memo.
+ *
+ *  The culling's keep set (`visibleIds`) thins the RENDERED wrappers only:
+ *  the siblings' context stands the surface's FULL children list — the
+ *  connector's endpoint resolution must not depend on the viewport (the
+ *  off-viewport endpoint's line stands drawn over its visible spans). */
 import { useStore } from "zustand";
 
 import { type ReactNode, useMemo } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import type { Box, MovePreview } from "../../canvas";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { BlockContext, useBlockContextValue } from "../../shared/providers/block-context";
 import { CanvasItem } from "../CanvasItem";
 import { ConnectorArrowDefs } from "../ConnectorArrowDefs";
-import type { CanvasSession } from "../connector-session-context";
-import { CanvasSessionContext } from "../connector-session-context";
-import { effectiveGeometry, portsOf, surfaceChromeKey } from "../geometry";
+import { effectiveGeometry, portsOf } from "../geometry";
+import { CanvasViewportStoreContext, EMPTY_VIEWPORT_STORE, usePortSnap, useShowPorts } from "../viewport";
 import { SURFACE_BG } from "./constants";
 
 function SurfaceLayer({
   id,
   children,
   pendingConnector,
-  movePreview,
-  resizePreview,
-  endpointDrag,
-  endpointPreview,
-  showPorts,
-  endpointSnap,
-  kbFocusId = null,
   inert = false,
   excludedIds,
+  visibleIds,
 }: {
   id: BlockId;
+  /** The surface's full children — the siblings' context's list (the
+   *  connector's endpoint's resolution's stand). */
   children: BlockId[];
   pendingConnector: string | null;
-  movePreview: MovePreview | null;
-  resizePreview: { id: string; box: Box } | null;
-  endpointDrag: { connectorId: string; which: "start" | "end" } | null;
-  endpointPreview: {
-    point: { x: number; y: number };
-    snap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
-  } | null;
-  /** The ports' visibility (the connector tool active or an endpoint drag in flight). */
-  showPorts: boolean;
-  /** The endpoint drag's live edge snap (the side + the fractional
-   *  position — the continuous anchor,; the
-   *  snapped dot stands the connect green at the anchor's point). */
-  endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
-  /** The keyboard focus's item (the canvas view's arrow navigation). */
-  kbFocusId?: string | null;
   /** The inert stand (the frame window's copy): the whole layer stands
    *  pointer-transparent (the copies' stand is the render only — the
    *  interaction stands on the originals) and the ports' dots stand off.
@@ -70,98 +63,86 @@ function SurfaceLayer({
    *  siblings' context keeps them (the endpoint's resolution stands the
    *  full list). */
   excludedIds?: readonly BlockId[];
+  /** The culling's keep set (the viewport's stand): the children out of
+   *  it stand no DOM of their own. The siblings' context keeps the full
+   *  list (the culling is the render's stand, not the structure's stand —
+   *  the line's endpoint's resolution stands the off-viewport blocks
+   *  over the committed geometry). `null` = no cull. */
+  visibleIds?: Set<BlockId> | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
-  // The session's referential identity stands on the four inputs (a
-  // pointermove over an idle canvas stands no context churn — the
-  // per-line render reads it, the figures don't consume it).
-  const session = useMemo<CanvasSession>(
-    () => ({ movePreview, resizePreview, endpointDrag, endpointPreview }),
-    [movePreview, resizePreview, endpointDrag, endpointPreview]
-  );
-  // The layer's rendered children (the excluded's stand off — the window's
-  // cycle guard); the siblings' context keeps the full list (the endpoint
-  // resolution's stand). The frame stands the view BACK: it is a window
-  // into the surface's content, not a figure — it renders behind every
-  // other item (the stable sort keeps the frames' own order and the
-  // figures' z-order within their runs). The data's zIndex keeps its slot
-  // (the arrangement's contract); the render's pin stands the window's
-  // parity (the figures always stand over the window's border).
-  const { store } = useEditorContext();
+  // The layer's rendered children: the culling's keep set's stand off (the
+  // off-viewport items' DOM's stand), then the excluded's stand off (the
+  // window's cycle guard). The siblings' context keeps the full list over
+  // every stand (the endpoint's resolution's stand — the culling must not
+  // thin it: the line's drop over the off-viewport endpoint's regression).
+  // The DOM order is the children's order (the explicit zIndex's mirror —
+  // the paint order over every canvas type, the frame included: the frame
+  // stands a first-class z-order element).
   const rendered = useMemo(() => {
-    const ordered = excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
-    const blocks = store.getState().blocks;
-    return [...ordered].sort((a, b) => {
-      const aFrame = blocks[a]?.type === "frame" ? 1 : 0;
-      const bFrame = blocks[b]?.type === "frame" ? 1 : 0;
-      return bFrame - aFrame;
-    });
-  }, [children, excludedIds, store]);
+    const kept =
+      visibleIds !== null && visibleIds !== undefined
+        ? children.filter((childId) => visibleIds.has(childId))
+        : children;
+    return excludedIds !== undefined ? kept.filter((childId) => !excludedIds.includes(childId)) : kept;
+  }, [children, visibleIds, excludedIds]);
+  // The ports' visibility (the connector's tool / the endpoint's drag):
+  // the point boolean — the layer re-renders only on the tool's press /
+  // release (the pointermove stands the owning surface's dots only).
+  const showPorts = useShowPorts();
   const content = (
     <>
       <ConnectorArrowDefs id={id} />
       {rendered.map((childId) => (
-        <CanvasItem
-          key={childId}
-          id={childId}
-          pendingConnector={pendingConnector}
-          movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
-          resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
-          kbFocused={kbFocusId === childId}
-        />
+        <CanvasItem key={childId} id={childId} pendingConnector={pendingConnector} interactive={!inert} />
       ))}
-      {showPorts && <PortDots id={id} snapped={endpointSnap} />}
+      {!inert && showPorts && <PortDots id={id} />}
     </>
   );
   if (inert) {
     // The inert stand (the frame window's copy): the zero-size anchor (the
     // world's origin — the caller's window's offset places it) + the whole
     // layer's pointer-transparent (the copies never stand the press); the
-    // ports' dots stand off (the tool's chrome is not the copy's stand).
+    // ports' dots stand off (the tool's chrome is not the copy's stand). The
+    // EMPTY viewport store's re-provide: the copies' items' subscriptions
+    // stand the stable stand (the in-flight preview does not ride the copy
+    // — the committed geometry's render only).
     return (
       <BlockContext.Provider value={contextValue}>
-        <CanvasSessionContext.Provider value={session}>
+        <CanvasViewportStoreContext.Provider value={EMPTY_VIEWPORT_STORE}>
           <div className="pointer-events-none relative" style={{ width: 0, height: 0 }}>
             {content}
           </div>
-        </CanvasSessionContext.Provider>
+        </CanvasViewportStoreContext.Provider>
       </BlockContext.Provider>
     );
   }
-  return (
-    <BlockContext.Provider value={contextValue}>
-      <CanvasSessionContext.Provider value={session}>{content}</CanvasSessionContext.Provider>
-    </BlockContext.Provider>
-  );
+  return <BlockContext.Provider value={contextValue}>{content}</BlockContext.Provider>;
 }
 
 /**
  * The four edge ports of every canvas item (the connector's snap
  * targets): the small circles at the edge midpoints. They stand only
  * while the connector tool is active or a connector's endpoint is being
- * dragged (the ports are the tools'
- * affordance, not the resting chrome). Pure view state: no data, no
- * awareness. The dots stand in the surface's center-anchor space (the
- * 1x1 overflow-visible svg, the ConnectorLayer's parity), pointer-events
- * none — the press passes through to the canvas (the snap reads the
- * port's coordinates, not a dot press). The SNAPPED dot (the endpoint
- * drag's live port snap) stands the connect green (the "the point is
- * connected" indicator, the badge's parity).
+ * dragged (the ports are the tools' affordance, not the resting chrome).
+ * Pure view state: no data, no awareness. The dots stand in the surface's
+ * center-anchor space (the 1x1 overflow-visible svg, the ConnectorLayer's
+ * parity), pointer-events none — the press passes through to the canvas
+ * (the snap reads the port's coordinates, not a dot press). The SNAPPED
+ * dot (the endpoint drag's live port snap) stands the connect green (the
+ * "the point is connected" indicator, the badge's parity).
  */
-function PortDots({
-  id,
-  snapped,
-}: {
-  id: BlockId;
-  snapped: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
-}) {
+function PortDots({ id }: { id: BlockId }) {
   const { store } = useEditorContext();
   const surface = useBlock(id);
-  // The dots' boxes stand over the children's geometry: the chrome digest
+  // The dots' boxes stand over the children's geometry: the chrome stamp
   // keys the dots memo (a text-only change stands no dots re-render).
-  const chromeKey = useStore(store, (state) =>
-    surfaceChromeKey(state.blocks, surface !== undefined && "children" in surface ? (surface.children ?? []) : [])
-  );
+  const chromeStamp = useStore(store, (state) => state.chromeStamp);
+  // The live snap within this surface's own children (the owning-surface
+  // filter): the endpoint's drag re-renders the owning surface's dots
+  // only — the other surfaces stand the stable null (no frame).
+  const children = surface !== undefined && surface.type === "surface" ? (surface.children ?? []) : [];
+  const snapped = usePortSnap(children);
   const dots: ReactNode[] = useMemo(() => {
     if (surface === undefined || surface.type !== "surface") return [];
     const blocks = store.getState().blocks;
@@ -170,8 +151,8 @@ function PortDots({
       const block = blocks[childId];
       // The connector stands no ports of its own (its ends are the ports'
       // users; a line's box would stand phantom squares over its spans);
-      // the group's box is DERIVED (the flat marker) — its default-size box
-      // would stand phantom dots at the surface's center.
+      // the group's box is DERIVED (the flat marker) — its default-size
+      // box would stand phantom dots at the surface's center.
       if (block === undefined || block.type === "connector" || block.type === "group") continue;
       const box = effectiveGeometry(block);
       const ports = portsOf(box);
@@ -199,7 +180,7 @@ function PortDots({
       }
     }
     return next;
-  }, [chromeKey, snapped, store, surface]);
+  }, [chromeStamp, snapped, store, surface]);
   if (dots.length === 0) return null;
   return (
     <svg

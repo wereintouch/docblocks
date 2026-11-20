@@ -14,6 +14,7 @@ import { Editor } from "../src/Editor";
 import { boxContains } from "../src/canvas/geometry";
 import { dissolveGroup, makeGroup } from "../src/canvas/insert";
 import { EditorProvider } from "../src/editor-provider";
+import { dragTo, pressBlock, pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-21T00:00:00.000Z";
 
@@ -185,28 +186,25 @@ describe("the container's selection + move", () => {
     const border = wrapper!.querySelector<HTMLElement>("[data-slot='docblocks/group-border']");
     expect(wrapper?.hasAttribute("data-selected")).toBe(false);
     expect(border).not.toBeNull();
-    // The border's press: the group stands selected (the move session
-    // opens — the no-op release commits nothing).
-    fireEvent.pointerDown(border!, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
+    // The press on the container's border band: the group stands
+    // selected (the move session opens — the no-op release commits
+    // nothing).
+    pressBlock(r.view, r.doc, r.group);
     expect(wrapper!.hasAttribute("data-selected")).toBe(true);
-    fireEvent.pointerUp(border!, { pointerId: 1 });
     // The no-op press (no drag): the doc stands unchanged.
     expect(r.json().blocks[r.group]).toMatchObject({ type: "group" });
   });
 
   it("the container's drag moves the box and the members (one transact, one undo)", () => {
     const r = renderCanvas(true);
-    const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
-    );
-    const border = wrapper!.querySelector<HTMLElement>("[data-slot='docblocks/group-border']")!;
     const aBefore = r.json().blocks[r.a]!;
     const bBefore = r.json().blocks[r.b]!;
     const groupBefore = r.json().blocks[r.group]!;
     const cBefore = r.json().blocks[r.c];
-    fireEvent.pointerDown(border, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
+    const p = pressPointOf(r.doc, r.group);
+    fireEvent.pointerDown(r.view, { clientX: p.x, clientY: p.y, buttons: 1, pointerId: 1 });
     // The real drag: the 3px threshold crossed, the zoom's 1x scale.
-    fireEvent.pointerMove(r.view, { clientX: 80, clientY: 60, buttons: 1, pointerId: 1 });
+    dragTo(r.view, { x: p.x + 30, y: p.y + 10 }, 1);
     fireEvent.pointerUp(r.view, { pointerId: 1 });
     // The container's box + the members stand the +30/+10 delta; c
     // (outside the group) stands.
@@ -244,13 +242,10 @@ describe("the hotkeys (Ctrl/Cmd+G)", () => {
   it("Ctrl/Cmd+G groups the multi selection (one transact, the group stands selected)", () => {
     const r = renderCanvas(false);
     const before = JSON.stringify(r.json());
-    // The multi selection: the a's click + the b's shift-click.
-    const wrapperA = r.view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${r.a}"]`)!;
-    const wrapperB = r.view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${r.b}"]`)!;
-    fireEvent.pointerDown(wrapperA, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(wrapperA, { pointerId: 1 });
-    fireEvent.pointerDown(wrapperB, { clientX: 20, clientY: 20, shiftKey: true, pointerId: 1 });
-    fireEvent.pointerUp(wrapperB, { pointerId: 1 });
+    // The multi selection: the a's click + the b's shift-click (each
+    // over the block's own zone).
+    pressBlock(r.view, r.doc, r.a);
+    pressBlock(r.view, r.doc, r.b, { shiftKey: true });
     expect(JSON.stringify(r.json())).toBe(before); // the selection stands no data
 
     fireEvent.keyDown(r.view, { key: "g", metaKey: true });
@@ -275,13 +270,8 @@ describe("the hotkeys (Ctrl/Cmd+G)", () => {
 
   it("Ctrl/Cmd+Shift+G dissolves the selected group (the members stand)", () => {
     const r = renderCanvas(true);
-    // Select the group over its border.
-    const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
-    )!;
-    const border = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/group-border']")!;
-    fireEvent.pointerDown(border, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(border, { pointerId: 1 });
+    // Select the group over its border band.
+    pressBlock(r.view, r.doc, r.group);
     fireEvent.keyDown(r.view, { key: "g", metaKey: true, shiftKey: true });
     expect(r.json().blocks[r.group]).toBeUndefined();
     expect(r.json().blocks[r.a]).toBeDefined();

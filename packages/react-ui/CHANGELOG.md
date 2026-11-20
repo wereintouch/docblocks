@@ -1,5 +1,565 @@
 # docblocks-react-ui
 
+## 0.13.0
+
+### Minor Changes
+
+- 8c597ab: The canvas's created and pasted figures join their container: a shape or a
+  canvas-text whose centre stands inside a container's box becomes a member of
+  the top-most such container in the same transaction as the insert — one undo
+  step — and leaves every earlier owner, so a figure never stands in two
+  containers. The dock's placement tools, the ghost text block's entry, the pen
+  stroke, and the paste path stand it; the container, the frame and the
+  connector never join automatically, and a pasted fragment's own members keep
+  the fragment's membership (only the fragment's top-level figures join the
+  target container).
+- 916a2a4: The canvas's drill-down reaches the objects covered by another one: the Alt
+  press steps the stack of the objects under the point (from its top, wrapping)
+  and the plain repeat press steps the same way over a click — a drag still
+  moves the pressed object. The session is positional (the stack is recomputed at
+  each press, the clicks near the previous point step on), a camera or tool move
+  drops it, and a transient `i / N` chip at the click point names the selected
+  candidate's position (the touch tap steps over the wider radius). The Alt
+  press suppresses the double-click's inline entries, and on touch the inline
+  edit's entry stands off right after a step.
+- c5d44f6: The canvas's Escape drills up: a single selected member stands its parent
+  container selected — the top-most owner by the paint order, the innermost over
+  a tie — one level per press, a local view state's step (no write, no wire
+  update). The active states cancel first: an in-flight tool, session or
+  drill-down step stands off, and only the clean state walks the containers.
+- b8e3dc9: The canvas's frame stands a first-class z-order element: the `frame` type
+  joins the surface's canvas elements' z-order (the explicit `zIndex` over
+  the frame's registry spec, the `setZOrder`'s reorder over the frames, the
+  dense mirror's normalization / the strict validation's parity), and the
+  frame's render's view-back's pin stands off — the paint order is the
+  surface's children's order over every canvas type (the frame stands its
+  data's slot; the legacy documents' frames stand their existing slots — no
+  migration). The selection's toolbar stands unified over the canvas's types:
+  the single `group` (the container) / the single `frame` selection renders
+  the standard arrange's toolbar (the z-order's menu — the bring-forward /
+  to-front / send-backward / to-back's picks, one `setZOrder` each, the edge
+  states disabled) — the same mechanism over the shapes (the container and
+  the frame carry no style attrs of their own, so the menu is the toolbar's
+  whole content). The strict validator's all-or-nothing invariant now spans
+  the frame (the load's path is unchanged — the snapshot's normalization
+  runs before the validation; a pre-upgrade snapshot validated directly
+  stands the frame's index's gap over the strict's read).
+- ddf1773: The canvas's block press stands on one hit resolver over the geometry instead
+  of the DOM's paint order. The press zones are the shape's box (a figure set to
+  no fill stands its outline's band, an invisible figure its box), the
+  canvas-text's box, the container's and the frame's border band — their
+  interiors pass the press through — and the connector's stroke band along the
+  rendered route (the straight / orthogonal / curved variants over the resolved
+  endpoints, the same geometry the label's inline edit reads). The tolerance is
+  screen px, so the bands keep their on-screen reach at any zoom, and the
+  drill-down's candidate stack follows the paint order with a member lifted above
+  every container that lists it.
+- d8e22ce: The canvas container / frame title chips stand over the screen layer above
+  the world's paint order: a filled figure painted over the box — the chip's
+  own seat above the box's top edge included — no longer takes the chip's
+  press, so the covered container and the frame stay selectable and movable
+  by their chips. The chip keeps its on-screen size at any zoom (the seat is
+  the live box's screen projection: it rides the in-flight move / resize
+  preview and the camera) and renders only over the viewport's culled-in
+  items; the read-only modes render it inert. The chip's press keeps the
+  item's contract (the shift toggle, the multi-selection's group drag, the
+  focus park, the pointer capture), and its double-click enters the title's
+  inline edit through the chip's own block identity.
+- bd6a97a: The consumer-owned description contract (the `docDescription` provider
+  prop): the description stands out of the document's data — the
+  consumer's store is the source (the document never stores or syncs it),
+  and the panel's `description` row displays the passed value and reports
+  the user's edit over the `onEdit` callback (the panel's inline editor's
+  commit — the entered string verbatim; the empty string stands the
+  removal's stand — the consumer clears its store over the callback; the
+  row's removal's affordance stands over the non-empty's value and commits
+  the empty string's stand). Without
+  `onEdit` the row stands display-only (over the edit mode too). Over the
+  prop's presence the row stands out of the `renderAttribute`'s reach
+  (the consumer's value is the source). Without the prop the row keeps the
+  built-in stand (the value over the doc's `attributes.description`
+  record); the legacy's stored `attributes.description` stands inert over
+  the prop's presence (the migration's read over `doc.meta.attributes`),
+  and the frontmatter's import keeps writing it (the data's stand — the
+  panel is decoupled).
+- 2c001eb: The canvas shape tools' dock placement creates shapes with the neutral
+  default fill (`#e9ecef`): a new figure has a modest body (the
+  Miro/Figma look) instead of a stroke-only figure, and the fill palette
+  is the override (the explicit "none" entry keeps the stroke-only
+  annotation frame). The pen's stroke (the `points` path) is created
+  without a fill (its path renders the stroke only); the hit model is
+  unchanged (an absent fill is a normal figure, the explicit "none"
+  keeps the outline zone). Existing documents are untouched (no
+  migration — the default applies to the placement only), and the dark
+  theme applies the hex's dark neutral value at render (the data keeps
+  the source hex).
+- 531a656: The view mode's text stands selectable and copyable: the read-only live
+  document keeps the native selection over the page (the editing surfaces
+  stay off — no caret, no write), and the editor's copy payload serves it —
+  the same to-html/to-text serialization as the edit mode's (the marks, the
+  `@label` mentions, the cross-block ranges). The published stand keeps the
+  selection's ban: no range, no copy (the reader's stand on the rendered
+  page only). The editor root carries the resolved mode over the new
+  `data-mode` structural hook (`data-readonly` stays for both read-only
+  stands); the canvas world keeps the no-select stand over the view mode
+  (the native range would fight the pan's drag).
+  
+  A native table block now copies as a spreadsheet's grid: the html flavor
+  carries a real `<table>` (the rows and the columns in the table's own
+  order, a cell's line breaks as `<br>`) and the plain flavor the TSV — the
+  pasted cells land in a spreadsheet's grid instead of a column of lines.
+  The table's covered cells stand the copy's unit (a partially covered
+  endpoint cell is included whole), the block's own selection (the row's
+  gutter press) copies the whole grid, and the table pieces stand in place
+  over a cross-block range (the surrounding blocks keep their lines).
+
+### Patch Changes
+
+- 803c2be: The canvas view's culling no longer thins the surface's siblings' block
+  context: the off-viewport items' keep set stands the rendered wrappers
+  only, and the connector's endpoint resolution stands the surface's full
+  children over their committed geometry. A connector whose endpoint block
+  is off-viewport (out of the culling's margin's band) stood dropped
+  (`data-missing`, the line's no render) with the label chip orphaned —
+  the line now stands drawn over its visible spans (the line's own cull
+  box over its endpoints' boxes' union still decides its mount), and the
+  label chip's midpoint's read stands the full list (no culling-induced
+  drop).
+- 9b16229: The canvas culling's margin stands the screen px over every zoom (the
+  1/zoom's world's conversion in the visible world rect's math): the
+  band's on-screen width stands constant (300 px), so the off-viewport
+  items pop in over the pan's edge at a constant on-screen distance
+  instead of shrinking over the zoom (the 75px stand over the 25% fit).
+  The tradeoff: the band stands wider over the world at the low zooms —
+  the heavy canvas's mounted DOM grows over the zoom-out (the culling's
+  performance stand's documented cost).
+- a8a7bdc: The canvas frame's interior stands pointer-transparent: a press inside the
+  frame's box reaches the figure under it (the page miniature over the empty
+  region), so the region marker no longer shields the figures it covers. The
+  frame keeps its own press targets — the boundary's border's hit band and
+  the title chip — which select the frame and start its move, the container's
+  idiom's parity.
+- 754a210: The canvas's world-space strokes stand the min-screen stand: the
+  connector's line and the shape's border read the data's width over the
+  1/zoom's compensation (the CSS `max()` over the world's inverse-zoom's
+  variable), so they stand at least 1 screen-px wide over the zoom's < 1
+  (the dark data color's sub-pixel thinning's fix — the dark line over the
+  dark canvas no longer falls below the visibility threshold at the fit's
+  zoom). The zoom's >= 1 stands the data's verbatim (the line's
+  thickening's parity), and the data's stand stands the `stroke-width`
+  attribute (the render's compensation is the style). The stand resolves
+  natively over the zoom's flip (the no per-item re-render's stand).
+- 2f51dfa: The canvas view's entry stands the fit over the stale stored viewport:
+  the restored zoom / pan's rect over the content's box — the empty's
+  intersection (the off-document's pan's stand: the storage's drift over
+  the content's / the container's size's change) stands the fit (the fit
+  button's stand), the partial's intersection stands the restore (the
+  zoomed-in's stand — the visible's rect over the content's box — is
+  kept). The empty canvas's stand (no content) stands the restore (the
+  fit's no-op's parity).
+- Updated dependencies [b8e3dc9]
+  - docblocks-core@0.6.0
+
+## 0.12.0
+
+### Minor Changes
+
+- 086e514: The canvas figure's fill stand over the themes (the render-time's transform,
+  no document data change): the light theme stands the fixed-hex fill verbatim
+  (import fidelity), the dark theme stands the light fixed fill darkened (the
+  dark corridor — the hue kept, the lightness over the dark, the saturation
+  reduced; dark fills pass through; palette-token fills are unchanged in both
+  themes). The figure text without an explicit `textColor` resolves the
+  contrast against the effective fill (black or white by the better WCAG
+  contrast; an explicit `textColor` always wins). The dark-class flip
+  re-renders the figures with no wire writes and no document-state mutation;
+  the strokes pass through unchanged.
+- 43e2183: The canvas figure's stroke and the connector's line color stand the same
+  themes' transform as the fill (the render-time's dark corridor): over the
+  dark theme a light fixed-hex `stroke` (the shape's border) and `strokeColor`
+  (the connector's line, the arrowheads, and the label chip's frame) stand the
+  darkened's value; dark values and the theme tokens pass through, and the
+  light theme stands the data verbatim. The document keeps the source hex (no
+  wire writes, no persistence).
+- d97a429: The floating format toolbar's color palette (the text's `color` / the
+  background's `highlight` target) stands the reset's affordance: a cross
+  button after all the palette's swatches clears the active target's mark
+  (`unsetMark`). The other palettes (the callout's background, the table's
+  handles, the canvas's fill / stroke) keep the transparent's "no color"
+  swatch.
+- acb03c6: The mermaid diagram preview's viewport (the `./mermaid` subpath): the diagram now renders over a pan/zoom viewport — the `ctrl`/`cmd` + wheel's zoom at the cursor (0.25–4x), the plain wheel's vertical pan, the drag's pan, and the hover toolbar (zoom in / out, the percent label, the fit-to-view button, the reset) over the diagram. The fit stands the diagram into the visible viewport (capped at 100% — the small diagram stands its natural size, centered); the reset restores the default view. The view persists over the code block's new optional `zoom` / `panX` / `panY` attrs (the null idiom — the reload restores the view, the panes share it over the wire; the persisted coordinate stands the clamped stand — the sub-wrapper content's centering offset is the identity's canonical coordinate, so the peer's adopt stands the no-write parity). The bottom-edge's resize (the editing mode's stand) stretches / clips the diagram's height over the new optional `height` attr (absent = the diagram's natural's height — the auto's stand; the drag's linear stand over the pointer delta, the keyboard's step per press). The attrs are additive over the `code` block's schema; the code mode stands the attrs inert.
+
+### Patch Changes
+
+- The shape and canvas-text toolbars' text color section stands the reset's
+  cross — the none's button over the row's tail (the after-all-the-colors'
+  position, the page's format palette's parity): the active stand over the
+  `textColor`'s set, the inert stand over the unset color (the pick is a
+  no-op). The pick removes the `textColor` attr over the core's
+  `removeBlockAttr` (one transact, one undo step) and returns the text to
+  the no-color's stand — the contrast's resolution over the effective fill
+  (or the theme's foreground when the fill stands none) — in the shape and
+  the canvas-text alike. The color's sections keep the transparent swatch's
+  none over the fill / stroke / line / label palettes (their data's "none"
+  stand) — the cross is the text color's affordance only.
+- 049735e: The canvas-text's figure stands the side insets from the box's edges
+  (the shape's text's padding parity — the rect's 8 px x): the item's
+  wrapper carries the horizontal padding inside the box (the border-box's
+  stand — the selection's frame and the item's geometry are unmoved, the
+  text's wrap width stands the inset's width). The double-click's ghost
+  stands the same inset (the commit's visual continuity — the typed text
+  stands where the committed text stands).
+- 64abd94: Improved the canvas view's re-render contract for large canvases (several
+  thousands of figures and connectors): the viewport state (the in-flight
+  session's previews — the move / the resize, the connector endpoint's
+  drag, the keyboard focus) stands in a per-view zustand store, and the
+  canvas items / connector lines / port dots / label chips subscribe to
+  their own narrow slices (a pointermove re-renders only the items and the
+  lines the preview touches, never the resting surface). The surfaces'
+  chrome re-render keys over a structural chrome stamp (a content-only
+  change stands no re-render of the chrome). The off-viewport items stand
+  no DOM of their own (the viewport's culling over the visible world rect
+  + the 300px margin — the off-viewport figures / connectors mount / unmount
+  over the pan's bring-in / take-out; the in-flight session's items stand
+  un-culled). The canvas view's module set stands split by responsibility
+  (the world assembly, the world-space overlays, the screen-space chrome,
+  the selection's overlay, the per-line / per-item math).
+- 9efe1d4: Fixed the code block's caption line losing the focus (and the empty line
+  unmounting) over a press of the caption's button while a caret stood in
+  the code: the page container's stranded-caret re-seat mistook the form
+  control's focus residue (the document selection standing a collapsed caret
+  at a container position while the input holds the focus) for a stranded
+  caret and re-seated it into the block on every frame, blurring the
+  just-seated input. The re-seat now stands no while a form control inside
+  the container holds the focus (the control's landing stands a genuine
+  one).
+- de984b6: The code block's copy button now copies the `text/html` payload (the `PRE`
+  over the code's child, the `language-*` class on the `code` element) plus
+  the `text/plain` fallback — the paste into a text block materializes the
+  code block verbatim through the rich pipeline (the plain payload's
+  markdown pipeline stood the distortion: the newlines collapsed, the
+  indentation lost, the markdown-flavored lines re-blocked — the `---` to
+  the divider, the `# x` to the heading, …). The rich pipeline now reads
+  the `language-*` class back over the `PRE`'s materialization (the
+  language's round-trip's stand — over the `PRE`'s own class or the
+  `code`'s child's, the producer's convention's positions); the paste into
+  the code block keeps the plain payload's stand (the `plainWins`'s gate),
+  and the external apps receive the plain fallback unchanged (the legacy
+  engines without `ClipboardItem` stand the plain write).
+- 7b7917c: The link's click over the edit's mode: the browser cancels the anchor's
+  navigation default inside the contenteditable (the caret's seat stands),
+  so a clicked link stood dead — the editor now opens the href itself over
+  the new tab's stand (`noopener,noreferrer`, the `window.open`'s
+  gesture's call) — the edit and the view's modes stand the same contract
+  (the reader's same-tab's carry-away's off), the editor's state stands
+  untouched (the caret's seat and the focus are the mousedown's default's
+  work — preserved; no write, no navigation). A press-drag over the link
+  (the selection's gesture) stands no open (the down/click distance's
+  guard); the modified clicks and the middle-click stand the browser's
+  native stands; the rendered anchor stands `rel="noopener noreferrer"`
+  (the native open's security's parity).
+- Updated dependencies [75e6caa]
+- Updated dependencies
+- Updated dependencies [acb03c6]
+  - docblocks-core@0.5.0
+
+## 0.11.0
+
+### Minor Changes
+
+- 14cf58a: The cover's frame's tint (the `coverTint`'s attribute — the absence's
+  default's on, the explicit's `false`'s off over the attributes panel's
+  checkbox's row, which stands over the cover's presence like the mode's
+  row): the editor's card's border mixes the cover's alpha-weighted
+  average color with the theme's border token (the `color-mix`'s 25%
+  share — the light's theme's pale's stand, the dark's gray's stand over
+  the same average's value; the theme's flip stands the re-mix without a
+  re-read). The average's read decodes the cover's blob over the `img`'s
+  element (the SVG's parity — the `createImageBitmap`'s SVG rejection's
+  stand) and weighs the alpha's share per pixel (the transparent's stand
+  no gray's pull). The `useCoverAverageColor()`'s hook exports the same
+  average's color (the `rgb(...)`'s string or `null` over the absent's /
+  the undecodable's stand) — the consumer's own chrome's data's source
+  (e.g. the glow's stand over the editor's surroundings — the consumer's
+  CSS, the package's DOM ends at the card).
+- c4911e9: The cover's upload modal's preset gallery (the `coverPresets` provider
+  prop): the consumer's ready-made cover's file ids (the consumer's blob
+  store's ids — the same ids the store's `get` resolves) per placement
+  mode (the `tile` / the `center`'s set, each optional). The modal
+  renders the current mode's set over the 4-column's scrollable grid (the
+  visible's 3 rows' cap — the overflow scrolls, the 4-column's width
+  stands; a set over 12 ids scrolls, a shorter one stands the fewer
+  rows). The mode's switch stands the set's switch over the same grid,
+  and a pick commits the id over the mode WITHOUT an upload (the upload's
+  gate never runs over a preset — the consumer's catalog's curation's
+  stand; the thumbnails resolve over the store's `get`, the placeholder
+  over the loading / the missing's stands). Without the prop the grid
+  stands absent and the modal stands the enlarged's base's stand (the
+  former's 400 px's width stands the 440 px's, the drop zone's height the
+  112 px's over the 144 px's).
+- d1cb23e: The cover's upload stands the modal's stand (the placement mode's selector
+  over the tile / the centering, the drop zone's drag-and-drop + the click's
+  picker over the strict's png/jpeg/webp's accept, the mode's rule's info,
+  and the rejection's hint). The cover renders as a banner over the editor
+  frame's top edge (the full frame width's bleed, the frame's top corner's
+  clip, the bottom's 16 px's fade-out over the smooth's ease-out's curve — the
+  fixed's package's stand; the image's slightly dimmed stand over the dark
+  theme). The
+  tile's mode stands the strip scaled to the fixed's 150 px's height (the
+  width's proportional, the `repeat-x`'s horizontal glue over the narrow's,
+  the centered's side crop over the wide's), and the centering's mode stands
+  the width scaled to the frame's width (the height's proportional) over the
+  centered's 150 px's vertical slice (the narrower's scaled height stands its
+  own). The placement mode stores over the new `coverMode`
+  document-attribute key (the "center"'s stand — the tile's stand is the
+  key's absence), with the panel's mode toggle row over the `cover` row — the
+  toggle's switch stands gated: an option stands disabled when its gate is
+  known unmet over the current image (the centering's editor width's minimum,
+  the tile's 150 px's minimum height). The upload's gate stands per mode: the
+  150 px's minimum height over the tile, the editor width's minimum over the
+  centering (the rejected file's bytes never reach the blob store).
+
+### Patch Changes
+
+- e4c240a: The cover's upload gate: the image's intrinsic height is checked over
+  `createImageBitmap` before the upload — a cover shorter than 150 px is
+  rejected (the upload never reaches the consumer's blob store; the inline
+  hint stands the threshold, and the next attempt clears it), and an
+  undecodable payload stands the fail-open (the upload proceeds).
+
+## 0.10.1
+
+### Patch Changes
+
+- 9188b14: The attributes panel's polish: the label column stands the longest
+  locale key (the Russian's published-date key — the `w-32`), the rows
+  stand a 4 px gap over the former padding, the row's minimum height
+  stands dropped (the rows hug the values' band), the "Not set"
+  placeholder stands the values' font and the column's left edge over
+  every row, and the `publishedAt` row is display-only (the value is
+  consumer-owned — the panel's edit entry and the row's removal stand
+  removed, like the `status` row; the
+  `docblocks/attributes-published-at` slot now marks the display span).
+- 985c50f: The color pickers stand one shared mechanism (the canvas's palette's
+  parity): the circular swatches over the shared `ColorSwatches` with the
+  custom rainbow's swatch + the hex's input, and the trigger's preview over
+  the shared `ColorChip` (the current's color, the hollow's stroke over the
+  stroke's attrs, the `X` over the absent).
+  
+  - The callout's menu: the native `input type="color"`'s picker stands
+    removed. The custom color's commit stands over the hex's field (the
+    Enter / the blur over the valid value); the close over the uncommitted
+    draft discards it (the canvas's Esc's parity — the former's
+    commit-on-close's scrub stands no stand). The
+    `docblocks/callout-color-picker` slot now marks the hex's input.
+  - The table's row / column background: the own square swatch's grid stands
+    removed over the shared's palette (the subcontent's slot
+    `docblocks/table-color-palette`); the conditional `Remove background`'s
+    item stands removed — the shared's none's swatch
+    (`docblocks/palette-none`) is the clear's mechanism. The handle's menu
+    closes over a swatch's pick (the palette's buttons stand no Radix
+    item's close of their own).
+  - The page format toolbar's color trigger stands the current's color's
+    chip (the mark's hex; the `X` over the absent / the mixed's range).
+  - The `ColorChip`'s primitive (the `docblocks/color-chip`'s slot) is the
+    shared's trigger's preview.
+
+## 0.10.0
+
+### Minor Changes
+
+- d51bd43: **Consumer-owned tags: the `docTags` contract (the document's no-storage's
+  stand).**
+  
+  The `tags` row of the document-attributes panel no longer reads or writes
+  the document's `attributes.tags` record: the tags are never document data
+  (a consumer that stores its tags in its own database no longer races the
+  document's copy). The consumer passes the tags over the new `docTags`
+  provider prop and the panel displays the passed list and reports the
+  user's tag actions:
+  
+  - `docTags.tags` — the document's tags (`{ id, label }[]`; the
+    consumer's type may extend it — the extra fields stay opaque);
+  - `docTags.onTagAdd` — the add affordance's click (the consumer opens its
+    own creation's UI — the tag's picker over its catalog, the creation's
+    flow; the package opens nothing);
+  - `docTags.onTagRemove(tag)` — the chip's removal (the consumer removes
+    over its own store and passes the updated list back over `tags`);
+  - `docTags.onTagClick(tag, event)` — the chip's click (the native
+    `MouseEvent`; the package opens nothing and preventDefaults nothing —
+    the navigation's stand is the consumer's); it stands over the read-only
+    modes too (the observing gesture's parity).
+  
+  **Breaking (the 0.x's minor's stand)**: the `tagEditor` provider prop (and
+  its `TagEditor` / `TagEditorProps` types, exported since 0.9.0) is removed
+  — its contract committed the list into the document (the
+  `onTagsChange`'s `setAttribute`), which the consumer-owned stand
+  supersedes. A consumer on 0.9.x migrates over the `docTags`'s contract
+  (the chips' display stands unchanged); the legacy's stored
+  `attributes.tags` data stays readable over `doc.meta.attributes`
+  (migration's read) and the markdown frontmatter's import keeps writing it
+  (the data's stand — the panel is decoupled from the record).
+
+## 0.9.1
+
+### Patch Changes
+
+- 942538d: **A paste over the full document selection replaces the selection instead
+  of wiping the document.**
+  
+  Over the range the seam's absence (the whole-document delete stands no
+  seam) previously dropped the paste payload and cleared the document of all
+  blocks with no undo restore and an unplaceable caret. Now, when the
+  selection's delete consumes the whole document and no seam remains, a
+  fresh empty paragraph is inserted at the root as the paste seat and the
+  payload materializes into it (one transaction, one undo step); a
+  whitespace-only full paste leaves the editable empty seat. Partial
+  cross-range pastes are unchanged.
+- 19ba6b7: **Keyboard gestures over cross-block ranges: the continuation's stands.**
+  
+  - **Shift+ArrowUp/ArrowDown now chains over the cross-block range** — the
+    former stand collapsed the selection on the second press (the browser's
+    anchor read-back flips over the editor's backward cross seat, and the
+    continuation re-based the range over the far end). The editor now owns
+    the vertical extension over the cross range: the moving end stands the
+    selection's direction (the user's anchor's identity), a single-line
+    block's end crosses to the adjacent text block (the non-text siblings
+    skipped, the empty blocks' stand), and a multi-line block's inner line
+    keeps the browser's native line walk.
+  - **Ctrl/Meta+Home and Ctrl/Meta+End seat the caret over the document's
+    edges** (the first text block's start, the last's end) and scroll the
+    caret into view — the browser's native stand degenerates over the
+    page's nested editables (the Ctrl+Home's no-move's stand).
+  - **Ctrl/Meta+A stands over the read-only modes too** (the view /
+    published's document zone — the former stand let the browser's
+    select-all take the consumer's whole page).
+- d4e76ab: **Editor selection gestures: the native stands.**
+  
+  - **Ctrl/Meta+A now selects the whole document** over the page's nested
+    editables, where the browser's own select-all degenerates (the Chromium's
+    stand: a collapsed caret at the document's end instead of the full
+    selection). The editor seats the whole-document selection itself (the
+    first text block's start to the last text block's end, the cross-block
+    range the copy/paste/delete's cross paths stand over); form controls and
+    the canvas view keep their own select-all.
+  - **A click-then-Shift+click extends the selection across the blocks** —
+    the browser's native shift+click extension stands (the former stand tore
+    down the session and suppressed the default, which killed the native
+    extension and let the focus fall to the document body).
+
+## 0.9.0
+
+### Minor Changes
+
+- 6b1f954: The collapsible document-attributes panel over the editor page column
+  (collapsed by default, session-only state): the system rows (id /
+  created / last updated, read-only — the dates stand the locale's
+  medium date, the id over the monospace), the preset rows (description,
+  tags, the `createdBy` creator reference (the id-only mention, display
+  over the consumer's resolution), cover, the `status` stand
+  (display-only — the consumer's own data, the panel's editor stands
+  absent), published date) with the inline editors, the custom
+  attributes (the add's flow over the list's tail's button — the popover's
+  one-line sliding-pill type pick (the document view's selector's parity
+  
+  - the light bounce's animation) + the name's draft (the `Name`'s
+    placeholder) + the commit's button over the input's right (the disabled
+    over the empty name); the `ATTRIBUTE_TYPES` enum over the type's
+    vocabulary; the mention's name stands the target's id; the custom
+    value's edit over the row's zone — the string / number / mention inline
+    inputs over the typed form's write-back (the invalid number's no-write),
+    the list over the vertical's line editor (each item over its own line —
+    the line's input + the ×'s removal + the "Add a line"'s input over the
+    stack's tail; every discrete change commits the whole list over the
+    value's form: plain `string[]` → plain, typed → typed; the read-only's
+    stacked display; the row's key + the remove button stand opposite the
+    first line over the stack (the row's center stand dropped)), the boolean over the project's checkbox (the checked's
+    toggle — one write over the value's form: the plain's plain stand, the
+    typed's typed stand; the read-only's disabled stand over the view /
+    published's modes); the row's value zone centers its content vertically
+    (the page's inherited line-height no longer stands the value's text
+    above the label's center — the value's "jump" stand dropped) and the
+    single value's rows stand the uniform height (the row's `min-h` — the
+    checkbox's row's shorter stand dropped), the custom key's rename over
+    the key's click (the inline input over the key's column — the
+    select-all's mount stand, the Enter / the blur's commit over the
+    `renameAttribute`, the Escape's cancel, the invalid target's (the
+    reserved / the taken key) open stand over the `aria-invalid`'s
+    destructive frame, the preset / the system rows' and the read-only's
+    no-entry stand), the tags' add input stands the
+    value column's font size (the placeholder's `text-xs` stand over the
+    `text-sm`'s column's parity), the custom rows' display order
+    (the preset rows' fixed order; the custom rows over `attributesOrder` —
+    last-added last, drag-reorderable over the grip with the block's
+    grip's offset parity: the hover's reveal, the framer's live slide's
+    preview, the release's `reorderAttributes` commit over the wire, the
+    undo's single step, the no-move release's no-op stand), and the
+    consumer's `hiddenAttributes` + `tagEditor` + `renderAttribute` +
+    `attributeTypePicker` provider props. The `renderAttribute` callback replaces a row's value
+    zone over its key (the `null` / the absent stands the built-in); the
+    `attributeTypePicker` component replaces the built-in type picker over
+    the add flow. The panel's in-row fields (the tags' add input, the
+    list's line / the new-line inputs, the key's rename input, the typed
+    value's inline edits) all stand the shared `Input` primitive over its
+    new flat `inline` variant (the frame / the background / the shadow
+    stand off — the focus's border stand only), replacing the ad-hoc raw
+    inputs; the custom key's text stands the label column's left edge
+    (the preset's keys' parity — the key's button's padding stand
+    dropped), and the list's row's drag grip stands opposite the first
+    line (the key's line — the row's center stand dropped over the
+    stack's rows); the rename's input's frame stands the text's edge's
+    left (the text's position's keep over the display's parity — the
+    frame's no-glue over the text's left stand; the label column's clip
+    stands off over the edit mode — the frame's / the band's overhang's
+    visibility stand, the display's truncate's parity untouched). The
+    panel's hover stands one style and one height (the rows' bands — the
+    key's, the value's, the description's, the published date's — stand the
+    28px's band over the 6px's glyph's inset, the key's band's stand over
+    the label column's edge's left (the text's column's edge's parity
+    kept); the icon's buttons (the row's removal, the cover's) stand the
+    same hover's stand). The
+    `AttributesPanel` stands the composition over the unit's
+    row files (the `CustomAttributeRow`'s custom row, the preset's
+    editors, the add's popover, the value's pure reads). Markdown import and paste now read the YAML-frontmatter
+    subset into the meta over the fresh documents (the title + the mapped
+    attribute presets — the `author` / `created_by` keys map to the
+    `createdBy` id-only reference) and strip it before the blocks parse; the
+    HTML import keeps the frontmatter as a plain paragraph.
+- f5d29df: The `@` mention's contract updates:
+  
+  - The mention mark is id-only (the pick writes the `{ kind, id }`
+    mark; the `mentionInteractions` target stands the identity — the
+    label is the consumer's resolution).
+  - `MentionProvider` gains the optional `resolveLabel(kind, id)`: the
+    chip's live label over the target's id (the rename's stand); the
+    insertion-time label (the run's text) / the legacy snapshot stand
+    otherwise.
+  - The mention query is the whole `@`-to-caret phrase: the space is
+    part of the query (`@my doc` searches `my doc`), and only Escape
+    breaks the phrase (the former word-boundary close is removed).
+  - The pick seats the caret after the chip: the chip is a
+    `contenteditable=false` island, and a flat offset over it snaps to
+    the adjacent slot (never the chip's text) — the type's
+    continuation keeps the focus without a re-click.
+  - `mentionInteractions` gains the optional `renderEmptyState(query)`
+    (the picker's empty state; `null` stands the built-in "No
+    matches").
+
+### Patch Changes
+
+- e0c7167: Fix the sliding-pill segment selector's stand over an ancestor transform:
+  the active-button geometry now stands the scale factor (the
+  `getBoundingClientRect`'s delta and size over the untransformed layout's
+  factor), so the pill's measurement over a transformed container — the
+  popover's `zoom-in-95` entry's frames — stands the list's local
+  (untransformed) geometry. The pill no longer stands off (shifted toward
+  the group's start, sized under) over the later options' stand when the
+  selector's container mounts over an entry animation; the end position
+  stands exact over the animation's frames.
+- Updated dependencies [6b1f954]
+- Updated dependencies [f5d29df]
+  - docblocks-core@0.4.0
+
 ## 0.8.3
 
 ### Patch Changes

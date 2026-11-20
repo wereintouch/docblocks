@@ -11,9 +11,9 @@ import type { Block, BlockId, Selection } from "docblocks-core";
 
 import { connectorPreviewFrom, connectorPreviewPoint, zPositionOf } from "../../canvas";
 import type { CanvasViewportState } from "../../canvas";
+import { useDarkTheme } from "../../shared/dark-theme";
 import { useBlockContextValue } from "../../shared/providers/block-context";
-import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
-import { connectorStrokeWidthOf } from "../connector-utils";
+import { connectorStrokeWidthOf, effectiveConnectorStrokeOf } from "../connector-utils";
 import { connectorHandlePoints, connectorMidpoint, edgePointOf, effectiveGeometry } from "../geometry";
 
 interface CanvasTargetsDeps {
@@ -25,6 +25,9 @@ interface CanvasTargetsDeps {
 }
 
 function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, rootBlockId }: CanvasTargetsDeps) {
+  // The document's dark theme's stand (the data color's render-time's
+  // transform — the flip's re-render of the label's edit frame).
+  const isDark = useDarkTheme();
   const { pageChildren, surfaces } = useMemo(() => {
     const page: BlockId[] = [];
     const list: { id: BlockId; children: BlockId[] }[] = [];
@@ -138,6 +141,26 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     };
   })();
 
+  // The z-order toolbar's target (the container / the frame's unified's
+  // stand): a single `group` / `frame` selection — the shape toolbar's
+  // session's guards (no active tool, no in-flight session). The group /
+  // frame carry no style attrs of their own, so the target stands the
+  // z-order's stand only (the arrange menu's full's content).
+  const arrangeToolbarTarget = (() => {
+    if (handleTarget === null || viewport.activeTool !== null) return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
+    const block = blocks[handleTarget.id];
+    if (block === undefined || (block.type !== "group" && block.type !== "frame")) return null;
+    const surface = surfaces.find((entry) => entry.children.includes(handleTarget.id));
+    if (surface === undefined) return null;
+    const zStand = zPositionOf(surface.children, blocks, handleTarget.id);
+    if (zStand === null) return null;
+    // The menu's own guard's parity: a lone canvas element (count < 2)
+    // stands no reorder stand — the empty pill's stand off.
+    if (zStand.count < 2) return null;
+    return { id: handleTarget.id, kind: block.type, zStand };
+  })();
+
   // The connector type toolbar's target: a single `connector` selection
   // whose endpoints resolve within the surface (the toolbar seats at the
   // line's midpoint; absent for the multi selection, an active tool, or
@@ -189,11 +212,7 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     const mid = connectorMidpoint(id, surface.children, blocks);
     if (mid === null) return null;
     const selected = storeSelection?.kind === "blocks" && storeSelection.ids.includes(id);
-    const stroke = selected
-      ? CONNECTOR_SELECTED_STROKE
-      : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
-        ? CONNECTOR_STROKE
-        : block.attrs.strokeColor;
+    const stroke = effectiveConnectorStrokeOf(block, selected, isDark);
     return {
       id,
       mid,
@@ -263,6 +282,7 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     multiSelectionBox,
     shapeToolbarTarget,
     textToolbarTarget,
+    arrangeToolbarTarget,
     connectorToolbarTarget,
     connectorLabelTarget,
     selectedConnectorHandles,

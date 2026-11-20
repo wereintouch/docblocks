@@ -2,6 +2,8 @@ import { useStore } from "zustand";
 
 import { useMemo, useRef } from "react";
 
+import { AttributesPanel, CoverBanner } from "./attributes";
+import { CoverTintController } from "./attributes/cover-tint";
 import {
   BlockContext,
   CanvasView,
@@ -20,6 +22,7 @@ import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surf
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/use-editing";
+import { useLinkOpen } from "./editing/use-link-open";
 import { useEditorContext } from "./editor-provider";
 import { MotionEnumOptionsEditor } from "./motion/MotionEnumOptionsEditor";
 import { RowList } from "./motion/RowList";
@@ -65,8 +68,16 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { doc, store, rootBlockId, viewMode } = useEditorContext();
+  const { doc, store, rootBlockId, viewMode, mode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
+  // The frame's tint's read (the cover's presence + the off's stand — the
+  // absent's / the `true`'s stand is the on's default): the data attribute
+  // gates the CSS's border's mix (the variable's stand is the controller's
+  // job over the card's element).
+  const attributes = useStore(store, (state) => state.meta.attributes);
+  const coverId = typeof attributes?.cover === "string" ? attributes.cover : undefined;
+  const coverTintEnabled = coverId !== undefined && attributes?.coverTint !== false;
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   // The page surface's handlers map (the container dispatch's source +
   // the per-block registration's target — one map per editor instance,
@@ -100,6 +111,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
     [doc, rootBlockId, rootChildren]
   );
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
+  const linkOpen = useLinkOpen();
   const slash = useSlashMenu(rootRef);
   const mention = useMentionMenu(rootRef);
   const mentionCard = useMentionCard(rootRef);
@@ -161,8 +173,15 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
     // the card surface). In the canvas view it takes the flex column's
     // slack: the 100% height chain below the root needs a definite height.
     // The inner div is the editor root: the focus and keyboard scope and
-    // the token-mapping scope.
-    <Card className={cn(view === "canvas" && "min-h-0 flex-1")}>
+    // the token-mapping scope. The `data-cover-tint`'s stand gates the
+    // frame's tint's border's mix (the cover's average color's variable's
+    // stand stands over this element — the border's element).
+    <Card
+      ref={cardRef}
+      data-cover-tint={coverTintEnabled ? "" : undefined}
+      className={cn(view === "canvas" && "min-h-0 flex-1")}
+    >
+      <CoverTintController cardRef={cardRef} />
       {/* The database's enum's options' editor stands the motion's variant
           (the framer's Reorder's rows) over this provider — the database
           block's grid renders through the base's BlockView, so the swap
@@ -173,6 +192,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           data-slot="docblocks/editor"
           data-docblocks-motion=""
           data-view={view}
+          data-mode={mode}
           data-readonly={viewMode ? "true" : undefined}
           tabIndex={-1}
           className={cn(
@@ -182,9 +202,15 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           )}
           onKeyDown={onKeyDown}
           onCopy={onCopy}
+          onMouseDown={linkOpen.onMouseDown}
+          onClick={linkOpen.onClick}
           onPointerDown={onCrossDragPointerDown}
         >
           <style>{HANDLE_GRAB_STYLE}</style>
+          {/* The cover's banner (the frame's top edge's stand): a
+              non-interactive decoration over the page view only (the
+              canvas's view stands no banner). */}
+          {view === "canvas" ? null : <CoverBanner />}
           <MentionMenuContext.Provider value={mention.api}>
             <SlashMenuContext.Provider value={slash.api}>
               <FormatPaletteContext.Provider value={formatPalette}>
@@ -221,6 +247,13 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                           mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
                         "
                       >
+                        {/* The document-attributes panel (the above-the-first-block's
+                            stand): a non-editable island over the page's shared
+                            editable (the cross-drag's mousedown guard + the surface's
+                            container-targeted dispatch keep their stands over its
+                            controls). The canvas view stands no panel (the page-column
+                            placement). */}
+                        <AttributesPanel />
                         <RowList
                           order={order}
                           nodesById={nodesById}

@@ -3,6 +3,52 @@ import type { BlockId, Selection as CoreSelection, Doc, SelectionView } from "do
 import { caretOffsetIn } from "./dom-offset";
 
 /**
+ * The writer's anchor's hint (the degenerate seat's identity's stand):
+ * the degenerate reverse cross-editable seat (the base at offset 0 — the
+ * Chromium's collapse's stand) loses the browser's anchor's identity over
+ * the addRange's seat (the anchor's read-back stands the range's start —
+ * the far end), so the writer records the intended anchor (the base, the
+ * range's end's stand) over the seat's endpoints; the mapping honors the
+ * hint over the exact-match selection (the direction's reverse's stand)
+ * and stands no over any other selection (the hint's staleness's no-stand
+ * — the endpoints' mismatch's stand).
+ */
+interface WriterAnchorHint {
+  root: ParentNode;
+  anchorNode: Node;
+  anchorOffset: number;
+  startNode: Node;
+  startOffset: number;
+  endNode: Node;
+  endOffset: number;
+}
+
+let writerAnchorHint: WriterAnchorHint | null = null;
+
+/** The degenerate seat's intended anchor's record (the mapping's reverse's stand). */
+function setWriterAnchorHint(
+  root: ParentNode,
+  anchorNode: Node,
+  anchorOffset: number,
+  startNode: Node,
+  startOffset: number,
+  endNode: Node,
+  endOffset: number
+): void {
+  writerAnchorHint = { root, anchorNode, anchorOffset, startNode, startOffset, endNode, endOffset };
+}
+
+/** The root's live hint over the exact-match seat (the staleness's no-stand). */
+function writerAnchorHintFor(root: ParentNode, range: Range): WriterAnchorHint | null {
+  const hint = writerAnchorHint;
+  if (hint === null || hint.root !== root) return null;
+  if (hint.startNode !== range.startContainer || hint.startOffset !== range.startOffset) return null;
+  if (hint.endNode !== range.endContainer || hint.endOffset !== range.endOffset) return null;
+  if (hint.anchorNode !== range.endContainer || hint.anchorOffset !== range.endOffset) return null;
+  return hint;
+}
+
+/**
  * Map the DOM selection to a core Selection for one editor root.
  *
  * Contract:
@@ -29,8 +75,20 @@ import { caretOffsetIn } from "./dom-offset";
  * The engine fills the cross-block `blocks` chain on `set` — the mapping
  * never computes it. Offsets of boundary endpoints come from the doc
  * (getTextLength), not a DOM text walk.
+ *
+ * `readOnly` counts the view mode's inners (the non-editable block
+ * content) as text blocks too: the read-only stand keeps no caret and no
+ * live selection view, but its native range is still a range over the
+ * document's text — the copy's read maps it (and the contenteditable
+ * requirement stands over the edit's mode).
  */
-function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc: Doc): CoreSelection {
+function mapDomSelection(
+  root: HTMLElement,
+  domSelection: Selection | null,
+  doc: Doc,
+  options: { readOnly?: boolean } = {}
+): CoreSelection {
+  const readOnly = options.readOnly === true;
   if (domSelection === null || domSelection.rangeCount === 0) return { kind: "none" };
   const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
   if (anchorNode === null || focusNode === null) return { kind: "none" };
@@ -52,8 +110,8 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   if (inDatabaseBlock(anchorNode) || inDatabaseBlock(focusNode)) return { kind: "none" };
 
   const range = domSelection.getRangeAt(0);
-  const anchorBlock = textBlockOf(anchorNode, root);
-  const focusBlock = textBlockOf(focusNode, root);
+  const anchorBlock = textBlockOf(anchorNode, root, readOnly);
+  const focusBlock = textBlockOf(focusNode, root, readOnly);
   // A selection outside a text-editable inside the canvas view maps to
   // none: the canvas manages its own selection (the explicit press), and
   // the engine's focus move over a canvas item (the mousedown's default
@@ -84,25 +142,28 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
     const first: Endpoint = {
       node: range.startContainer,
       offset: range.startOffset,
-      textBlock: textBlockOf(range.startContainer, root),
+      textBlock: textBlockOf(range.startContainer, root, readOnly),
     };
     const last: Endpoint = {
       node: range.endContainer,
       offset: range.endOffset,
-      textBlock: textBlockOf(range.endContainer, root),
+      textBlock: textBlockOf(range.endContainer, root, readOnly),
     };
-    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range)) {
+    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
       return mapBlocksSelection(root, domSelection, anchorBlock);
     }
-    const from = resolveEndpoint(doc, root, first, "first");
-    const to = resolveEndpoint(doc, root, last, "last");
+    const from = resolveEndpoint(doc, root, first, "first", readOnly);
+    const to = resolveEndpoint(doc, root, last, "last", readOnly);
     if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
     if (from.blockId === to.blockId && from.offset === to.offset) {
       return { kind: "text", from, to: null };
     }
     // The direction's read-back (the faithful anchor's stand): the clamped
-    // engine's anchor reads as the range's start — no reverse there.
-    const anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+    // engine's anchor reads as the range's start — no reverse there. The
+    // writer's anchor's hint (the degenerate seat's identity) stands the
+    // intended anchor (the range's end) over the read-back's flip.
+    let anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+    if (anchorIsFirst && writerAnchorHintFor(root, range) !== null) anchorIsFirst = false;
     return {
       kind: "text",
       from,
@@ -116,7 +177,12 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
 
   // The DOM range's document-order endpoints (the range is never inverted):
   // from/to take the first/last resolved point, `reverse` the anchor order.
-  const anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+  // The writer's anchor's hint's stand (the degenerate seat's identity —
+  // the addRange's read-back's flip's stand): the exact-match seat's hint
+  // stands the intended anchor (the range's end), so the direction stands
+  // reverse over the read-back's no-reverse.
+  let anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+  if (anchorIsFirst && writerAnchorHintFor(root, range) !== null) anchorIsFirst = false;
   const first: Endpoint = {
     node: anchorIsFirst ? anchorNode : focusNode,
     offset: anchorIsFirst ? anchorOffset : focusOffset,
@@ -130,12 +196,12 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
 
   // A pure non-text selection (the range touches no text block) keeps the
   // blocks-kind mapping.
-  if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range)) {
+  if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
     return mapBlocksSelection(root, domSelection, anchorBlock);
   }
 
-  const from = resolveEndpoint(doc, root, first, "first");
-  const to = resolveEndpoint(doc, root, last, "last");
+  const from = resolveEndpoint(doc, root, first, "first", readOnly);
+  const to = resolveEndpoint(doc, root, last, "last", readOnly);
   if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
 
   // Degenerate resolution (both endpoints land on one point): a caret.
@@ -212,7 +278,8 @@ function resolveEndpoint(
   doc: Doc,
   root: HTMLElement,
   endpoint: Endpoint,
-  role: "first" | "last"
+  role: "first" | "last",
+  readOnly = false
 ): { blockId: BlockId; offset: number } | null {
   if (endpoint.textBlock !== null) {
     return {
@@ -220,7 +287,7 @@ function resolveEndpoint(
       offset: caretOffsetIn(endpoint.textBlock, endpoint.node, endpoint.offset),
     };
   }
-  const blocks = textBlockElementsIn(root);
+  const blocks = textBlockElementsIn(root, readOnly);
   if (role === "first") {
     const preceding = nearestBefore(endpoint.node, blocks);
     if (preceding !== null) return { blockId: blockIdOf(preceding), offset: doc.getTextLength(blockIdOf(preceding)) };
@@ -258,9 +325,9 @@ function mapBlocksSelection(
   return { kind: "blocks", ids, anchorId: ids.includes(anchorId) ? anchorId : ids[0]! };
 }
 
-/** Whether the range intersects a text-editable block of the editor. */
-function rangeTouchesTextBlock(root: HTMLElement, range: Range): boolean {
-  for (const element of textBlockElementsIn(root)) {
+/** Whether the range intersects a text block of the editor. */
+function rangeTouchesTextBlock(root: HTMLElement, range: Range, readOnly = false): boolean {
+  for (const element of textBlockElementsIn(root, readOnly)) {
     if (range.intersectsNode(element)) return true;
   }
   return false;
@@ -274,18 +341,22 @@ function rangeTouchesTextBlock(root: HTMLElement, range: Range): boolean {
  * consider them (compare the `ownScopeOf` endpoint guard in
  * `mapDomSelection`).
  */
-function textBlockElementsIn(root: HTMLElement): HTMLElement[] {
+function textBlockElementsIn(root: HTMLElement, readOnly = false): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]")).filter(
-    (element) => isTextBlockElement(element) && ownScopeOf(element, root)
+    (element) => isTextBlockElement(element, readOnly) && ownScopeOf(element, root)
   );
 }
 
 /**
- * Whether the element is a text-editable block (the inner contenteditable
- * [data-block-id] element).
+ * Whether the element is a text block (the inner contenteditable
+ * [data-block-id] element). Over the read-only stand the inner is
+ * non-editable (the view mode's copy stands the sole reader): its block
+ * content element counts too.
  */
-function isTextBlockElement(element: HTMLElement): boolean {
-  return element.dataset.blockId !== undefined && element.getAttribute("contenteditable") === "true";
+function isTextBlockElement(element: HTMLElement, readOnly = false): boolean {
+  if (element.dataset.blockId === undefined) return false;
+  if (element.getAttribute("contenteditable") === "true") return true;
+  return readOnly && element.getAttribute("data-slot") === "docblocks/block-content";
 }
 
 /** The nearest text-editable block strictly before the node in reading order. */
@@ -321,10 +392,10 @@ function ownScopeOf(node: Node, root: HTMLElement): boolean {
  * contains the node; null when the node is in a non-text block or outside
  * the editor root.
  */
-function textBlockOf(node: Node, root: HTMLElement): HTMLElement | null {
+function textBlockOf(node: Node, root: HTMLElement, readOnly = false): HTMLElement | null {
   let current: Node | null = node;
   while (current !== null && current !== root) {
-    if (current instanceof HTMLElement && isTextBlockElement(current)) return current;
+    if (current instanceof HTMLElement && isTextBlockElement(current, readOnly)) return current;
     current = current.parentNode;
   }
   return null;
@@ -393,4 +464,4 @@ function editableOfNode(node: Node | null): Element | null {
   return element?.closest('[contenteditable="true"]') ?? null;
 }
 
-export { domSelectionInEditable, mapDomSelection, selectionsEqual, syncDomSelection };
+export { domSelectionInEditable, mapDomSelection, selectionsEqual, setWriterAnchorHint, syncDomSelection };

@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { Doc, Selection, SelectionView, TextPoint } from "docblocks-core";
 
 import { focusCaretIn } from "./block-commands";
-import { extendRangeFocusEnd } from "./range-extend";
+import { extendRangeFocusEnd, extendRangeFocusEndVertical } from "./range-extend";
 import { syncDomSelection } from "./selection-mapping";
 
 /**
@@ -21,8 +21,11 @@ import { syncDomSelection } from "./selection-mapping";
  * updates the view). The horizontal shift arrows / home / end never reach
  * the browser (a native extension acts on the anchor's editable and would
  * retract the range); at the range's edge they stand as a suppressed
- * no-op. The vertical shift arrows pass through (the native within-block
- * extension is the browser's; the remap reconciles the view). `root`
+ * no-op. The vertical shift arrows stand the editor's own cross (the
+ * browser's cannot cross the boundary and collapses the range at the
+ * block's edge — the single-line block's focus end crosses to the adjacent
+ * block, the multi-line's inner line stands the native's in-block's line's
+ * walk, the outer line's non-edge stands the suppressed no-op). `root`
  * scopes the gesture-time view sync (the
  * browser does not dispatch selectionchange for the re-based selection).
  */
@@ -42,6 +45,20 @@ function handleCrossRangeKey(
     // anchor's editable and retract the range, so the default is always
     // suppressed — at the range's edge the gesture stands as a no-op.
     const moved = extendRangeFocusEnd(doc, selection, event.key);
+    event.preventDefault();
+    if (moved) syncDomSelection(root, doc, view);
+    return true;
+  }
+  if (event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+    // The vertical shift arrow over the cross range: the browser's extension
+    // stands inside the focus's inner (the cross's boundary's no-cross) and
+    // collapses the range at the block's edge (the Chromium's stand), so
+    // the editor owns it — the single-line block's focus end crosses to the
+    // adjacent text block, the multi-line's inner line stands the native's
+    // in-block's line's walk (the passthrough), the outer line's non-edge
+    // stands the suppressed no-op.
+    const { owned, moved } = extendRangeFocusEndVertical(doc, selection, event.key);
+    if (!owned) return false;
     event.preventDefault();
     if (moved) syncDomSelection(root, doc, view);
     return true;

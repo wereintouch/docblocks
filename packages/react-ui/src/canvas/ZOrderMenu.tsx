@@ -7,10 +7,9 @@
  * back — the command is a no-op there, the UI stands it off).
  *
  * The position is the target's 0-based place among the surface's
- * z-order elements (the dense 1..count index space — the frame and the
- * page blocks stand no index). The toolbar chrome is non-modal here: a
- * pick closes the menu (the dropdown's contract), the outside press
- * closes without a write.
+ * z-order elements (the dense 1..count index space — the page blocks stand
+ * no index). The toolbar chrome is non-modal here: a pick closes the menu
+ * (the dropdown's contract), the outside press closes without a write.
  */
 import { useTranslation } from "react-i18next";
 
@@ -28,9 +27,10 @@ import {
 import { EllipsisVertical } from "../shared/ui/icons";
 import { TOOLTIP_SIDE_OFFSET_PX } from "./viewport/constants";
 
-/** The z-order target types (the surface's canvas elements — the frame
- *  and the page blocks stand no index; the core command's parity). */
-const ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
+/** The z-order target types (the surface's canvas elements — the frame's
+ *  parity over the shapes; the page blocks stand no index; the core
+ *  command's type set's parity). */
+const ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group", "frame"]);
 
 /**
  * The target's position (0-based) among the surface's z-order elements

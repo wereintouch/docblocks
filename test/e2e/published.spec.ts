@@ -84,6 +84,14 @@ test("the viewer's pane stands the snapshot over the publish's handoff (the swit
     // snapshot's meta (the live's meta stands off).
     await expect(b.locator('[data-slot="docblocks/doc-header-mode"]')).toHaveCount(0);
     await expect(b.locator('[data-slot="docblocks/doc-header-title"]')).toContainText("PUBLISHED TITLE");
+    // The published's copy stand: the snapshot's text stands no selection
+    // (the view mode's selectable/copyable stand is off over the
+    // published's one — the reader's copy stands no stand).
+    const userSelect = await bDoc
+      .locator('[data-slot="docblocks/page"]')
+      .first()
+      .evaluate((el) => getComputedStyle(el).userSelect);
+    expect(userSelect).toBe("none");
   } finally {
     await close();
   }

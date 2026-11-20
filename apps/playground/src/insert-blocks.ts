@@ -15,6 +15,7 @@ const INSERTABLE_TYPES = [
   "list-item",
   "code",
   "code-mermaid",
+  "code-mermaid-large",
   "table",
   "image",
   "embed",
@@ -39,6 +40,29 @@ const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedde
 
 /** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
 const MERMAID_SEED = "graph TD\n A --> B";
+
+/** The tall's multi-branch graph the harness inserts with the `code-mermaid-large` type (the large diagram's evaluation's stand — the viewport's pan/zoom + the height's resize). */
+const MERMAID_SEED_LARGE = `graph TD
+  A[User story] --> B{Priority?}
+  B -->|High| C[Design review]
+  B -->|Low| D[Backlog]
+  C --> E[Implementation]
+  D --> E
+  E --> F{Code review?}
+  F -->|Pass| G[Integration]
+  F -->|Fail| E
+  G --> H{QA?}
+  H -->|Pass| I[Release candidate]
+  H -->|Fail| J[Bug triage]
+  J --> E
+  I --> K[Rollout plan]
+  K --> L[Deploy: staging]
+  L --> M[Smoke tests]
+  M --> N[Deploy: production]
+  N --> O[Monitoring]
+  O --> P{Incident?}
+  P -->|No| Q[Done]
+  P -->|Yes| J`;
 
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
@@ -400,6 +424,98 @@ const BLOB_REFS: Record<string, BlobRef> = {
   },
 };
 
+/** The cover preset's monochrome swatch (a solid SVG fill — the layout's
+ *  evaluation's fixture; the preset's id stands over the BLOB_REFS's map so
+ *  both panes resolve it). */
+function coverPresetRef(id: string, color: string, width: number, height: number): BlobRef {
+  return {
+    blob: new Blob(
+      [
+        `<svg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}'><rect width='100%' height='100%' fill='${color}'/></svg>`,
+      ],
+      { type: "image/svg+xml" }
+    ),
+    meta: { name: `${id}.svg`, mimeType: "image/svg+xml" },
+  };
+}
+
+/** The cover preset's catalog (the harness's ready-made covers over the
+ *  consumer's `coverPresets`'s prop): the tile's set stands 14 monochrome
+ *  swatches (the 12's visible's cap's overflow scroll's stand) + the alpha
+ *  swatch (the PNG's alpha channel's stand — the under-cap's stand over
+ *  the 15), and the centering's set stands 8 swatches + the alpha (the
+ *  under-cap's stand over the 9). */
+const COVER_PRESET_IDS = {
+  tile: Array.from({ length: 14 }, (_, i) => `cover-tile-${i + 1}`),
+  center: Array.from({ length: 8 }, (_, i) => `cover-center-${i + 1}`),
+} as const;
+
+/** The alpha swatch's cover (the PNG's alpha channel's demo — a vertical
+ *  fade over the solid's fill: the opaque top stands the fill's stand,
+ *  the transparent bottom stands the card's surface through (the theme's
+ *  stand over the cover's alpha band)). The PNG is generated over the
+ *  canvas (the real alpha channel's encode — no flattening) and cached as
+ *  a promise (the first `get`'s resolution's stand). */
+const ALPHA_COVER_ID = "cover-alpha-1";
+let alphaPngRef: Promise<BlobRef> | null = null;
+function alphaPng(): Promise<BlobRef> {
+  if (alphaPngRef === null) {
+    alphaPngRef = (async (): Promise<BlobRef> => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1600;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+      if (ctx === null) throw new Error("the canvas's 2d context is absent");
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, "rgba(37, 99, 235, 1)");
+      gradient.addColorStop(0.55, "rgba(37, 99, 235, 0.5)");
+      gradient.addColorStop(0.85, "rgba(37, 99, 235, 0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (blob === null) throw new Error("the canvas's png's encode failed");
+      return { blob, meta: { name: `${ALPHA_COVER_ID}.png`, mimeType: "image/png" } };
+    })();
+  }
+  return alphaPngRef;
+}
+const COVER_PRESET_COLORS = [
+  "#0ea5e9",
+  "#6366f1",
+  "#8b5cf6",
+  "#d946ef",
+  "#ec4899",
+  "#f43f5e",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#84cc16",
+  "#22c55e",
+  "#10b981",
+  "#14b8a6",
+  "#06b6d4",
+];
+for (const mode of ["tile", "center"] as const) {
+  COVER_PRESET_IDS[mode].forEach((id, i) => {
+    BLOB_REFS[id] = coverPresetRef(
+      id,
+      COVER_PRESET_COLORS[(i + (mode === "center" ? 3 : 0)) % COVER_PRESET_COLORS.length]!,
+      1600,
+      500
+    );
+  });
+}
+
+/** The consumer's cover preset gallery (the `coverPresets` prop's demo
+ *  stand over the harness's fixed ids — a stable reference per module).
+ *  The alpha's swatch stands the set's tail over both modes (the alpha's
+ *  band's evaluation over the tile's strip's repeat + the centering's
+ *  slice's stand). */
+const coverPresets = {
+  tile: [...COVER_PRESET_IDS.tile, ALPHA_COVER_ID],
+  center: [...COVER_PRESET_IDS.center, ALPHA_COVER_ID],
+};
+
 /** The in-memory half of the harness's blob store (the slash Image uploads). */
 const memoryBlobs = createMemoryBlobStore();
 
@@ -409,6 +525,7 @@ const memoryBlobs = createMemoryBlobStore();
  */
 const blobStore: BlobStore = {
   get: async (fileId): Promise<BlobRef> => {
+    if (fileId === ALPHA_COVER_ID) return alphaPng();
     return BLOB_REFS[fileId] ?? memoryBlobs.get(fileId);
   },
   upload: (file) => memoryBlobs.upload(file),
@@ -420,7 +537,8 @@ const blobStore: BlobStore = {
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
  * level 2, list-item bullet, code language "ts", code-mermaid a code block
- * with language "mermaid" and the seed diagram, image the
+ * with language "mermaid" and the seed diagram (code-mermaid-large the
+ * tall's multi-branch graph), image the
  * fixed key, embed the fixed data: URL, sync-embed the ref to the pane's
  * master doc (the subtree variant narrows it to the seeded subtree
  * paragraph, the broken one a fixed unknown docId); a table comes
@@ -443,6 +561,10 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
       case "code-mermaid":
         id = doc.insertBlock("code", { language: "mermaid" });
         doc.insertText(id, 0, MERMAID_SEED);
+        break;
+      case "code-mermaid-large":
+        id = doc.insertBlock("code", { language: "mermaid" });
+        doc.insertText(id, 0, MERMAID_SEED_LARGE);
         break;
       case "image":
         id = doc.insertBlock("image", { src: IMAGE_KEY });
@@ -487,6 +609,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
 export {
   blobStore,
   CATALOG_FILE_KEY,
+  coverPresets,
   databaseBridge,
   EMBED_SRC,
   insertBlockOf,

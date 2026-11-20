@@ -1,6 +1,13 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, pasteFromClipboard, seedClipboardPayload, twoPanes } from "./helpers";
+import {
+  SETTLE,
+  insertBlockType,
+  pasteFromClipboard,
+  readClipboardPayload,
+  seedClipboardPayload,
+  twoPanes,
+} from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -81,5 +88,65 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   await expect.poll(async () => await secondB.innerHTML(), SETTLE).toBe("<strong>hello</strong>");
   await expect(secondB).toHaveText("hello");
 
+  await close();
+});
+
+test("a copy over a native table block stands the spreadsheet's grid (the html table + the TSV)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "ui04-table-copy", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  // The seed: a paragraph, a 2×2 table (its cells' texts), and the tail —
+  // the drag / select-all range spans the table. The table's cells are
+  // mini-docs, so a native copy across them would flatten the grid into a
+  // column of lines; the editor's payload keeps the rows and the columns.
+  const tableId = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) throw new Error("the pane's doc is not mounted");
+    let tableId = "";
+    doc.transact(() => {
+      for (const child of doc.getChildren(doc.toJSON().id)) doc.removeBlock(child);
+      const before = doc.insertBlock("paragraph");
+      doc.insertText(before, 0, "before");
+      tableId = doc.insertBlock("table", { cols: 2, columnWidths: [100, 100] });
+      for (let row = 0; row < 2; row += 1) {
+        const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+        for (let col = 0; col < 2; col += 1) {
+          const cellId = doc.insertBlock("table-cell", undefined, { parent: rowId });
+          const paragraph = doc.insertBlock("paragraph", undefined, { parent: cellId });
+          doc.insertText(paragraph, 0, `r${row}c${col}`);
+        }
+      }
+      const after = doc.insertBlock("paragraph");
+      doc.insertText(after, 0, "after");
+    });
+    return tableId;
+  });
+  await expect(a.locator('table[data-slot="docblocks/table"]').first()).toBeVisible(SETTLE);
+  await a
+    .locator('[data-slot="docblocks/page"]')
+    .first()
+    .click({ position: { x: 4, y: 4 } });
+  await a.keyboard.press("Control+a");
+  await a.keyboard.press("Control+c");
+  await expect
+    .poll(async () => await readClipboardPayload(a), SETTLE)
+    .toEqual({
+      html: "<div>before</div><table><tbody><tr><td>r0c0</td><td>r0c1</td></tr><tr><td>r1c0</td><td>r1c1</td></tr></tbody></table><div>after</div>",
+      plain: "before\nr0c0\tr0c1\nr1c0\tr1c1\nafter",
+    });
+  // The table block's own selection (the row's gutter press) copies the
+  // whole grid — the block-level copy's stand.
+  const tableRow = a.locator('[data-slot="docblocks/row"]', { has: a.locator(`[data-block-id="${tableId}"]`) }).first();
+  await tableRow.hover();
+  await tableRow.locator('[data-slot="docblocks/gutter"]').first().click();
+  await a.keyboard.press("Control+c");
+  await expect
+    .poll(async () => await readClipboardPayload(a), SETTLE)
+    .toEqual({
+      html: "<table><tbody><tr><td>r0c0</td><td>r0c1</td></tr><tr><td>r1c0</td><td>r1c1</td></tr></tbody></table>",
+      plain: "r0c0\tr0c1\nr1c0\tr1c1",
+    });
   await close();
 });

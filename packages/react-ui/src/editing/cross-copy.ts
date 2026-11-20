@@ -1,82 +1,103 @@
-import { type BlockId, type Doc, type Selection, type TextRun, isSafeLinkHref } from "docblocks-core";
+/**
+ * The copy side of the selections: the cross-block text range (the covered
+ * run segments over the reading-order chain) and the blocks selection (the
+ * selected blocks whole). A table the selection touches stands as ONE grid
+ * piece (`copy-doc`'s table piece) — its rows / cells / text blocks never
+ * stand as lines of their own.
+ */
+import { BLOCK_REGISTRY } from "docblocks-core";
+import type { BlockId, Doc, Selection } from "docblocks-core";
 
-/** The HTML-escaped run text. */
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-/** The run's text wrapped in its mark's tags (link outermost, then the color spans, then the inline tags). */
-function wrapRun(text: string, marks: TextRun["marks"]): string {
-  // `code` is exclusive: the run carries no other marks.
-  let out = escapeHtml(text);
-  if (marks.underline === true) out = `<u>${out}</u>`;
-  if (marks.strike === true) out = `<s>${out}</s>`;
-  if (marks.italic === true) out = `<em>${out}</em>`;
-  if (marks.bold === true) out = `<strong>${out}</strong>`;
-  if (marks.code === true) out = `<code>${out}</code>`;
-  if (marks.color !== undefined) out = `<span style="color: ${escapeHtml(marks.color.value)}">${out}</span>`;
-  if (marks.highlight?.value !== undefined)
-    out = `<span style="background-color: ${escapeHtml(marks.highlight.value)}">${out}</span>`;
-  if (marks.link !== undefined && isSafeLinkHref(marks.link.href))
-    out = `<a href="${escapeHtml(marks.link.href)}">${out}</a>`;
-  // The mark's values escape too: a value written over the CRDT's raw
-  // (no command's validation) can break the clipboard HTML's attributes
-  // — the escape closes the third-party paste target (the local paste
-  // re-parses through the whitelist).
-  if (marks.mention !== undefined) out = `<span data-mention="${escapeHtml(marks.mention.kind)}">${out}</span>`;
-  return out;
-}
-
-/** The [from, to) segment of the runs as plain text + html. */
-function segmentOf(runs: readonly TextRun[], from: number, to: number): { text: string; html: string } {
-  let position = 0;
-  let text = "";
-  let html = "";
-  for (const run of runs) {
-    const runStart = position;
-    const runEnd = position + run.text.length;
-    position = runEnd;
-    if (runEnd <= from || runStart >= to) continue;
-    const segment = run.text.slice(Math.max(from, runStart) - runStart, Math.min(to, runEnd) - runStart);
-    // The mention: the plain text is the `@label` form (the display is the
-    // label; the copy carries the `@` prefix). The mention is atomic, so the
-    // segment is the whole label (a partial slice degrades to the raw label).
-    const mention = run.marks.mention;
-    text += mention !== undefined && segment === run.text ? `@${segment}` : segment;
-    html += wrapRun(segment, run.marks);
-  }
-  return { text, html };
-}
+import { chainBetween, isTableStructural, tablePiece, tableSubtreeOf, tablesOfChain } from "./copy-doc";
+import { joinPieces, runsOf, segmentOf, textLengthOf } from "./copy-runs";
+import type { ClipboardPayload, ClipboardPiece } from "./copy-runs";
 
 /**
- * The clipboard payload (plain text + html) of a cross-block text range:
- * the covered segment of each chain block (a `<div>` per block, the blocks
- * joined by newlines in the plain text). The browser cannot copy a
- * selection across a contenteditable boundary, so the copy side of a
- * cross range runs through the editor. Null when the selection is not a
- * cross-block range: same-block ranges keep the default copy.
+ * The cross-block text range's payload: the covered segment of each chain
+ * block (a `<div>` per text block, the blocks joined by newlines in the
+ * plain text). A table the range touches through any of its cells stands
+ * as ONE table piece over its covered cells, landing where the range first
+ * reaches the table (a partially covered endpoint cell is included
+ * whole — the cell is the copy's unit). A non-text chain block outside the
+ * tables (e.g. a divider reached by the extension) stands an empty line.
+ * Null when the selection is not a cross-block range: same-block ranges
+ * keep the default copy.
  */
-function crossRangeClipboardContent(doc: Doc, selection: Selection): { text: string; html: string } | null {
+function crossRangeClipboardContent(doc: Doc, selection: Selection): ClipboardPayload | null {
   if (selection.kind !== "text" || selection.to === null) return null;
   const from = selection.from;
   const to = selection.to;
   if (from.blockId === to.blockId) return null;
-  const chain = selection.blocks ?? [from.blockId, to.blockId];
-  const segments = chain.map((id: BlockId, index: number) => {
+  const chain = selection.blocks ?? chainBetween(doc, from.blockId, to.blockId);
+  if (chain === null) return null;
+  const { tables, ownerOf } = tablesOfChain(doc, chain);
+  const pieces: ClipboardPiece[] = [];
+  const emitted = new Set<BlockId>();
+  for (const id of chain) {
     const block = doc.getBlock(id);
-    const runs = block !== null && "content" in block ? (block.content ?? []) : [];
-    const length = runs.reduce((sum: number, run: TextRun) => sum + run.text.length, 0);
-    // The endpoints' offsets are in their own block; the middle blocks are
-    // covered in full. A non-text chain block (e.g. a divider skipped by
-    // the extension) has no runs: an empty segment stands for its line.
-    const segmentFrom = index === 0 ? from.offset : 0;
-    const segmentTo = index === chain.length - 1 ? to.offset : length;
-    return segmentOf(runs, segmentFrom, segmentTo);
-  });
-  return {
-    text: segments.map((segment) => segment.text).join("\n"),
-    html: segments.map((segment) => `<div>${segment.html}</div>`).join(""),
-  };
+    if (block === null) continue;
+    // The covered table's slot: the chain's own table block (the range
+    // starts before it) or the first chain block inside it — one piece per
+    // table, its rows / cells / text blocks inside it.
+    const tableId = block.type === "table" && tables.has(id) ? id : (ownerOf.get(id) ?? null);
+    if (tableId !== null) {
+      if (!emitted.has(tableId)) {
+        emitted.add(tableId);
+        const piece = tablePiece(doc, tableId, tables.get(tableId) ?? new Set<BlockId>());
+        if (piece !== null) pieces.push(piece);
+      }
+      continue;
+    }
+    if (isTableStructural(block.type)) continue;
+    const runs = runsOf(block);
+    const length = textLengthOf(runs);
+    const start = id === from.blockId ? from.offset : 0;
+    const end = id === to.blockId ? to.offset : length;
+    const segment = segmentOf(runs, Math.min(start, end), Math.max(start, end));
+    pieces.push({ text: segment.text, html: `<div>${segment.html}</div>` });
+  }
+  return joinPieces(pieces);
 }
 
-export { crossRangeClipboardContent, segmentOf };
+/**
+ * The blocks selection's payload (the gutter press, the image's press): the
+ * selected blocks whole — a text block's runs, a table's grid (its own
+ * rows / cells stand inside the grid's piece, never as lines of their
+ * own). A block with no text and no grid stands nothing. Null when
+ * nothing is serializable (the default copy keeps).
+ */
+function blocksClipboardContent(doc: Doc, ids: readonly BlockId[]): ClipboardPayload | null {
+  const pieces: ClipboardPiece[] = [];
+  const inTable = new Set<BlockId>();
+  for (const id of ids) {
+    if (inTable.has(id)) continue;
+    const block = doc.getBlock(id);
+    if (block === null) continue;
+    if (block.type === "table") {
+      const subtree = tableSubtreeOf(doc, id);
+      for (const subId of subtree.ids) inTable.add(subId);
+      const piece = tablePiece(doc, id, subtree.cells);
+      if (piece !== null) pieces.push(piece);
+      continue;
+    }
+    if (!BLOCK_REGISTRY[block.type].content) continue;
+    const runs = runsOf(block);
+    const segment = segmentOf(runs, 0, textLengthOf(runs));
+    pieces.push({ text: segment.text, html: `<div>${segment.html}</div>` });
+  }
+  return joinPieces(pieces);
+}
+
+/**
+ * The clipboard payload of a selection: the cross-block text range or the
+ * blocks selection. Null when the browser's default copy owns the
+ * selection (a same-block text range, a caret, the not-serializable
+ * blocks).
+ */
+function clipboardContentOf(doc: Doc, selection: Selection): ClipboardPayload | null {
+  if (selection.kind === "blocks") return blocksClipboardContent(doc, selection.ids);
+  return crossRangeClipboardContent(doc, selection);
+}
+
+export { clipboardContentOf, crossRangeClipboardContent, segmentOf };
+export type { ClipboardPayload };

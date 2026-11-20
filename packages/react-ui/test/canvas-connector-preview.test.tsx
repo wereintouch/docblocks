@@ -14,6 +14,7 @@ import { type Block, createDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
 import { useEditorContext } from "../src/editor-provider";
+import { pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -24,7 +25,6 @@ interface Rendered {
   view: HTMLElement;
   a: string;
   b: string;
-  item: (id: string) => HTMLElement;
   previewLine: () => SVGLineElement | null;
 }
 
@@ -47,11 +47,6 @@ function renderCanvas(): Rendered {
     view,
     a,
     b,
-    item: (id) => {
-      const el = view.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
-      if (el === null) throw new Error("the canvas item is missing");
-      return el;
-    },
     previewLine: () => view.querySelector<SVGLineElement>('[data-slot="docblocks/canvas-connector-preview"] line'),
   };
 }
@@ -69,7 +64,7 @@ describe("the connector's pending preview", () => {
     const r = renderCanvas();
     fireEvent.click(r.view.querySelector<HTMLElement>('[data-tool="connector"]')!);
 
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerDown(r.view, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
 
     const line = r.previewLine();
     expect(line).not.toBeNull();
@@ -93,8 +88,8 @@ describe("the connector's pending preview", () => {
   it("the preview follows the button-less hover (the two-click path)", () => {
     const r = renderCanvas();
     fireEvent.click(r.view.querySelector<HTMLElement>('[data-tool="connector"]')!);
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.item(r.a), { clientX: -50, clientY: 0, pointerId: 1 });
+    fireEvent.pointerDown(r.view, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: -50, clientY: 0, pointerId: 1 });
 
     // The hover move (no button) re-feeds the preview point.
     fireEvent.pointerMove(r.view, { clientX: 40, clientY: -90, pointerId: 1 });
@@ -104,7 +99,7 @@ describe("the connector's pending preview", () => {
     expect(line!.getAttribute("y2")).toBe("-90");
 
     // The second click completes: the connector lands, the preview drops.
-    fireEvent.pointerDown(r.item(r.b), { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 2 });
+    fireEvent.pointerDown(r.view, { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 2 });
     expect(connectorsOf(r.doc)).toHaveLength(1);
     expect(r.previewLine()).toBeNull();
   });
@@ -118,12 +113,12 @@ describe("the connector's pending preview", () => {
     // the release on b's west edge: both snap to the edge's point at the
     // cursor's projection (the t = 0.5 midpoint stand — the continuous
     // anchor).
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerDown(r.view, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 0, clientY: -40, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 50, clientY: 0, buttons: 1, pointerId: 1 });
     expect(r.previewLine()).not.toBeNull();
 
-    fireEvent.pointerUp(r.item(r.b), { clientX: 50, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: 50, clientY: 0, pointerId: 1 });
     const connectors = connectorsOf(r.doc);
     expect(connectors).toHaveLength(1);
     expect(connectors[0]?.attrs).toEqual({
@@ -141,7 +136,7 @@ describe("the connector's pending preview", () => {
     // A real drag from a to the empty canvas (well past the threshold):
     // the end commits as a free point at the release (surface-local —
     // the surface stands at the origin, the jsdom points stand as-is).
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerDown(r.view, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 0, clientY: -40, buttons: 1, pointerId: 1 });
     fireEvent.pointerUp(r.view, { clientX: 300, clientY: 80, pointerId: 1 });
     const connectors = connectorsOf(r.doc);
@@ -168,7 +163,7 @@ describe("the connector's pending preview", () => {
     // The release over b commits: the free start + the block end (the
     // release point (50, 0) snaps b's west edge at the midpoint's t).
     fireEvent.pointerMove(r.view, { clientX: 0, clientY: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.item(r.b), { clientX: 50, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: 50, clientY: 0, pointerId: 1 });
     const connectors = connectorsOf(r.doc);
     expect(connectors).toHaveLength(1);
     expect(connectors[0]?.attrs).toEqual({
@@ -182,7 +177,7 @@ describe("the connector's pending preview", () => {
     const r = renderCanvas();
     const before = r.doc.toJSON();
     fireEvent.click(r.view.querySelector<HTMLElement>('[data-tool="connector"]')!);
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerDown(r.view, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     expect(r.previewLine()).not.toBeNull();
 
     fireEvent.keyDown(r.view, { key: "Escape" });
@@ -230,11 +225,6 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
       view,
       a,
       b,
-      item: (id) => {
-        const el = view.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
-        if (el === null) throw new Error("the canvas item is missing");
-        return el;
-      },
       previewLine: () => view.querySelector<SVGLineElement>('[data-slot="docblocks/canvas-connector-preview"] line'),
     };
     return {
@@ -415,9 +405,11 @@ describe("the line follows the moved / resized items mid-drag (the live geometry
     // The rest: a's east anchor (-50, 0), b's west anchor (50, 0).
     expect(lineD()).toBe("M -50 0 L 50 0");
 
-    // The move session: the press on a, the drag +20px right.
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerMove(r.view, { clientX: -30, clientY: 0, buttons: 1, pointerId: 1 });
+    // The move session: the press on a's own zone (the resolver's answer —
+    // clear of the line's band), the drag +20px right.
+    const point = pressPointOf(r.doc, r.a);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: point.x, clientY: point.y, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: point.x + 20, clientY: point.y, buttons: 1, pointerId: 1 });
     // The live geometry: a's anchor stands at the PREVIEW position (-30, 0)
     // (b's anchor stands — a's center is 20px further away, but the west
     // edge stands in the same point for this axis-aligned pair).
@@ -425,7 +417,7 @@ describe("the line follows the moved / resized items mid-drag (the live geometry
 
     // The release commits the geometry; the line stands the same (the doc
     // and the preview stand from one number).
-    fireEvent.pointerUp(r.view, { clientX: -30, clientY: 0, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: point.x + 20, clientY: point.y, pointerId: 1 });
     const moved = r.doc.getBlock(r.a);
     expect(moved?.geometry?.x).toBe(-80);
     expect(lineD()).toBe("M -30 0 L 50 0");
@@ -450,11 +442,13 @@ describe("the line follows the moved / resized items mid-drag (the live geometry
     // The rest: a's east port (-50, 0), b's west port (50, 0).
     expect(lineD()).toBe("M -50 0 L 50 0");
 
-    // The resize session: the press on a selects it (the sub-threshold
+    // The resize session: the press on a's own zone (the resolver's
+    // answer — clear of the line's band) selects it (the sub-threshold
     // click commits no move); the east handle stands. The drag grows a to
     // the east: the east port moves with the previewed edge.
-    fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.item(r.a), { clientX: -50, clientY: 0, pointerId: 1 });
+    const point = pressPointOf(r.doc, r.a);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: point.x, clientY: point.y, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: point.x, clientY: point.y, pointerId: 1 });
     const handle = r.view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-handle"][data-handle="e"]`);
     if (handle === null) throw new Error("the resize handle is missing");
     fireEvent.pointerDown(handle, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });

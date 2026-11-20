@@ -20,7 +20,7 @@ import { contentTextLength, requireTextBlock } from "./text";
 type MarkInput =
   | { type: "bold" | "italic" | "strike" | "underline" | "code" }
   | { type: "link"; href: string }
-  | { type: "mention"; kind: MentionKind; id: string; label: string }
+  | { type: "mention"; kind: MentionKind; id: string }
   | { type: "color"; value: string }
   | { type: "highlight"; value?: string };
 
@@ -31,7 +31,9 @@ function markInputToMark(mark: MarkInput): { name: MarkName; markSet: MarkSet } 
     case "link":
       return { name: "link", markSet: { link: { href: mark.href } } };
     case "mention":
-      return { name: "mention", markSet: { mention: { kind: mark.kind, id: mark.id, label: mark.label } } };
+      // The id-only mark (the legacy label snapshot is not written; the
+      // display label is the run's text + the consumer's resolution).
+      return { name: "mention", markSet: { mention: { kind: mark.kind, id: mark.id } } };
     case "color":
       return { name: "color", markSet: { color: { value: mark.value } } };
     case "highlight":

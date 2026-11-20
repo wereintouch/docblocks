@@ -13,6 +13,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -122,13 +123,13 @@ describe("the two-click contract", () => {
   it("the editing surfaces outside the card keep the plain caret press", () => {
     const r = renderCanvas();
     const before = r.doc.toJSON();
-    // The seeded shape's press: the item's selection (not the card's).
+    // The seeded shape's press (the block's own zone): the item's
+    // selection (not the card's).
     const wrapper = r.view.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]`
     );
     if (wrapper === null) throw new Error("the shape's wrapper is missing");
-    fireEvent.pointerDown(wrapper, { clientX: 50, clientY: 50, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 50, clientY: 50, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.shape);
     expect(r.card().className).not.toContain("outline-(--docblocks-canvas-selection-border-color)");
     expect(wrapper.getAttribute("data-selected")).toBe("true");
     expect(r.doc.toJSON()).toEqual(before);
@@ -161,8 +162,7 @@ describe("the box handles", () => {
     if (wrapper === null) throw new Error("the shape's wrapper is missing");
 
     // The shape: the eight box handles, no rotate handle.
-    fireEvent.pointerDown(wrapper, { clientX: 50, clientY: 50, button: 0, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { clientX: 50, clientY: 50, pointerId: 1 });
+    pressBlock(r.view, r.doc, r.shape);
     let handles = r.handles(r.view);
     expect(handles).toHaveLength(8);
     expect(handles.some((el) => el.dataset.handle === "rotate")).toBe(false);

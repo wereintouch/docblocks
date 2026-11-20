@@ -75,6 +75,11 @@
     "borderNone": "No border",
     "arrange": "Arrange shape"
   },
+  "arrange": {
+    "toolbar": "Arrange",
+    "container": "Arrange container",
+    "frame": "Arrange frame"
+  },
   "zorder": {
     "title": "Arrange (z-order)",
     "bringForward": "Bring forward",
@@ -100,5 +105,9 @@
     "containerTitle": "Container title",
     "frameTitle": "Frame title"
   },
-  "colorHex": "{label} hex value"
+  "colorHex": "{label} hex value",
+  "cycle": {
+    "indicator": "{index} / {count}",
+    "indicatorLabel": "{index} of {count}"
+  }
 }

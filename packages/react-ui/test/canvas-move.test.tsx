@@ -12,6 +12,7 @@ import { Editor } from "../src/Editor";
 import { screenDeltaToCanvas } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
 import { EditorProvider } from "../src/editor-provider";
+import { pressPointOf } from "./canvas-press";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
@@ -130,8 +131,9 @@ describe("the move session", () => {
       result.current.beginMove([a], 0, 0);
       result.current.moveDrag(30, 30);
     });
-    // The preview stands after the drag (the render state).
-    expect(result.current.movePreview).toEqual({ ids: [a], dx: 30, dy: 30 });
+    // The preview stands after the drag (the render state — the idSet
+    // stands the per-item O(1) membership read).
+    expect(result.current.movePreview).toEqual({ ids: [a], idSet: new Set([a]), dx: 30, dy: 30 });
     act(() => {
       result.current.cancelMove();
     });
@@ -366,7 +368,7 @@ describe("the move preview on a legacy-rotated item", () => {
         <Editor view="canvas" />
       </EditorProvider>
     );
-    const view = container.querySelector('[data-slot="docblocks/canvas-view"]');
+    const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
     const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
     if (view === null || wrapper === null) throw new Error("the canvas view / the item is missing");
 
@@ -374,11 +376,12 @@ describe("the move preview on a legacy-rotated item", () => {
     // it): the resting transform is the centering translate only.
     expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
 
-    // The in-flight drag (the press on the item wrapper, the moves on
-    // the view — the pointer is captured on the view): the preview
+    // The in-flight drag (the press over the block's own zone, the moves
+    // on the view — the pointer is captured on the view): the preview
     // stands the canvas-axis offset.
-    fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(view, { clientX: 140, clientY: 120, buttons: 1 });
+    const p = pressPointOf(doc, id);
+    fireEvent.pointerDown(view, { clientX: p.x, clientY: p.y });
+    fireEvent.pointerMove(view, { clientX: p.x + 40, clientY: p.y + 20, buttons: 1 });
     expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px)");
 
     // The release commits the canvas-axis delta (the commit writes

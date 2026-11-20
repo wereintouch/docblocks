@@ -162,6 +162,21 @@ describe("the block structure → the paste blocks", () => {
     expect(blocks[0]!.runs.every((r) => Object.keys(r.marks).length === 0)).toBe(true);
   });
 
+  it("pre's language's class stands the code's language (the producer's convention's read — the code's child's or the PRE's own)", () => {
+    const withCode = htmlToBlocks('<pre><code class="language-python">x = 1\ny = 2</code></pre>');
+    expect(withCode).toHaveLength(1);
+    expect(withCode[0]!.type).toBe("code");
+    expect(withCode[0]!.attrs).toEqual({ language: "python" });
+    expect(withCode[0]!.runs.map((r) => r.text).join("")).toBe("x = 1\ny = 2");
+
+    const onPre = htmlToBlocks('<pre class="language-go">a := 1</pre>');
+    expect(onPre[0]!.attrs).toEqual({ language: "go" });
+
+    // The absent's class stands the plain (the attrs' absent's stand).
+    const plain = htmlToBlocks("<pre><code>a</code></pre>");
+    expect(plain[0]!.attrs).toEqual({});
+  });
+
   it("blockquote → the quote; the nesting → the deeper indent", () => {
     const blocks = htmlToBlocks("<blockquote>q1<blockquote>q2</blockquote></blockquote>");
     expect(viewOf(blocks)).toEqual([

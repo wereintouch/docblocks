@@ -7,8 +7,6 @@
   },
   "menu": {
     "background": "Background",
-    "backgroundSwatch": "Background {color}",
-    "removeBackground": "Remove background",
     "insertRight": "Insert right",
     "insertLeft": "Insert left",
     "insertBelow": "Insert below",

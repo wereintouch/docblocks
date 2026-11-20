@@ -4,8 +4,7 @@
  * surface, not a line color), the connect badge's green (the endpoint
  * drag's port snap indicator), the line's stroke width bounds (canvas px;
  * the data stand is 1–4, the absent stand is 1 — the registry spec's
- * parity), the selection's width emphasis, the invisible hit path's
- * width, the arrowhead's length (the marker's coordinate space), the
+ * parity), the selection's width emphasis, the arrowhead's length (the marker's coordinate space), the
  * circle endpoint's radius, the connect badge's radius + its offset from
  * the snapped port along its outward normal. */
 const CONNECTOR_STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
@@ -22,8 +21,6 @@ const MAX_STROKE_WIDTH = 4;
 const DEFAULT_STROKE_WIDTH = 1;
 /** The selection's width emphasis over the line's own width. */
 const SELECTED_WIDTH_BUMP = 1;
-/** The invisible hit path's width (a wide enough stroke to click the line). */
-const HIT_STROKE_WIDTH = 12;
 /** The hit path's svg box's padding beyond the path's bbox (canvas px:
  * the hit stroke's half width + the arrowhead's overshoot — the box must
  * contain the hit-testable stroke; the webkit hit-tests only inside the
@@ -47,7 +44,6 @@ export {
   MAX_STROKE_WIDTH,
   DEFAULT_STROKE_WIDTH,
   SELECTED_WIDTH_BUMP,
-  HIT_STROKE_WIDTH,
   HIT_BOX_PAD_PX,
   ARROW_SIZE,
   CIRCLE_ENDPOINT_RADIUS,

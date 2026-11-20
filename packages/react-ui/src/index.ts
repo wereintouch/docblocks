@@ -11,6 +11,12 @@ export type { EditorView } from "./Editor";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
   AccessLevel,
+  AttributeTypePicker,
+  AttributeTypePickerProps,
+  CoverPresetSets,
+  DocDescription,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -21,6 +27,9 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   PresenceConfig,
+  RenderAttribute,
+  RenderAttributeProps,
+  SelectionRef,
   SyncEmbedResolver,
 } from "./editor-provider";
 export { DocHeader } from "./DocHeader";
@@ -96,7 +105,7 @@ export type {
   UseDatabaseTable,
   UseTableList,
 } from "./database";
-export type { MentionMark, SyncEmbedRef } from "docblocks-core";
+export type { AttributeType, MentionMark, SyncEmbedRef, TypedAttributeValue } from "docblocks-core";
 export {
   useBlock,
   useDoc,
@@ -109,6 +118,7 @@ export {
 } from "./hooks";
 export type { PresenceCrypto, PresenceIdentity, PresencePeer, PresenceSharing, PresenceSharingMode } from "./presence";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";
+export { useCoverAverageColor } from "./attributes/cover-tint";
 export { ImportDocumentError, importDocument } from "./editing/import";
 export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";

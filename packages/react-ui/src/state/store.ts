@@ -29,6 +29,11 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     // re-renders it). An add/removal into or out of the sequence stands the
     // rootChildren change (the stamp's other source).
     let seqStructureAffected = false;
+    // The chrome stamp's source: an added / removed block, or a changed
+    // block whose chrome fields (the type / the geometry / the attrs / the
+    // children) moved — the content-only change (the figure's text) stands
+    // no chrome re-render (the digest's contract preserved).
+    let chromeChanged = false;
 
     if (change.blockIds.length > 0) {
       let blocks = state.blocks;
@@ -44,11 +49,24 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
             delete blocks[id];
             blocksChanged = true;
             removed.add(id);
+            chromeChanged = true;
           }
         } else if (prev === undefined || !deepEqual(prev, fresh)) {
           // Added or changed: replace the reference; unchanged blocks keep theirs.
           blocks = { ...blocks, [id]: fresh };
           blocksChanged = true;
+          if (prev === undefined) {
+            chromeChanged = true;
+          } else if (fresh !== null) {
+            // The content-only change (the content's fields moved, the
+            // chrome's stood): the figure's text stands no line / dots /
+            // defs re-render (the digest's contract preserved).
+            const prevRest = { ...prev } as Record<string, unknown>;
+            const freshRest = { ...fresh } as Record<string, unknown>;
+            delete prevRest.content;
+            delete freshRest.content;
+            if (!deepEqual(prevRest, freshRest)) chromeChanged = true;
+          }
         }
         if (prev !== undefined && fresh !== null && state.rootChildren.includes(id)) {
           const prevAttrs = ("attrs" in prev ? prev.attrs : undefined) as
@@ -162,6 +180,10 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     }
 
     if (patch.blocks !== undefined || patch.rootChildren !== undefined || patch.meta !== undefined) {
+      patch.changeStamp = state.changeStamp + 1;
+      // The chrome's bump stands its own write (a chrome change always
+      // carries the blocks' patch — the chrome's fields are block fields).
+      if (chromeChanged) patch.chromeStamp = state.chromeStamp + 1;
       store.setState(patch);
     }
   };
@@ -177,6 +199,8 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     sharing: "off",
     canvasClipboard: null,
     fileUpload: null,
+    changeStamp: 0,
+    chromeStamp: 0,
     applyChange,
     setPresence: (peers) => store.setState({ presence: peers }),
     setSharing: (mode) => store.setState({ sharing: mode }),

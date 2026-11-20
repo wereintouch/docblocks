@@ -9,7 +9,7 @@ export default defineConfig({
   // The per-test budget stands the verified baseline (the 30 s over the
   // test's logic + the async waits): the 5 s convention stands the
   // unit's logic, but the e2e's two-pane sync legitimately settles over
-  // the SETTLE (15 s, `test/e2e/helpers.ts`) — a 5 s budget stands the
+  // the SETTLE (15 s, `test/e2e/helpers/`) — a 5 s budget stands the
   // suite red over the settle (the measure: 71 red of 436,
   // 68 of them the timeout class). The slow-test regression stands
   // visible over the 30 s instead (the stalled settle drifts into the

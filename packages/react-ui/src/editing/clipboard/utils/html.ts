@@ -273,6 +273,26 @@ function rawTextOfHtml(html: string): string {
   return text.replace(/\n{2,}/g, "\n");
 }
 
+/** The PRE's language's attrs (the `language-*` class over the element or
+ * its code's child — the producer's convention's read; the absent stands
+ * the plain). */
+function preLanguageAttrsOf(element: Element): Record<string, unknown> {
+  const language = languageClassOf(element) ?? languageClassOf(element.querySelector("code"));
+  return language === undefined ? {} : { language };
+}
+
+/** The `language-*` class's name over the element (the absent's stand —
+ * the undefined). */
+function languageClassOf(element: Element | null): string | undefined {
+  if (element === null) return undefined;
+  for (const cls of Array.from(element.classList)) {
+    if (cls.startsWith("language-") && cls.length > "language-".length) {
+      return cls.slice("language-".length);
+    }
+  }
+  return undefined;
+}
+
 /** The runs of one pasted block element's content (raw for pre/code). */
 function blockRunsOf(element: Element, type: string): TextRun[] {
   if (type === "PRE") return runsOf(element, {}, true);
@@ -366,7 +386,7 @@ function htmlToBlocks(html: string): MaterializedBlock[] {
         pushBlock("heading", indent, { level: Number(tag[1]) }, blockRunsOf(element, tag));
         return;
       case "PRE":
-        pushBlock("code", indent, {}, blockRunsOf(element, tag));
+        pushBlock("code", indent, preLanguageAttrsOf(element), blockRunsOf(element, tag));
         return;
       case "HR":
         pushBlock("divider", indent, {}, []);

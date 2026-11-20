@@ -228,6 +228,38 @@ describe("containerCaretNeedsReseat", () => {
     seatAtElement(page, 1);
     expect(containerCaretNeedsReseat(page, window.getSelection()!.anchorNode)).toBe(true);
   });
+
+  it("stands no reseat over the container's position residue while a form control inside holds the focus", () => {
+    renderDoc((d) => {
+      const p1 = d.insertBlock("paragraph");
+      d.insertText(p1, 0, "one");
+    });
+    const page = pageOf();
+    // The form control's focus's residue: while a control inside the
+    // container holds the focus, the browser's document selection stands
+    // a collapsed caret at a container position (the control's own caret
+    // is the input's, the document's selection is the residue). The
+    // residue's reseat would steal the control's focus (the seat's
+    // focus's move blurs it — the caption's input's unmount's loop's
+    // stand).
+    const input = document.createElement("input");
+    page.append(input);
+    input.focus();
+    seatAtElement(page, 1);
+    expect(containerCaretNeedsReseat(page, window.getSelection()!.anchorNode)).toBe(false);
+    // The focused control outside the container (the consumer's chrome's
+    // field) stands the residue's no-parity: the reseat's stand keeps.
+    // (The anchor stands explicit: jsdom's focus clears the document's
+    // selection, the browser's focus move leaves it standing.)
+    seatAtElement(page, 1);
+    const anchor = window.getSelection()!.anchorNode;
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.focus();
+    expect(containerCaretNeedsReseat(page, anchor)).toBe(true);
+    outside.remove();
+    input.remove();
+  });
 });
 
 describe("reseatContainerCaret", () => {
@@ -286,7 +318,12 @@ describe("reseatContainerCaret", () => {
       d.insertText(p2, 0, "two");
     });
     const page = pageOf();
-    seatAtElement(page, 1);
+    // The caret stranded over the container's end position (the rows are
+    // wrapped in the list's layer; the attributes' panel stands the first
+    // child — the end position is over the page's child count). Over
+    // jsdom the rects stand degenerate, so the document order wins: the
+    // preceding block's end (the last inner before the caret).
+    seatAtElement(page, page.childElementCount);
     const event = new InputEvent("beforeinput", {
       bubbles: true,
       cancelable: true,

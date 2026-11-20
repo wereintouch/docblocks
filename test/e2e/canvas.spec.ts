@@ -20,6 +20,19 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
 const canvas = (page: Page, client: "a" | "b") =>
   canvasView(page, client).locator('[data-slot="docblocks/canvas-world"]');
 
+/** The frame's / the container's chip text over the screen layer (the chips
+ * stand outside the item wrappers — the occlusion-free layer seats them on
+ * the block's own box). */
+async function chipText(page: Page, id: string): Promise<string> {
+  return page.evaluate(
+    ({ id }) =>
+      document.querySelector(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${id}"] [data-slot="docblocks/frame-title"]`
+      )?.textContent ?? "",
+    { id }
+  );
+}
+
 /** The DIRECT canvas-item wrappers' block ids in DOM order (the z-order — the window's copies stand inside the frame's item and stand excluded). */
 async function canvasItemOrder(page: Page, client: "a" | "b"): Promise<string[]> {
   return page.evaluate(
@@ -129,25 +142,15 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
           ).length
       );
       await expect.poll(async () => directShapes, SETTLE).toBe(4);
-      // The frames' titles stand (the chip over the window box — the
-      // DIRECT items' chips; the window's copies' chips stand inside the
-      // other frame's item).
+      // The frames' titles stand (the chips over the screen layer, each
+      // seated on its own block's box; the window's copies' chips stand
+      // inside the other frame's item).
       const frameA = await childByStand(pane, client, { type: "frame", title: "Frame A" });
       const frameB = await childByStand(pane, client, { type: "frame", title: "Frame B" });
       expect(frameA).not.toBeNull();
       expect(frameB).not.toBeNull();
-      await expect
-        .poll(
-          async () => (await directItemStand(pane, client, frameA as string)).text?.includes("Frame A") ?? false,
-          SETTLE
-        )
-        .toBe(true);
-      await expect
-        .poll(
-          async () => (await directItemStand(pane, client, frameB as string)).text?.includes("Frame B") ?? false,
-          SETTLE
-        )
-        .toBe(true);
+      await expect.poll(async () => (await chipText(pane, frameA as string)).includes("Frame A"), SETTLE).toBe(true);
+      await expect.poll(async () => (await chipText(pane, frameB as string)).includes("Frame B"), SETTLE).toBe(true);
       // The originals stand (the note's direct wrapper over the layer —
       // the frame is a region marker, no content copy).
       const note = await childByStand(pane, client, { type: "canvas-text" });
@@ -193,7 +196,7 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
   }
 });
 
-test("a moveBlock to the front of the surface's children reorders pane B's DOM (the z-order over the wire; the frames' view-back stand)", async ({
+test("a moveBlock to the front of the surface's children reorders pane B's DOM (the z-order over the wire; the frame's slot's stand)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanes(browser, "ext05-zorder");
@@ -202,8 +205,6 @@ test("a moveBlock to the front of the surface's children reorders pane B's DOM (
     await toCanvas(a, "a");
     await toCanvas(b, "b");
     const rectId = await childByStand(a, "a", { type: "shape", variant: "rect" });
-    const frameA = await childByStand(a, "a", { type: "frame", title: "Frame A" });
-    const frameB = await childByStand(a, "a", { type: "frame", title: "Frame B" });
     expect(rectId).not.toBeNull();
     // The scene's sync to pane B (the direct order carries the rect).
     await expect.poll(async () => (await canvasItemOrder(b, "b")).includes(rectId!), SETTLE).toBe(true);
@@ -219,27 +220,14 @@ test("a moveBlock to the front of the surface's children reorders pane B's DOM (
       { surfaceId, rectId }
     );
 
-    // The frames' view-back stand: the frames (the window's parity — they
-    // render behind every figure) stand first in the DOM over the data
-    // order's stand; the figures' DOM order follows the data's z-order —
-    // the moved rect leads them.
-    await expect
-      .poll(async () => {
-        const order = await canvasItemOrder(b, "b");
-        const figures = order.filter((id) => id !== frameA && id !== frameB);
-        return figures[0];
-      }, SETTLE)
-      .toBe(rectId);
-    // The frames' DOM's stand over the figures (the view-back's paint's
-    // stand — the data's children order's stand stands the frames' slot
-    // only).
-    const bDom = await canvasItemOrder(b, "b");
-    const figuresOnly = bDom.filter((id) => id !== frameA && id !== frameB);
-    expect(figuresOnly.indexOf(rectId!)).toBe(0);
-    // …and pane B's JSON children order matches (the moved block first,
-    // the rest shifted by one).
+    // The paint order's stand: the DOM order is the children's order over
+    // every canvas type (the frame stands a first-class z-order element —
+    // no view-back's pin). The moved rect leads the order; the frames
+    // stand their data's slots (the children order's parity over the
+    // wire).
     const bAfter = await surfaceInfo(b, "b");
     const aBefore = await surfaceInfo(a, "a");
+    await expect.poll(async () => canvasItemOrder(b, "b"), SETTLE).toEqual(bAfter.children);
     expect(bAfter.children).toEqual([rectId, ...aBefore.children.filter((id) => id !== rectId)]);
   } finally {
     await close();

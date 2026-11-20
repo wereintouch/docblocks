@@ -10,6 +10,7 @@ import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import { dragTo, pressBlock, pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -74,28 +75,24 @@ function selectedIds(container: HTMLElement): string[] {
   );
 }
 
-/** A plain click on the wrapper's center (the press starts a no-op move). */
-function click(container: HTMLElement, id: string): void {
-  const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`)!;
-  fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
-  fireEvent.pointerUp(wrapper, { pointerId: 1 });
+/** A plain click over the block's own hit zone (the press starts a no-op move). */
+function click(r: Rendered, id: string): void {
+  pressBlock(r.view, r.doc, id);
 }
 
-/** A shift-click on the wrapper's center. */
-function shiftClick(container: HTMLElement, id: string): void {
-  const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`)!;
-  fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, shiftKey: true, pointerId: 1 });
-  fireEvent.pointerUp(wrapper, { pointerId: 1 });
+/** A shift-click over the block's own hit zone. */
+function shiftClick(r: Rendered, id: string): void {
+  pressBlock(r.view, r.doc, id, { shiftKey: true });
 }
 
 describe("the shift-click toggle", () => {
   it("adds the id to the standing selection (no move, the doc stands)", () => {
     const r = renderCanvas();
     const before = JSON.stringify(r.json());
-    click(r.view, r.a);
+    click(r, r.a);
     expect(selectedIds(r.view)).toEqual([r.a]);
 
-    shiftClick(r.view, r.b);
+    shiftClick(r, r.b);
     expect(selectedIds(r.view)).toEqual([r.a, r.b]);
     expect(JSON.stringify(r.json())).toBe(before); // no update (a no-op move would stand the same)
     // The no-preview pin: the wrapper's transform stands its own (no move preview).
@@ -104,31 +101,27 @@ describe("the shift-click toggle", () => {
 
   it("removes the id from the selection (the anchor follows)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
-    shiftClick(r.view, r.b); // the anchor is b (the clicked id joins)
+    click(r, r.a);
+    shiftClick(r, r.b); // the anchor is b (the clicked id joins)
     expect(selectedIds(r.view).sort()).toEqual([r.a, r.b].sort());
 
-    shiftClick(r.view, r.b); // the toggle removes b; the anchor falls back to a
+    shiftClick(r, r.b); // the toggle removes b; the anchor falls back to a
     expect(selectedIds(r.view)).toEqual([r.a]);
 
-    shiftClick(r.view, r.a); // the last id's removal stands no selection
+    shiftClick(r, r.a); // the last id's removal stands no selection
     expect(selectedIds(r.view)).toEqual([]);
   });
 
   it("stands alone from an empty selection", () => {
     const r = renderCanvas();
-    shiftClick(r.view, r.b);
+    shiftClick(r, r.b);
     expect(selectedIds(r.view)).toEqual([r.b]);
   });
 
-  it("toggles the connector over the hit path (the wrapper stands no outline)", () => {
+  it("toggles the connector over the line's band (the wrapper stands no outline)", () => {
     const r = renderCanvas();
-    const hit = r.view.querySelector<SVGElement>(`[data-connector-hit="${r.connector}"]`);
-    if (hit === null) throw new Error("the connector's hit path is missing");
-
-    fireEvent.pointerDown(hit, { clientX: 5, clientY: 5, shiftKey: true, pointerId: 1 });
-    fireEvent.pointerUp(hit, { pointerId: 1 });
     const line = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connector}"]`)!;
+    shiftClick(r, r.connector);
     expect(line.getAttribute("data-selected")).toBe("true");
 
     // The connector's wrapper: no tint, no outline (the line's stroke is
@@ -138,8 +131,7 @@ describe("the shift-click toggle", () => {
     expect(wrapper.className).toBe("");
 
     // The toggle back: the line stands deselected.
-    fireEvent.pointerDown(hit, { clientX: 5, clientY: 5, shiftKey: true, pointerId: 1 });
-    fireEvent.pointerUp(hit, { pointerId: 1 });
+    shiftClick(r, r.connector);
     expect(line.getAttribute("data-selected")).toBe(null);
   });
 });
@@ -147,18 +139,15 @@ describe("the shift-click toggle", () => {
 describe("the shift-marquee union", () => {
   it("unions the marquee's ids with the standing selection", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     expect(selectedIds(r.view)).toEqual([r.a]);
 
-    // The additive marquee (the shift down on the empty canvas): jsdom
-    // stands the wrappers 0x0 at the origin, so a rect crossing the
-    // origin picks up both — the union adds b.
-    const start = {
-      x: r.view.getBoundingClientRect().x + r.view.clientWidth / 2,
-      y: r.view.getBoundingClientRect().y + r.view.clientHeight / 2,
-    };
-    fireEvent.pointerDown(r.view, { clientX: start.x - 60, clientY: start.y - 40, shiftKey: true, pointerId: 2 });
-    fireEvent.pointerMove(r.view, { clientX: start.x + 60, clientY: start.y + 40, buttons: 1, pointerId: 2 });
+    // The additive marquee (the shift down on the empty canvas): the start
+    // stands clear of every block's press zone, and the rect crosses the
+    // origin (jsdom stands the wrappers 0x0 there), so it picks up both —
+    // the union adds b.
+    fireEvent.pointerDown(r.view, { clientX: -40, clientY: -30, shiftKey: true, pointerId: 2 });
+    fireEvent.pointerMove(r.view, { clientX: 60, clientY: 40, buttons: 1, pointerId: 2 });
     fireEvent.pointerUp(r.view, { pointerId: 2 });
     // The union: a (the pre-marquee) + b (the marquee's pick).
     expect(selectedIds(r.view).sort()).toEqual([r.a, r.b].sort());
@@ -166,7 +155,7 @@ describe("the shift-marquee union", () => {
 
   it("keeps the selection on the sub-3px additive press (no clear)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
 
     // The shift press without a drag: the selection STANDS (the plain
     // press would clear it).
@@ -185,7 +174,7 @@ describe("the shift-marquee union", () => {
 describe("the visual contract", () => {
   it("stands the selected item's outline over the tint", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     const wrapper = r.wrapperOf(r.a);
     expect(wrapper.className).toContain("bg-(--docblocks-selected-background)");
     expect(wrapper.className).toContain("outline-(--docblocks-canvas-selection-border-color)");
@@ -214,7 +203,7 @@ describe("the visual contract", () => {
 
   it("stands the selection's handles on the accent (the cyan selection fill)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     const handles = Array.from(r.view.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-handle']"));
     expect(handles.length).toBe(8); // the eight box handles
     for (const handle of handles) {
@@ -228,7 +217,7 @@ describe("the visual contract", () => {
 describe("the Escape clear", () => {
   it("clears the standing selection (nothing is written)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     const before = JSON.stringify(r.json());
     // The Escape clear stands on the editor root's blocks-selection path
     // (the page contract — the container's handler only intercepts the
@@ -241,8 +230,9 @@ describe("the Escape clear", () => {
   it("does not clear while a move preview is in flight (the cancel stands first)", () => {
     const r = renderCanvas();
     const wrapper = r.wrapperOf(r.a);
-    fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100, pointerId: 5 });
-    fireEvent.pointerMove(r.view, { clientX: 140, clientY: 100, buttons: 1, pointerId: 5 }); // the preview stands
+    const point = pressPointOf(r.doc, r.a);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: point.x, clientY: point.y, pointerId: 5 });
+    dragTo(r.view, { x: point.x + 40, y: point.y }, 5); // the preview stands
     expect(wrapper.style.transform).toContain("translate(40px, 0px)");
 
     // The Escape drops the preview; the selection STANDS.
@@ -256,12 +246,14 @@ describe("the Escape clear", () => {
 
   it("stands the selection over a shift press on the page card (no root move, no clear)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     expect(selectedIds(r.view)).toEqual([r.a]);
     const card = r.view.querySelector<HTMLElement>("[data-slot='docblocks/page-card']");
     expect(card).not.toBeNull();
     const before = JSON.stringify(r.json());
-    fireEvent.pointerDown(card!, { button: 0, shiftKey: true, clientX: 0, clientY: 0, pointerId: 9 });
+    // The card's shift press clear of the canvas items (the line crosses
+    // the canvas's center): the press stands the selection, no root move.
+    fireEvent.pointerDown(card!, { button: 0, shiftKey: true, clientX: 300, clientY: 300, pointerId: 9 });
     // The selection stands (the card's shift press starts no move).
     expect(selectedIds(r.view)).toEqual([r.a]);
     expect(JSON.stringify(r.json())).toBe(before);
@@ -269,7 +261,7 @@ describe("the Escape clear", () => {
 
   it("keeps the base selection over an additive marquee that sweeps nothing", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     const before = JSON.stringify(r.json());
     // The shift-marquee stands off every item (the 0x0 jsdom boxes stand
     // at the origin) — the empty union keeps the base selection.
@@ -284,8 +276,8 @@ describe("the Escape clear", () => {
 describe("the multi-selection's summary box", () => {
   it("stands the union box over two selected items (the token's line + fill + offset)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
-    shiftClick(r.view, r.b);
+    click(r, r.a);
+    shiftClick(r, r.b);
     const box = r.view.querySelector<HTMLElement>("[data-slot='docblocks/canvas-multi-selection']");
     expect(box).not.toBeNull();
     expect(box!.className).toContain("border-(--docblocks-canvas-selection-border-color)");
@@ -299,7 +291,7 @@ describe("the multi-selection's summary box", () => {
 
   it("stands no box for a single selection (the item's outline stands)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
+    click(r, r.a);
     expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
   });
 
@@ -309,21 +301,21 @@ describe("the multi-selection's summary box", () => {
     // wrapper's press stands the toggle — the hit path is the e2e's
     // path). The selection is a + connector: the only box-carrying
     // member is one — no union.
-    click(r.view, r.a);
-    shiftClick(r.view, r.connector);
+    click(r, r.a);
+    shiftClick(r, r.connector);
     expect(selectedIds(r.view)).toEqual([r.a, r.connector]);
     expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
   });
 
   it("stands no box while a move preview is in flight (the union is stale)", () => {
     const r = renderCanvas();
-    click(r.view, r.a);
-    shiftClick(r.view, r.b);
+    click(r, r.a);
+    shiftClick(r, r.b);
     expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).not.toBeNull();
     // The group drag (the preview stands): the box stands down.
-    const wrapper = r.wrapperOf(r.a);
-    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, buttons: 1, pointerId: 21 });
-    fireEvent.pointerMove(r.view, { clientX: 60, clientY: 10, buttons: 1, pointerId: 21 });
+    const point = pressPointOf(r.doc, r.a);
+    fireEvent.pointerDown(r.view, { button: 0, clientX: point.x, clientY: point.y, pointerId: 21 });
+    dragTo(r.view, { x: point.x + 50, y: point.y }, 21);
     expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
     fireEvent.pointerUp(r.view, { pointerId: 21 });
   });

@@ -13,9 +13,11 @@ export {
   isRegisteredMarkName,
 } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
+export { ATTRIBUTE_TYPES, RESERVED_DOC_ATTRIBUTE_KEYS } from "./constants";
 export { flattenDoc } from "./flatten";
 export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
 export { setOwn } from "./object-safety";
+export { attributeOrderNormalized } from "./attribute-order";
 export { CANVAS_ZORDER_TYPES, normalizeZOrder } from "./z-order";
 export {
   checkDatabaseCellValue,
@@ -26,9 +28,10 @@ export {
   validateMarkSet,
 } from "./validate";
 export type { ValidationError } from "./validate";
-export { isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
+export { isDocAttributeValue, isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
+  AttributeType,
   BlockId,
   CalloutAttrs,
   CalloutBlock,
@@ -49,6 +52,7 @@ export type {
   DatabaseSavedView,
   DocJSON,
   DocMeta,
+  DocAttributeValue,
   DividerAttrs,
   DividerBlock,
   EmbedAttrs,
@@ -66,6 +70,7 @@ export type {
   ImageBlock,
   ListItemAttrs,
   ListItemBlock,
+  MentionRef,
   OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
@@ -82,6 +87,7 @@ export type {
   SyncEmbedBlock,
   SyncEmbedRef,
   TextAlign,
+  TypedAttributeValue,
 } from "./types";
 export type { BlockContent, MarkName, MarkSet, MentionKind, MentionMark, TextRun } from "./text";
 export type { TableAttrs, TableBlock, TableCellBlock, TableRowBlock } from "./table";

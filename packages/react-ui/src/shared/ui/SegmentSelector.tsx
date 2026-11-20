@@ -72,7 +72,12 @@ function SegmentSelector<T extends string>({
 
   // Measure the active button before paint (no first-mount flash) and on
   // every list resize (a font or theme change). The reference-equality
-  // guard keeps the state stable across re-renders.
+  // guard keeps the state stable across re-renders. The rects stand the
+  // scale factor over the ancestor's transform (the popover's
+  // `zoom-in-95`'s entry — the measurement over the animation's frames
+  // otherwise stands the scaled geometry: the pill's stand stays off by
+  // the factor over the last options' stand, the `ResizeObserver`'s
+  // no-fire stand over the transform-only's change).
   useLayoutEffect(() => {
     const list = listRef.current;
     if (list === null) return;
@@ -81,11 +86,17 @@ function SegmentSelector<T extends string>({
       if (button === null) return;
       const listRect = list.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
+      // The ancestor's transform scales both rects uniformly — the delta
+      // and the size stand the factor, so the geometry stands the list's
+      // local (untransformed) stand. Over the no-layout's stand (the
+      // jsdom / SSR / the hidden's boxes — the `offsetWidth`'s zero) the
+      // factor stands 1 (the raw delta's stand over the zero's box).
+      const scale = list.offsetWidth !== 0 ? listRect.width / list.offsetWidth : 1;
       const next = {
-        left: buttonRect.left - listRect.left,
-        top: buttonRect.top - listRect.top,
-        width: buttonRect.width,
-        height: buttonRect.height,
+        left: (buttonRect.left - listRect.left) / scale,
+        top: (buttonRect.top - listRect.top) / scale,
+        width: buttonRect.width / scale,
+        height: buttonRect.height / scale,
       };
       setPill((prev) =>
         prev !== null &&

@@ -10,9 +10,9 @@ import type { MentionProvider } from "../../editor-provider";
 
 /** The open mention picker's derivation: the live query over the `@` phrase. */
 interface MentionDerivation {
-  /** True when the phrase is gone (deleted) or the caret left the window. */
+  /** True when the phrase is gone (deleted) or the caret stands at / before the `@`. */
   closed: boolean;
-  /** The query text between the `@` and the caret / boundary. */
+  /** The query text between the `@` and the caret (the space is part of the query). */
   query: string;
   /** The end offset of the `@` phrase (the `@` + the query). */
   queryEnd: number;
@@ -28,7 +28,8 @@ interface MentionMenuState {
   active: number;
 }
 
-/** A picked mention: the target kind + the stable id + the label snapshot. */
+/** A picked mention: the target kind + the stable id + the label (the
+ *  run's text over the insertion; the mark stands the identity only). */
 interface MentionPick {
   kind: MentionKind;
   id: string;

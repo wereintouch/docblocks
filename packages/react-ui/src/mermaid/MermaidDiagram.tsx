@@ -52,13 +52,7 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 
   if (state.error !== null) {
     return (
-      <Alert
-        ref={containerRef}
-        data-slot="docblocks/mermaid"
-        data-state="error"
-        variant="destructive"
-        className="mt-(--docblocks-block-spacing)"
-      >
+      <Alert ref={containerRef} data-slot="docblocks/mermaid" data-state="error" variant="destructive">
         <TriangleAlert />
         <AlertTitle data-slot="docblocks/mermaid-error-message" className="line-clamp-none">
           {state.error}
@@ -73,12 +67,7 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
   }
   if (state.svg !== null) {
     return (
-      <div
-        ref={containerRef}
-        data-slot="docblocks/mermaid"
-        data-state="diagram"
-        className="mt-(--docblocks-block-spacing)"
-      >
+      <div ref={containerRef} data-slot="docblocks/mermaid" data-state="diagram" className="w-full">
         {/* The one dangerously-set node in the package: the svg is the
             mermaid `render`'s own output over the strict-security stand
             (the source sanitized, no scripts / click handlers bound —
@@ -89,12 +78,7 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
     );
   }
   return (
-    <div
-      ref={containerRef}
-      data-slot="docblocks/mermaid"
-      data-state="loading"
-      className="relative mt-(--docblocks-block-spacing)"
-    >
+    <div ref={containerRef} data-slot="docblocks/mermaid" data-state="loading" className="relative w-full">
       <Skeleton className="h-24 w-full" />
       <div className="absolute inset-0 flex items-center justify-center gap-2">
         <LoaderCircle className="size-4 animate-spin" />

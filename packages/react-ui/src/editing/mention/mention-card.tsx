@@ -51,11 +51,13 @@ interface OpenStand {
 /** The target over the chip's attrs (the label is the chip's text — the
  *  icon's svg stands no text of its own). Null over a malformed stand. */
 function mentionMarkOf(chip: HTMLElement): MentionMark | null {
+  // The mark is the identity (the id-only stand — the label is the
+  // consumer's resolution over the id, never the chip's rendered text, which
+  // stands the consumer's live label). The chip carries the kind + id.
   const kind = chip.getAttribute("data-mention-kind");
   const id = chip.getAttribute("data-mention-id");
-  const label = chip.textContent;
-  if ((kind !== "user" && kind !== "doc") || id === null || label === null || label === "") return null;
-  return { kind, id, label };
+  if ((kind !== "user" && kind !== "doc") || id === null) return null;
+  return { kind, id };
 }
 
 /** The editor root's mention card layer (the provider's `mentionInteractions`'

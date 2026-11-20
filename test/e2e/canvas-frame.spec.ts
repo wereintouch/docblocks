@@ -171,6 +171,35 @@ test.describe("the canvas frame (the region boundary)", () => {
     }
   });
 
+  test("the frame's interior is transparent: the figure under the frame takes the press; the border takes the frame", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "frame-transparent");
+    try {
+      await toCanvas(a, "a");
+      const { rect, frame } = await seedScene(a, "a");
+      const center = await canvasCenter(a, "a");
+      const rectItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`);
+      const frameItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
+      await frameItem.waitFor({ state: "visible" });
+      // The rect's center (the figure under the frame's region, the frame
+      // over in the z's order): the press falls through the frame's
+      // transparent interior to the rect.
+      const interior = screenAt(center, -60, -40);
+      await a.mouse.click(interior.x, interior.y);
+      expect(await rectItem.getAttribute("data-selected"), "the rect's selection").not.toBeNull();
+      expect(await frameItem.getAttribute("data-selected"), "the frame's stand").toBeNull();
+      // The frame's top border's midpoint (the hit band's stand, no figure
+      // under the band): the press takes the frame, not the rect.
+      const border = screenAt(center, 0, -100);
+      await a.mouse.click(border.x, border.y);
+      expect(await frameItem.getAttribute("data-selected"), "the frame's selection").not.toBeNull();
+      expect(await rectItem.getAttribute("data-selected"), "the rect's stand").toBeNull();
+    } finally {
+      await close();
+    }
+  });
+
   test("the move: the frame's geometry stands the delta, the figures' stand (the boundary's move — the content does not ride the box's slide)", async ({
     browser,
   }) => {
@@ -182,10 +211,10 @@ test.describe("the canvas frame (the region boundary)", () => {
       await wireSynced(b, "b", frame);
       const before = await docBlocks(a, "a");
       const center = await canvasCenter(a, "a");
-      // The frame's INTERIOR press (the boundary's box is the press's
-      // target — a spot with no figure under the point) selects the frame
-      // + starts the move.
-      const start = screenAt(center, 20, -80);
+      // The frame's top border's press (the border's hit band is the
+      // frame's press target — the interior stands transparent over the
+      // figures' own press) selects the frame + starts the move.
+      const start = screenAt(center, 0, -100);
       await a.mouse.move(start.x, start.y);
       await a.mouse.down();
       await a.mouse.move(start.x + 40, start.y + 20, { steps: 4 });
@@ -215,9 +244,9 @@ test.describe("the canvas frame (the region boundary)", () => {
       const { frame } = await seedScene(a, "a");
       await wireSynced(b, "b", frame);
       const center = await canvasCenter(a, "a");
-      // The frame's INTERIOR press (the boundary's box's stand) selects the
-      // frame (the title-less frame's selected stand).
-      const start = screenAt(center, 20, -80);
+      // The frame's top border's press (the border's hit band's stand)
+      // selects the frame (the title-less frame's selected stand).
+      const start = screenAt(center, 0, -100);
       await a.mouse.click(start.x, start.y);
       const frameItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
       expect(await frameItem.getAttribute("data-selected")).not.toBeNull();
@@ -266,9 +295,10 @@ test.describe("the canvas frame (the region boundary)", () => {
       await wireSynced(b, "b", frame);
       const before = await docBlocks(a, "a");
       const center = await canvasCenter(a, "a");
-      // The frame's INTERIOR press selects the frame; the Delete removes
-      // it (the boundary's childless's stand — the removal's no-cascade).
-      const start = screenAt(center, 20, -80);
+      // The frame's top border's press selects the frame; the Delete
+      // removes it (the boundary's childless's stand — the removal's
+      // no-cascade).
+      const start = screenAt(center, 0, -100);
       await a.mouse.click(start.x, start.y);
       await a.keyboard.press("Delete");
       // The frame goes (over the wire to pane B) — and the figures STAND

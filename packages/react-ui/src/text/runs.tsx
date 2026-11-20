@@ -3,15 +3,19 @@ import { type CSSProperties, Fragment, type ReactNode } from "react";
 import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
 import { SquareArrowOutUpRight, User } from "../shared/ui/icons";
+import type { MentionLabelResolver } from "./runs-dom";
 
 /**
  * Render inline text runs with their marks (lenient reader contract:
  * unknown marks are ignored and the text is kept). The link's href is
  * gated over the public contract (the remote input is not validated —
- * an unsafe scheme stands the plain text, never the raw <a>).
+ * an unsafe scheme stands the plain text, never the raw <a>). The mention
+ * chip's label stands the given resolver's live label (the consumer's
+ * `MentionProvider`'s `resolveLabel`) over the target's id, the
+ * insertion-time label (the run's text) otherwise.
  */
-function renderRuns(runs: TextRun[]): ReactNode {
-  return runs.map((run, index) => <Fragment key={index}>{renderMarked(run)}</Fragment>);
+function renderRuns(runs: TextRun[], resolveMentionLabel?: MentionLabelResolver): ReactNode {
+  return runs.map((run, index) => <Fragment key={index}>{renderMarked(run, resolveMentionLabel)}</Fragment>);
 }
 
 /** The inline code run class (the token-driven inline styling). */
@@ -27,26 +31,28 @@ const linkHrefOf = (run: TextRun): string | undefined =>
   run.marks.link !== undefined && isSafeLinkHref(run.marks.link.href) ? run.marks.link.href : undefined;
 
 /** One run: the exclusive code mark renders alone; the rest nest. */
-function renderMarked(run: TextRun): ReactNode {
+function renderMarked(run: TextRun, resolveMentionLabel?: MentionLabelResolver): ReactNode {
   const { marks } = run;
 
   if (marks.mention !== undefined) {
-    // The atomic display of the label snapshot: the kind's inline icon +
-    // the label (the chip carries the target id for the consumer's
-    // live-label / "removed" stands).
+    // The atomic display of the label: the kind's inline icon + the label
+    // (the chip carries the target id for the consumer's live-label /
+    // "removed" stands; the label stands the resolver's live stand, the
+    // insertion-time label otherwise).
+    const mention = marks.mention;
     return (
       <span
         data-slot="docblocks/mention"
-        data-mention-kind={marks.mention.kind}
-        data-mention-id={marks.mention.id}
+        data-mention-kind={mention.kind}
+        data-mention-id={mention.id}
         contentEditable={false}
       >
-        {marks.mention.kind === "user" ? (
+        {mention.kind === "user" ? (
           <User aria-hidden focusable="false" />
         ) : (
           <SquareArrowOutUpRight aria-hidden focusable="false" />
         )}
-        {marks.mention.label}
+        {resolveMentionLabel?.(mention.kind, mention.id) ?? mention.label ?? run.text}
       </span>
     );
   }
@@ -57,7 +63,11 @@ function renderMarked(run: TextRun): ReactNode {
   const linkHref = linkHrefOf(run);
   if (linkHref !== undefined)
     node = (
-      <a href={linkHref} className={LINK_CLASS}>
+      // The rel's stand (the security's parity over the consumer's
+      // middle-click / the modified-click's native open — the editor's
+      // own click's open stands `noopener,noreferrer` over the
+      // window.open's call).
+      <a href={linkHref} rel="noopener noreferrer" className={LINK_CLASS}>
         {node}
       </a>
     );

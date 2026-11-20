@@ -14,6 +14,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   ExternalDatabaseError,
+  InvalidAttributeError,
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,
@@ -52,6 +53,7 @@ export type {
 } from "./sync";
 
 export {
+  ATTRIBUTE_TYPES,
   BLOCK_REGISTRY,
   CALLOUT_ICONS,
   LEAF_BLOCK_TYPES,
@@ -67,6 +69,7 @@ export {
 } from "./schema";
 export { PACKAGE };
 export type {
+  AttributeType,
   AttrsFor,
   Block,
   BlockAttrsPatch,
@@ -91,6 +94,7 @@ export type {
   DatabaseFilterCondition,
   DatabaseFilterPayload,
   DatabaseSavedView,
+  DocAttributeValue,
   DocJSON,
   DocMeta,
   DividerAttrs,
@@ -116,6 +120,7 @@ export type {
   MarkSpec,
   MentionKind,
   MentionMark,
+  MentionRef,
   OpaqueBlock,
   ParagraphAttrs,
   ParagraphBlock,
@@ -136,5 +141,6 @@ export type {
   SyncEmbedRef,
   TextAlign,
   TextRun,
+  TypedAttributeValue,
   ValidationError,
 } from "./schema";

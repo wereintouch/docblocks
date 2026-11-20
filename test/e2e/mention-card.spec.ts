@@ -79,9 +79,11 @@ test("the chip's click stands the consumer's stand (the delivery, no package car
   await expect.poll(async () => banner.isVisible(), SETTLE).toBe(true);
   await expect(banner).toHaveText("Mention click: Ada Lovelace");
   const target = await a.evaluate(
-    () => (window as unknown as { __mentionClick?: { kind: string; id: string; label: string } }).__mentionClick ?? null
+    () => (window as unknown as { __mentionClick?: { kind: string; id: string } }).__mentionClick ?? null
   );
-  expect(target).toEqual({ kind: "user", id: "u1", label: "Ada Lovelace" });
+  // The mark is the identity (the id-only stand — the label is the
+  // consumer's resolution, never the mark's field).
+  expect(target).toEqual({ kind: "user", id: "u1" });
   await expect(a.locator('[data-slot="docblocks/mention-card"]')).toHaveCount(0);
 
   await close();
