@@ -1,0 +1,271 @@
+/**
+ * The DOM selection → core Selection mapping for one editor root.
+ *
+ * Contract:
+ * - a selection with both endpoints in one text block maps to the per-block
+ *   text range (a caret when collapsed);
+ * - a selection with endpoints in (possibly different) text blocks maps to
+ *   the text range over the resolved points;
+ * - an endpoint in a non-text region (image, divider, table, …) resolves to
+ *   the nearest text boundary in reading order: the document-order-first
+ *   endpoint to the END of the nearest preceding text block (or the START
+ *   of the nearest following one when there is no preceding one), the
+ *   document-order-last endpoint the other way around; a range that reaches
+ *   into a non-text region only through its endpoints (the range itself
+ *   spans a text block) is resolved the same way;
+ * - a selection touching no text block maps to a `blocks` selection over
+ *   the blocks the range touches (no per-block text range);
+ * - a selection inside a nested editor (a sync-embed) or outside the
+ *   editor root maps to `none` (the nested editor owns the selection);
+ * - a selection whose endpoint stands in the empty-cell activation layer
+ *   maps to `none` (the layer holds a view-local caret — the cell holds no
+ *   doc blocks while the layer stands);
+ * - `reverse` comes from the anchor/focus order (a right-to-left drag).
+ *
+ * The engine fills the cross-block `blocks` chain on `set` — the mapping
+ * never computes it. Offsets of boundary endpoints come from the doc
+ * (getTextLength), not a DOM text walk.
+ *
+ * `readOnly` counts the view mode's inners (the non-editable block
+ * content) as text blocks too: the read-only stand keeps no caret and no
+ * live selection view, but its native range is still a range over the
+ * document's text — the copy's read maps it (and the contenteditable
+ * requirement stands over the edit's mode).
+ */
+import type { BlockId, Selection as CoreSelection, Doc } from "docblocks-core";
+
+import { caretOffsetIn } from "../dom-offset";
+import { writerAnchorHintFor } from "./anchor-hint";
+import {
+  blockIdOf,
+  editableOfNode,
+  inActivationLayer,
+  inDatabaseBlock,
+  nearestAfter,
+  nearestBefore,
+  ownScopeOf,
+  rangeTouchesTextBlock,
+  textBlockElementsIn,
+  textBlockOf,
+} from "./blocks-dom";
+
+/** One DOM selection endpoint and its closest text block. */
+interface Endpoint {
+  node: Node;
+  offset: number;
+  textBlock: HTMLElement | null;
+}
+
+/** A selection with both endpoints in one text block. */
+function mapTextSelection(
+  block: HTMLElement,
+  anchorNode: Node,
+  anchorOffset: number,
+  focusNode: Node,
+  focusOffset: number
+): CoreSelection {
+  const anchor = caretOffsetIn(block, anchorNode, anchorOffset);
+  const focus = caretOffsetIn(block, focusNode, focusOffset);
+  const reverse = focus < anchor;
+  const start = reverse ? focus : anchor;
+  const end = reverse ? anchor : focus;
+  const blockId = block.dataset.blockId as BlockId;
+  return {
+    kind: "text",
+    from: { blockId, offset: start },
+    to: start === end ? null : { blockId, offset: end },
+    ...(reverse ? { reverse: true } : {}),
+  };
+}
+
+/**
+ * Resolve one endpoint to a text point. An endpoint inside a text block is
+ * its caret offset there. An endpoint in a non-text region takes the
+ * nearest text boundary in reading order per the endpoint's role: the
+ * first endpoint takes the nearest preceding text block's end (the
+ * following block's start when none precedes), the last endpoint the
+ * other way around. Null when no boundary exists in either direction.
+ */
+function resolveEndpoint(
+  doc: Doc,
+  root: HTMLElement,
+  endpoint: Endpoint,
+  role: "first" | "last",
+  readOnly = false
+): { blockId: BlockId; offset: number } | null {
+  if (endpoint.textBlock !== null) {
+    return {
+      blockId: endpoint.textBlock.dataset.blockId as BlockId,
+      offset: caretOffsetIn(endpoint.textBlock, endpoint.node, endpoint.offset),
+    };
+  }
+  const blocks = textBlockElementsIn(root, readOnly);
+  if (role === "first") {
+    const preceding = nearestBefore(endpoint.node, blocks);
+    if (preceding !== null) return { blockId: blockIdOf(preceding), offset: doc.getTextLength(blockIdOf(preceding)) };
+    const following = nearestAfter(endpoint.node, blocks);
+    return following === null ? null : { blockId: blockIdOf(following), offset: 0 };
+  }
+  const following = nearestAfter(endpoint.node, blocks);
+  if (following !== null) return { blockId: blockIdOf(following), offset: 0 };
+  const preceding = nearestBefore(endpoint.node, blocks);
+  return preceding === null ? null : { blockId: blockIdOf(preceding), offset: doc.getTextLength(blockIdOf(preceding)) };
+}
+
+/** A selection spanning blocks: the touched block ids in document order. */
+function mapBlocksSelection(
+  root: HTMLElement,
+  domSelection: Selection,
+  anchorBlock: HTMLElement | null
+): CoreSelection {
+  const range = domSelection.getRangeAt(0);
+  const ids: BlockId[] = [];
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]"))) {
+    const blockId = element.dataset.blockId as BlockId;
+    // A text-editable block carries the id on both the wrapper and the
+    // inner editable: count each block once, in document order.
+    if (ids.includes(blockId)) continue;
+    if (range.intersectsNode(element)) ids.push(blockId);
+  }
+  if (ids.length === 0) return { kind: "none" };
+  const anchorId = anchorBlock !== null ? (anchorBlock.dataset.blockId as BlockId) : ids[0]!;
+  return { kind: "blocks", ids, anchorId: ids.includes(anchorId) ? anchorId : ids[0]! };
+}
+
+/** Map the DOM selection to a core Selection (the contract above). */
+function mapDomSelection(
+  root: HTMLElement,
+  domSelection: Selection | null,
+  doc: Doc,
+  options: { readOnly?: boolean } = {}
+): CoreSelection {
+  const readOnly = options.readOnly === true;
+  if (domSelection === null || domSelection.rangeCount === 0) return { kind: "none" };
+  const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
+  if (anchorNode === null || focusNode === null) return { kind: "none" };
+  if (!root.contains(anchorNode) || !root.contains(focusNode)) return { kind: "none" };
+  // A selection inside a nested editor (a sync-embed) belongs to that
+  // editor's own scope; this root maps it to `none`.
+  if (!ownScopeOf(anchorNode, root) || !ownScopeOf(focusNode, root)) return { kind: "none" };
+  // A caret in the empty-cell activation layer is view-local (the cell
+  // holds no doc blocks while the layer stands): a `blocks` selection
+  // would flag the table row as selected and hand it to the
+  // Delete/Backspace gesture, so the layer's selection maps to `none`.
+  if (inActivationLayer(anchorNode) || inActivationLayer(focusNode)) return { kind: "none" };
+  // The database block is an interactive surface with its own cell
+  // selection and keys: a DOM caret anywhere inside it (the cells AND the
+  // chrome — the toolbar, the Add row / Add column buttons) is not a doc
+  // position, and the `blocks` mapping would flag the block for the
+  // Delete/Backspace gesture (the cell clear is the grid's own key) or
+  // stand a text selection over a chrome word (the format toolbar).
+  if (inDatabaseBlock(anchorNode) || inDatabaseBlock(focusNode)) return { kind: "none" };
+
+  const range = domSelection.getRangeAt(0);
+  const anchorBlock = textBlockOf(anchorNode, root, readOnly);
+  const focusBlock = textBlockOf(focusNode, root, readOnly);
+  // A selection outside a text-editable inside the canvas view maps to
+  // none: the canvas manages its own selection (the explicit press), and
+  // the engine's focus move over a canvas item (the mousedown's default
+  // focuses the non-editable — the firefox's behavior) fires a
+  // selectionchange whose blocks mapping would flag the focused item
+  // over the canvas' own state. The editing surfaces inside the canvas
+  // (the shape's text edit, the canvas-text's edit, the page card's
+  // editable) keep the mapping: their focus move re-writes the focused
+  // item's selection, so the toolbar survives the edit.
+  const anchorHostEl = anchorNode instanceof Element ? anchorNode : (anchorNode.parentElement ?? null);
+  if (
+    anchorHostEl?.closest('[data-slot="docblocks/canvas-view"]') !== null &&
+    anchorBlock === null &&
+    editableOfNode(anchorNode) === null
+  ) {
+    return { kind: "none" };
+  }
+  // The cross-editable stand (the webkit's clamped focus): when the range
+  // spans two editables, the anchor/focus read-back may place the far
+  // endpoint inside the anchor's own editable (the engine's selection API
+  // clamps it there); the range's document-order endpoints are faithful
+  // across the boundary, so they stand the derivation. The direction's
+  // read-back stands the range's (the engine's clamped focus carries no
+  // direction) — the core model is document-ordered.
+  const startEditable = editableOfNode(range.startContainer);
+  const endEditable = range.startContainer === range.endContainer ? startEditable : editableOfNode(range.endContainer);
+  if (startEditable !== null && endEditable !== null && startEditable !== endEditable) {
+    const first: Endpoint = {
+      node: range.startContainer,
+      offset: range.startOffset,
+      textBlock: textBlockOf(range.startContainer, root, readOnly),
+    };
+    const last: Endpoint = {
+      node: range.endContainer,
+      offset: range.endOffset,
+      textBlock: textBlockOf(range.endContainer, root, readOnly),
+    };
+    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
+      return mapBlocksSelection(root, domSelection, anchorBlock);
+    }
+    const from = resolveEndpoint(doc, root, first, "first", readOnly);
+    const to = resolveEndpoint(doc, root, last, "last", readOnly);
+    if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
+    if (from.blockId === to.blockId && from.offset === to.offset) {
+      return { kind: "text", from, to: null };
+    }
+    // The direction's read-back (the faithful anchor's stand): the clamped
+    // engine's anchor reads as the range's start — no reverse there. The
+    // writer's anchor's hint (the degenerate seat's identity) stands the
+    // intended anchor (the range's end) over the read-back's flip.
+    let anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+    if (anchorIsFirst && writerAnchorHintFor(root, range) !== null) anchorIsFirst = false;
+    return {
+      kind: "text",
+      from,
+      to,
+      ...(!anchorIsFirst ? { reverse: true } : {}),
+    };
+  }
+  if (anchorBlock !== null && focusBlock === anchorBlock) {
+    return mapTextSelection(anchorBlock, anchorNode, anchorOffset, focusNode, focusOffset);
+  }
+
+  // The DOM range's document-order endpoints (the range is never inverted):
+  // from/to take the first/last resolved point, `reverse` the anchor order.
+  // The writer's anchor's hint's stand (the degenerate seat's identity —
+  // the addRange's read-back's flip's stand): the exact-match seat's hint
+  // stands the intended anchor (the range's end), so the direction stands
+  // reverse over the read-back's no-reverse.
+  let anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+  if (anchorIsFirst && writerAnchorHintFor(root, range) !== null) anchorIsFirst = false;
+  const first: Endpoint = {
+    node: anchorIsFirst ? anchorNode : focusNode,
+    offset: anchorIsFirst ? anchorOffset : focusOffset,
+    textBlock: anchorIsFirst ? anchorBlock : focusBlock,
+  };
+  const last: Endpoint = {
+    node: anchorIsFirst ? focusNode : anchorNode,
+    offset: anchorIsFirst ? focusOffset : anchorOffset,
+    textBlock: anchorIsFirst ? focusBlock : anchorBlock,
+  };
+
+  // A pure non-text selection (the range touches no text block) keeps the
+  // blocks-kind mapping.
+  if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
+    return mapBlocksSelection(root, domSelection, anchorBlock);
+  }
+
+  const from = resolveEndpoint(doc, root, first, "first", readOnly);
+  const to = resolveEndpoint(doc, root, last, "last", readOnly);
+  if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
+
+  // Degenerate resolution (both endpoints land on one point): a caret.
+  if (from.blockId === to.blockId && from.offset === to.offset) {
+    return { kind: "text", from, to: null };
+  }
+  return {
+    kind: "text",
+    from,
+    to,
+    ...(!anchorIsFirst ? { reverse: true } : {}),
+  };
+}
+
+export { mapDomSelection };
+export type { Endpoint };
