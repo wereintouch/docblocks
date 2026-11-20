@@ -140,12 +140,16 @@ function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
 }
 
 /**
- * The group creation: the selected canvas
- * items stand the new group's members in ONE transact (one undo step, one
- * wire update). Returns the new group id, or null for the ineligible
- * selection (one member, a connector / a group in the set, a page block,
- * or the members across surfaces — the group is a flat marker over its
- * siblings, never a container). No throw: the hotkey's no-op posture.
+ * The group creation: the selected canvas items stand the new group's
+ * members in ONE transact (one undo step, one wire update), and the
+ * members leave every earlier owner — a figure stands in one container
+ * at a time (the automatic membership's parity for the explicit
+ * grouping; without the leave the figure would stay a member of its old
+ * group too, and the two markers would both move it). Returns the new
+ * group id, or null for the ineligible selection (one member, a
+ * connector / a group in the set, a page block, or the members across
+ * surfaces — the group is a flat marker over its siblings, never a
+ * container). No throw: the hotkey's no-op posture.
  */
 function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
   if (ids.length < 2) return null;
@@ -158,8 +162,15 @@ function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
     if (surface === null) surface = owner;
     else if (owner !== surface) return null;
   }
+  const members = new Set(ids);
   let created: BlockId | null = null;
   doc.transact(() => {
+    for (const siblingId of doc.getChildren(surface!)) {
+      const sibling = doc.getBlock(siblingId);
+      if (sibling === null || sibling.type !== "group") continue;
+      const kept = sibling.attrs.members.filter((memberId) => !members.has(memberId));
+      if (kept.length !== sibling.attrs.members.length) doc.updateBlock(siblingId, { members: kept });
+    }
     created = doc.insertBlock("group", { members: [...ids] }, { parent: surface! });
   });
   return created;

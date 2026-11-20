@@ -4,8 +4,16 @@
  * seated at the end (no select-all) on mount, the commit on the blur /
  * the Enter (one write), the Escape cancels without a write (the guard
  * stops the blur's commit over the unmount).
+ *
+ * The seed's reseed over an open edit: the incoming value may change
+ * while the field stands (the built-in document path — a peer's write, a
+ * command — or the consumer's own read, e.g. the description's). A
+ * PRISTINE field (the user has not typed away from the seed) follows the
+ * incoming value, the caret kept in place; a typed draft stands (the
+ * user's text is never clobbered mid-edit — the input wins until the
+ * commit or the cancel).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Input } from "./Input";
 
@@ -49,6 +57,17 @@ function InlineEditInput({
 }: InlineEditInputProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const committedRef = useRef(false);
+  // The controlled value: the seed's mirror (the reseed's stand) with the
+  // user's typed draft over it.
+  const [value, setValue] = useState(initial);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  // The last incoming value the field was seeded with (the reseed's
+  // comparison — the draft equals it while the user has not typed).
+  const seedRef = useRef(initial);
+  // The caret's offset over a reseed (the controlled write's default
+  // moves it to the end; the stand keeps the user's position).
+  const caretRef = useRef<number | null>(null);
   // The select's flag's ref (the mount effect's dep-free stand — the
   // field's remount per edit is the re-seed's stand).
   const selectRef = useRef(selectOnMount);
@@ -67,6 +86,28 @@ function InlineEditInput({
     // select-all would replace it on the first keystroke).
     input.setSelectionRange(input.value.length, input.value.length);
   }, []);
+
+  useEffect(() => {
+    if (initial === seedRef.current) return;
+    const previous = seedRef.current;
+    seedRef.current = initial;
+    // The typed draft wins: the input's text is not clobbered mid-edit.
+    if (valueRef.current !== previous) return;
+    const input = inputRef.current;
+    caretRef.current = input !== null && document.activeElement === input ? input.selectionStart : null;
+    setValue(initial);
+  }, [initial]);
+
+  // The caret's stand over the reseed (the controlled value's write moves
+  // it to the end by the browser's default).
+  useLayoutEffect(() => {
+    const caret = caretRef.current;
+    caretRef.current = null;
+    const input = inputRef.current;
+    if (caret === null || input === null) return;
+    const offset = Math.min(caret, input.value.length);
+    input.setSelectionRange(offset, offset);
+  }, [value]);
 
   const commit = (value: string): void => {
     if (committedRef.current) return;
@@ -100,9 +141,12 @@ function InlineEditInput({
       aria-invalid={invalid ? true : undefined}
       variant={variant}
       placeholder={placeholder}
-      defaultValue={initial}
+      value={value}
       className={className}
-      onChange={rearm}
+      onChange={(event) => {
+        setValue(event.target.value);
+        rearm();
+      }}
       onBlur={onInputBlur}
       onKeyDown={onInputKeyDown}
     />

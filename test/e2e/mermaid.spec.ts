@@ -395,13 +395,23 @@ test("the preview's viewport: the height's resize + the pan/zoom over the persis
     ).toBe(true);
     const height = draggedHeight!;
 
-    // The zoom's toolbar (the hover's reveal's stand): the in's press
-    // stands the persisted's zoom (the 120% over the 1.2's step) + the
-    // label's percent.
+    // The zoom's toolbar (the hover's reveal's stand): the view stands the
+    // fit over the clipped height (no explicit view yet), so the in's
+    // press stands the fit's scale over the 1.2's step + the label's
+    // percent — and the press is the explicit gesture that persists it.
+    const label = viewport.locator('[data-slot="docblocks/mermaid-zoom"]');
+    await expect(label).toHaveText(/^\d+%$/);
+    // The fit's exact scale (the transform's matrix — the label rounds).
+    const scaleBefore = await viewport.evaluate((el) => {
+      const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
+      return layer === null ? null : new DOMMatrix(getComputedStyle(layer).transform).a;
+    });
+    expect(scaleBefore).not.toBeNull();
     await viewport.hover();
     await viewport.locator('[data-slot="docblocks/mermaid-zoom-in"]').click();
-    await expect(viewport.locator('[data-slot="docblocks/mermaid-zoom"]')).toHaveText("120%");
-    await expect.poll(async () => (await mermaidAttrs(a, "a"))?.zoom ?? null, SETTLE).toBe(1.2);
+    const expectedScale = (scaleBefore as number) * 1.2;
+    await expect(label).toHaveText(`${Math.round(expectedScale * 100)}%`);
+    await expect.poll(async () => (await mermaidAttrs(a, "a"))?.zoom ?? null, SETTLE).toBeCloseTo(expectedScale, 2);
 
     // The pan's stand (the wheel over the clipped's diagram — the content
     // opposite to the delta, the doc's write over the rest's debounce).
@@ -467,13 +477,12 @@ test("the preview's viewport: the height's resize + the pan/zoom over the persis
   }
 });
 
-test("the tall diagram centers over the page load (no gesture, nothing persisted)", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "mermaid-load-center");
+test("the diagram stands the fit's default over the page load (no gesture, nothing persisted)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "mermaid-load-fit");
   try {
-    // A tall chain with short labels: the natural svg's width sits well
-    // under the page column's width, so the settled stand's centering
-    // offset is visible (the large diagram's stand — taller than the
-    // viewport's box's height).
+    // A tall chain with short labels over a stretched viewport's height
+    // (the clip's stand): the fit's scale sits under 100% and both axes
+    // center — the load-time default, no gesture, no scroll.
     const text = [
       "graph TD",
       ...Array.from({ length: 14 }, (_, i) => `  N${i}[Step ${i}] --> N${i + 1}[Step ${i + 1}]`),
@@ -488,48 +497,95 @@ test("the tall diagram centers over the page load (no gesture, nothing persisted
     const viewport = mermaidBlock(a, "a").locator('[data-slot="docblocks/mermaid-viewport"]');
     await expect(viewport.locator('[data-slot="docblocks/mermaid-diagram"] svg')).toBeVisible();
 
-    // The load-time stand: the view clamps over the settled geometry (the
-    // svg's async appearance + the layout's settle) — the diagram centers
-    // over the wrapper's box with no gesture and no scroll. The offset is
-    // read from the boxes themselves (the transform's expected value).
+    // The load-time stand = the fit over the settled geometry: the scale's
+    // min over the width / height's ratios (the no-upscale's cap), both
+    // axes centered.
+    const fitStand = () =>
+      viewport.evaluate((el) => {
+        const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
+        const svg = layer?.querySelector<SVGSVGElement>("svg") ?? null;
+        if (layer === null || svg === null) return null;
+        const wrap = el.getBoundingClientRect();
+        const w = svg.clientWidth || layer.clientWidth;
+        const h = svg.clientHeight || layer.clientHeight;
+        if (wrap.width <= 0 || wrap.height <= 0 || w <= 0 || h <= 0) return null;
+        const expectedScale = Math.min(wrap.width / w, wrap.height / h, 1);
+        const expectedX = (wrap.width - w * expectedScale) / 2;
+        const expectedY = (wrap.height - h * expectedScale) / 2;
+        const matrix = new DOMMatrix(getComputedStyle(layer).transform);
+        return {
+          ok:
+            Math.abs(matrix.a - expectedScale) <= 0.005 &&
+            Math.abs(matrix.e - expectedX) <= 2 &&
+            Math.abs(matrix.f - expectedY) <= 2,
+          scale: matrix.a,
+          expectedScale,
+        };
+      });
+    await expect.poll(fitStand, { timeout: SETTLE.timeout }).toMatchObject({ ok: true });
+    const stand = await fitStand();
+    // The natural's size stays the small diagram's stand (no upscaling):
+    // the fit's scale never exceeds 1.
+    expect(stand?.scale ?? 0).toBeLessThanOrEqual(1);
+    // Nothing lands on the wire: the default's stand writes no view (the
+    // attrs keep the null idiom).
+    const attrs = await mermaidAttrs(a, "a");
+    expect(attrs).toMatchObject({ zoom: null, panX: null, panY: null });
+  } finally {
+    await close();
+  }
+});
+
+test("an explicit gesture persists the view and the reload restores it (the default writes nothing)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "mermaid-gesture-persist");
+  try {
+    const text = [
+      "graph TD",
+      ...Array.from({ length: 10 }, (_, i) => `  N${i}[Step ${i}] --> N${i + 1}[Step ${i + 1}]`),
+    ].join("\n");
+    await a.evaluate((diagram) => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) return;
+      const blockId = doc.insertBlock("code", { language: "mermaid" });
+      doc.insertText(blockId, 0, diagram);
+    }, text);
+    await switchToPreview(a, "a");
+    const viewport = mermaidBlock(a, "a").locator('[data-slot="docblocks/mermaid-viewport"]');
+    await expect(viewport.locator('[data-slot="docblocks/mermaid-diagram"] svg')).toBeVisible();
+    // The default's stand leaves the attrs empty (the fit's no-write).
+    await expect
+      .poll(async () => await mermaidAttrs(a, "a"), SETTLE)
+      .toMatchObject({
+        zoom: null,
+        panX: null,
+        panY: null,
+      });
+    // The explicit gesture (the toolbar's zoom-in): the view persists.
+    await viewport.hover();
+    await viewport.locator('[data-slot="docblocks/mermaid-zoom-in"]').click();
+    await expect(viewport.locator('[data-slot="docblocks/mermaid-zoom"]')).toHaveText("120%");
+    await expect.poll(async () => (await mermaidAttrs(a, "a"))?.zoom ?? null, SETTLE).toBe(1.2);
+    // The reload: the persisted view restores (the attrs sync over the
+    // relay; the position stands the reload's restore, not the fit).
+    await a.reload();
+    await expect(a.getByTestId("status-a")).toHaveText("connected");
+    const viewportAfter = mermaidBlock(a, "a").locator('[data-slot="docblocks/mermaid-viewport"]');
+    await expect(viewportAfter.locator('[data-slot="docblocks/mermaid-diagram"] svg')).toBeVisible();
     await expect
       .poll(
         async () =>
-          viewport.evaluate((el) => {
+          viewportAfter.evaluate((el) => {
             const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
-            const svg = layer?.querySelector<SVGSVGElement>("svg") ?? null;
-            if (layer === null || svg === null) return { ok: false, expectedX: 0 };
-            const wrap = el.getBoundingClientRect();
-            const w = svg.clientWidth || layer.clientWidth;
-            const h = svg.clientHeight || layer.clientHeight;
-            const expectedX = w < wrap.width ? (wrap.width - w) / 2 : 0;
-            const expectedY = h < wrap.height ? (wrap.height - h) / 2 : 0;
-            const matrix = new DOMMatrix(getComputedStyle(layer).transform);
-            const ok =
-              Math.abs(matrix.a - 1) < 0.001 &&
-              Math.abs(matrix.e - expectedX) <= 2 &&
-              Math.abs(matrix.f - expectedY) <= 2;
-            return { ok, expectedX };
+            return layer === null ? null : new DOMMatrix(getComputedStyle(layer).transform).a;
           }),
         { timeout: SETTLE.timeout }
       )
-      .toEqual({ ok: true, expectedX: expect.any(Number) });
-    // The centering is a real offset (the narrow diagram in the wide
-    // column) — not a vacuous 0.
-    const centered = await viewport.evaluate((el) => {
-      const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
-      const svg = layer?.querySelector<SVGSVGElement>("svg") ?? null;
-      if (layer === null || svg === null) return null;
-      const wrap = el.getBoundingClientRect();
-      const w = svg.clientWidth || layer.clientWidth;
-      return { offset: new DOMMatrix(getComputedStyle(layer).transform).e, expected: (wrap.width - w) / 2 };
-    });
-    expect(centered?.expected ?? 0, "the narrow diagram's centering's stand").toBeGreaterThan(20);
-    expect(centered?.offset ?? 0).toBeGreaterThan(20);
-    // The canonical's persist's no-op: the load-time stand writes nothing
-    // (the attrs keep the identity — the null idiom).
-    const attrs = await mermaidAttrs(a, "a");
-    expect(attrs).toMatchObject({ zoom: null, panX: null, panY: null });
+      .toBeCloseTo(1.2, 2);
+    // The reload's restore writes nothing new (the attrs stand the
+    // gesture's value).
+    await expect.poll(async () => (await mermaidAttrs(a, "a"))?.zoom ?? null, SETTLE).toBe(1.2);
   } finally {
     await close();
   }

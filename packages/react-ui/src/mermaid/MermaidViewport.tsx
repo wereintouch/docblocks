@@ -122,6 +122,21 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
   );
   const viewRef = useRef(view);
   viewRef.current = view;
+  // The explicit-view stand: the persisted attrs at the mount (the
+  // reload's restore) or an explicit gesture (and the peer's adopted
+  // write) stand the user's view — the load-time default (the fit) stands
+  // only while nothing explicit has happened.
+  const explicitViewRef = useRef(block.attrs?.zoom != null || block.attrs?.panX != null || block.attrs?.panY != null);
+  // The persist gate: only an explicit gesture writes the view back (the
+  // mount's default / the adopt / the re-clamp stand the canonical's
+  // no-write — a default's write would leave a garbage pan behind).
+  const persistGateRef = useRef(false);
+
+  /** The explicit gesture's stand: the view is the user's (the load-time fit stops re-applying) and the write-back opens. */
+  const markExplicit = () => {
+    explicitViewRef.current = true;
+    persistGateRef.current = true;
+  };
   // The stretched height's stand (the null idiom: null = the natural's
   // auto). The drag updates the state live, the rest's commit stands the
   // doc's write; the peer's write stands the adopt.
@@ -141,6 +156,19 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
     null
   );
 
+  /** The fit's view over the measured's boxes (the scale's min, the no-upscale's cap, the centering). */
+  const fitViewOf = (): ViewportView | null => {
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    const content = measureContent(layerRef.current);
+    if (rect === undefined || rect.width <= 0 || rect.height <= 0 || content.w <= 0 || content.h <= 0) return null;
+    const scale = clamp(
+      Math.min(rect.width / content.w, rect.height / content.h, 1),
+      VIEWPORT_MIN_SCALE,
+      VIEWPORT_MAX_SCALE
+    );
+    return { scale, x: (rect.width - content.w * scale) / 2, y: (rect.height - content.h * scale) / 2 };
+  };
+
   /** The clamped view over the measured's boxes (the gesture's helper). */
   const clampView = (next: ViewportView): ViewportView => {
     const rect = wrapperRef.current?.getBoundingClientRect();
@@ -152,16 +180,19 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
   };
 
   /**
-   * The geometry's re-clamp: the mount's wrapper / layer boxes are not
-   * final (the page's layout settles post-mount) and the diagram's svg
-   * lands AFTER the mount (mermaid renders async) — the mount's adopt /
-   * persist stand over the loading skeleton's box, so without this stand
-   * a diagram that fits the settled box keeps the unclamped view (its
-   * left edge at the wrapper's left edge — the large diagram's
-   * top-left-corner stand). The observer re-clamps over the settled
-   * boxes whenever they change (the svg's appearance, the consumer's
-   * re-layout); the canonical's persist's no-op keeps the re-clamp off
-   * the wire (the centered stand IS the identity's canonical).
+   * The geometry's stand: the mount's wrapper / layer boxes are not final
+   * (the page's layout settles post-mount) and the diagram's svg lands
+   * AFTER the mount (mermaid renders async), so the mount-time measure
+   * reads the loading skeleton's box. Over the settled boxes:
+   * - no explicit view yet (nothing persisted, no gesture): the load-time
+   *   default stands — the FIT (the whole diagram in the frame, centered,
+   *   capped at 100%);
+   * - an explicit view stands (the reload's restore, a gesture, a peer's
+   *   write): the pan re-clamps into the box (the view never lands
+   *   unclamped).
+   * The observer stands both when the boxes change (the svg's appearance,
+   * the consumer's re-layout) and on its initial observe; none of it
+   * touches the wire (see the persist gate).
    */
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -170,13 +201,14 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
     // The environment without the observer (jsdom — no layout): the unit
     // tests drive the geometry explicitly.
     if (typeof ResizeObserver === "undefined") return;
-    const reClamp = () => {
+    const settle = () => {
       const current = viewRef.current;
-      const clamped = clampView(current);
-      if (clamped.scale === current.scale && clamped.x === current.x && clamped.y === current.y) return;
-      setView(clamped);
+      const next = explicitViewRef.current ? clampView(current) : fitViewOf();
+      if (next === null) return;
+      if (next.scale === current.scale && next.x === current.x && next.y === current.y) return;
+      setView(next);
     };
-    const observer = new ResizeObserver(reClamp);
+    const observer = new ResizeObserver(settle);
     observer.observe(wrapper);
     observer.observe(layer);
     return () => observer.disconnect();
@@ -220,6 +252,7 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
       }
       if (next === null) return;
       event.preventDefault();
+      markExplicit();
       setView(next);
     };
     wrapper.addEventListener("wheel", onWheel, { passive: false });
@@ -233,6 +266,7 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
     if (wrapper === null) return;
     const rect = wrapper.getBoundingClientRect();
     const content = measureContent(layerRef.current);
+    markExplicit();
     setView((v) => {
       const nextScale = clamp(v.scale * step, VIEWPORT_MIN_SCALE, VIEWPORT_MAX_SCALE);
       if (nextScale === v.scale) return v;
@@ -247,7 +281,10 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
   const zoomIn = () => zoomBy(VIEWPORT_ZOOM_STEP);
   const zoomOut = () => zoomBy(1 / VIEWPORT_ZOOM_STEP);
 
-  const resetView = () => setView(clampView(VIEWPORT_IDENTITY));
+  const resetView = () => {
+    markExplicit();
+    setView(clampView(VIEWPORT_IDENTITY));
+  };
   // The identity's canonical's stand (the clamped's parity): the sub-
   // wrapper content's centering's offset is the identity's canonical's
   // coordinate, so the raw's identity must not stand the reset's
@@ -260,24 +297,19 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
   })();
 
   /**
-   * The fit's stand (the default's restore for the large diagram): the
-   * scale's min over the width / height's ratio, capped at 1 (the small
-   * diagram's stand the natural's size — no upscaling), centered over the
-   * visible viewport's box (the clipped stand included). The no-content's
-   * stand (the error / loading's states): the no-op.
+   * The fit's stand (the load-time default and the toolbar's restore for
+   * the large diagram): the scale's min over the width / height's ratio,
+   * capped at 1 (the small diagram's stand the natural's size — no
+   * upscaling), centered over the visible viewport's box (the clipped
+   * stand included). The no-content's stand (the error / loading's
+   * states): the no-op. The button's press stands the explicit view (the
+   * persisted write follows).
    */
   const fitView = () => {
-    const wrapper = wrapperRef.current;
-    if (wrapper === null) return;
-    const rect = wrapper.getBoundingClientRect();
-    const content = measureContent(layerRef.current);
-    if (rect.width <= 0 || rect.height <= 0 || content.w <= 0 || content.h <= 0) return;
-    const scale = clamp(
-      Math.min(rect.width / content.w, rect.height / content.h, 1),
-      VIEWPORT_MIN_SCALE,
-      VIEWPORT_MAX_SCALE
-    );
-    setView({ scale, x: (rect.width - content.w * scale) / 2, y: (rect.height - content.h * scale) / 2 });
+    const next = fitViewOf();
+    if (next === null) return;
+    markExplicit();
+    setView(next);
   };
 
   /**
@@ -294,6 +326,11 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
    * no wire update).
    */
   useEffect(() => {
+    // Only an explicit gesture writes the view back: the load-time fit,
+    // the adopt of a peer's write, and the geometry's re-clamp stand no
+    // write (a default's persist would leave a garbage pan behind).
+    if (!persistGateRef.current) return;
+    persistGateRef.current = false;
     const clamped = clampView(view);
     const zoom = roundViewValue(clamped.scale, 2);
     const x = roundViewValue(clamped.x, 1);
@@ -339,9 +376,13 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
       x: block.attrs?.panX ?? 0,
       y: block.attrs?.panY ?? 0,
     };
+    const persisted = block.attrs?.zoom != null || block.attrs?.panX != null || block.attrs?.panY != null;
     const clamped = clampView(target);
     const v = viewRef.current;
     if (clamped.scale === v.scale && clamped.x === v.x && clamped.y === v.y) return;
+    // The adopted view is an explicit one (the peer's gesture or the
+    // reload's restore): the load-time fit stops re-applying.
+    if (persisted) explicitViewRef.current = true;
     setView(clamped);
   }, [block.attrs]);
 
@@ -371,6 +412,7 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
     const dy = event.clientY - session.lastY;
     session.lastX = event.clientX;
     session.lastY = event.clientY;
+    markExplicit();
     setView((v) => clampView({ scale: v.scale, x: v.x + dx, y: v.y + dy }));
   };
 

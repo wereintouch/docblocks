@@ -692,5 +692,10 @@
  * so the theme's flip re-mixes over the same value without a re-read.
  */
 [data-slot="card"][data-cover-tint] {
-  border-color: color-mix(in srgb, var(--docblocks-cover-tint-color) 25%, var(--border));
+  /* The tint variable lands only once the cover's average color resolves
+     (the blob's read + the image's decode): until then the fallback
+     resolves to the plain border — an undefined variable inside the mix
+     would make the whole border-color invalid and fall back to the text
+     color (a near-white flash over the dark theme). */
+  border-color: color-mix(in srgb, var(--docblocks-cover-tint-color, var(--border)) 25%, var(--border));
 }

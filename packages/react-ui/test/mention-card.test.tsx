@@ -297,3 +297,26 @@ describe("the chip's interactive stand (the hover's styling hook)", () => {
     expect(document.querySelector(CHIP_SELECTOR), "the inert chip stands").not.toBeNull();
   });
 });
+
+describe("the chip's press (the cross drag's island guard)", () => {
+  afterEach(cleanup);
+
+  it("starts no caret session over the chip (no seat, no focus)", () => {
+    // The chip is a non-editable island inside the text inner: the press
+    // belongs to the chip's own interactions, so the editor's cross-drag
+    // session must not start (its release seats the caret on the chip's
+    // line and pulls the scroll port there).
+    const { blockId } = renderChip();
+    const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
+    const inner = document.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
+    )!;
+    const pointer = { bubbles: true, cancelable: true, pointerType: "mouse", button: 0, pointerId: 7 };
+    fireEvent.pointerDown(chip, { ...pointer, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(window, { ...pointer, clientX: 12, clientY: 11 });
+    // The session would have seated a DOM selection and focused the inner
+    // over its release; neither stands.
+    expect(window.getSelection()?.rangeCount ?? 0).toBe(0);
+    expect(document.activeElement).not.toBe(inner);
+  });
+});
