@@ -278,3 +278,52 @@ describe("the hotkeys (Ctrl/Cmd+G)", () => {
     expect(r.json().blocks[r.b]).toBeDefined();
   });
 });
+
+describe("the makeGroup membership's normalization", () => {
+  it("moves the members out of their earlier groups (one owner per figure)", () => {
+    const { doc, a, b, c, group } = seededDoc(true);
+    expect(group).not.toBeNull();
+    // The seeded group carries a and b; regrouping b with c moves b out of
+    // it and a stays where it was (one owner per figure, one transact).
+    const created = makeGroup(doc, [b, c]);
+    expect(created).not.toBeNull();
+    const old = doc.getBlock(group!);
+    expect(old, "the earlier group stands (its other member keeps it)").not.toBeNull();
+    expect((old as { attrs: { members: string[] } }).attrs.members).toEqual([a]);
+    const fresh = doc.getBlock(created!);
+    expect(fresh).toMatchObject({ type: "group", attrs: { members: [b, c] } });
+    // The transitive read: no figure stands in two groups.
+    const groups = doc
+      .getChildren(doc.meta.id)
+      .flatMap((surfaceId) => doc.getChildren(surfaceId))
+      .filter((id) => doc.getBlock(id)?.type === "group") as string[];
+    for (const memberId of [a, b, c]) {
+      const owners = groups.filter((groupId) =>
+        (doc.getBlock(groupId) as { attrs: { members: string[] } }).attrs.members.includes(memberId)
+      );
+      expect(owners, `the ${memberId}'s single-owner's stand`).toHaveLength(1);
+    }
+    // The membership move is the same undo step as the group's creation.
+    doc.undo();
+    expect(doc.getBlock(created!)).toBeNull();
+    expect((doc.getBlock(group!) as { attrs: { members: string[] } }).attrs.members).toEqual([a, b]);
+  });
+
+  it("leaves an emptied earlier group in place (the empty group is a legal marker)", () => {
+    const { doc, a, b, c } = seededDoc(true);
+    const created = makeGroup(doc, [a, b, c]);
+    expect(created).not.toBeNull();
+    const groups = doc
+      .getChildren(doc.meta.id)
+      .flatMap((surfaceId) => doc.getChildren(surfaceId))
+      .flatMap((id) => {
+        const block = doc.getBlock(id);
+        return block?.type === "group" ? [{ id, members: block.attrs.members }] : [];
+      });
+    expect(
+      groups.filter((group) => group.members.length === 0),
+      "the emptied marker stands"
+    ).toHaveLength(1);
+    expect(groups.find((group) => group.id === created)?.members).toEqual([a, b, c]);
+  });
+});
