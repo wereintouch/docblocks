@@ -351,7 +351,7 @@ function validateMarks(
         // be a persistence DoS over a poisoned document).
         errors.push({
           path: markPath,
-          message: `Mark "link" requires an href: http/https URL or relative path (got ${show(attrValue)}).`,
+          message: `Mark "link" requires an href: http/https URL, mailto: email, tel: phone, or relative path (got ${show(attrValue)}).`,
         });
       }
     } else if (spec.attr === "value") {
