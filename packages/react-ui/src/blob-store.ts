@@ -3,6 +3,7 @@
  * opaque file id; the consumer's store returns the bytes and authoritative
  * metadata, and notifies open views when that metadata changes.
  */
+import { BlobNotFoundError } from "./shared/errors";
 
 /** The blob's authoritative display metadata. */
 interface BlobMeta {
@@ -57,7 +58,7 @@ function createMemoryBlobStore(): BlobStore {
   return {
     get: async (fileId) => {
       const ref = blobs.get(fileId);
-      if (ref === undefined) throw new Error(`Blob not found: ${fileId}`);
+      if (ref === undefined) throw new BlobNotFoundError(`Blob not found: ${fileId}`);
       return ref;
     },
     upload: async (file) => {
@@ -71,7 +72,7 @@ function createMemoryBlobStore(): BlobStore {
     },
     rename: async (fileId, name) => {
       const ref = blobs.get(fileId);
-      if (ref === undefined) throw new Error(`Blob not found: ${fileId}`);
+      if (ref === undefined) throw new BlobNotFoundError(`Blob not found: ${fileId}`);
       const meta = { ...ref.meta, name };
       blobs.set(fileId, { ...ref, meta });
       notify(fileId);

@@ -1,3 +1,5 @@
+import { UnhandledValueError } from "./errors";
+
 /** Clamps a value into the inclusive [min, max] range. */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -37,7 +39,7 @@ function isSafeDownloadHref(url: unknown): boolean {
  * slipped past the types.
  */
 function assertNever(value: never): never {
-  throw new Error(`Unhandled value: ${String(value)}`);
+  throw new UnhandledValueError(`Unhandled value: ${String(value)}`);
 }
 
 export { assertNever, clamp, isSafeDownloadHref, preventDefault, stopPropagation };

@@ -5,6 +5,7 @@
 import type { Block, BlockId, Doc, InsertBlockPosition } from "docblocks-core";
 import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
+import { UnknownSlashCommandError } from "../../shared/errors";
 import { assertNever } from "../../shared/utils";
 import { focusCaretIn, focusCellActivation } from "../block-commands";
 import { isQueryBoundary } from "../phrase";
@@ -135,7 +136,7 @@ function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition
       return tableId;
     }
     default:
-      throw new Error(`Unknown slash command type "${(command as { type: string }).type}".`);
+      throw new UnknownSlashCommandError(`Unknown slash command type "${(command as { type: string }).type}".`);
   }
 }
 

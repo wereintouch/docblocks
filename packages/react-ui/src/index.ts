@@ -41,6 +41,15 @@ export type { DocblocksI18nProviderProps } from "./i18n";
 export { createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobStore } from "./blob-store";
 export {
+  BlobNotFoundError,
+  CanvasPasteError,
+  DocBlocksUiError,
+  EditorProviderError,
+  PdfFetchError,
+  UnhandledValueError,
+  UnknownSlashCommandError,
+} from "./shared/errors";
+export {
   BASELINE_CAPABILITIES,
   BRIDGE_ERROR_CODES,
   BridgeError,
