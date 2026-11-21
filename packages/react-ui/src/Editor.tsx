@@ -2,19 +2,10 @@ import { useStore } from "zustand";
 
 import { type KeyboardEvent as ReactKeyboardEvent, useMemo, useRef } from "react";
 
+import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { AttributesPanel, CoverBanner } from "./attributes";
 import { CoverTintController } from "./attributes/cover-tint";
-import {
-  BlockContext,
-  CanvasView,
-  FormatPaletteContext,
-  collapseEmptyTextChains,
-  deriveFlat,
-  entrySequenceParent,
-  isEmptyChainText,
-  visibleRows,
-} from "./blocks";
-import type { FlatNode } from "./blocks";
+import { BlockContext, CanvasView, FormatPaletteContext, entrySequenceParent, usePageSequence } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
 import { useEditing } from "./editing/editor-root";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
@@ -89,23 +80,11 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   // The page surface's container-level dispatch (the single page
   // editable's keys/inputs target the container, not the blocks' inners).
   const surface = usePageSurfaceDispatch(pageRef, doc, surfaceMapRef.current);
-  // The sequence-structure stamp (the derivation's key): a text-only edit
-  // stands nothing here — the edited row re-renders through its own
-  // subscription, the row list and the rows' framer fibers stand.
-  const seqStamp = useStore(store, (state) => state.seqStamp);
-  const collapsedIds = useStore(store, (state) => state.collapsedIds);
-  // The page view's sequence: the root's children minus the surfaces (a
-  // surface is a canvas layer, not a page block — its whole surface renders
-  // in the canvas view only; a stray one would otherwise delete its entire
-  // content through the page's Delete path). The filter keys on the
-  // structure inputs (the root's children + the stamp) and reads the blocks
-  // map from the store's live state — the same read the derivation below
-  // does, so the row list's re-render contract stands (a text-only edit
-  // stands nothing here).
-  const pageChildren = useMemo(
-    () => rootChildren.filter((id) => store.getState().blocks[id]?.type !== "surface"),
-    [rootChildren, seqStamp, store]
-  );
+  // The page view's rows: the root's page children (a canvas surface is a
+  // canvas layer, not a page block — a stray one would otherwise delete its
+  // entire content through the page's Delete path), the flat derivation,
+  // the collapsed segments' skip, and the read-only empty chains' collapse.
+  const { nodesById, collapsedRowKeys } = usePageSequence({ store, rootChildren, viewMode });
   // The gestures' command parent: the entry root's sequence container.
   const rootContext = useMemo(
     () => ({ parentId: entrySequenceParent(doc, rootBlockId), siblings: rootChildren }),
@@ -126,52 +105,6 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   const format = useFormatToolbar(rootRef, formatPalette);
   useTypingFlag(rootRef);
   const enterGate = useEnterAnimationGate(rootRef);
-
-  // The flat page sequence, derived per structure change (the store stays a
-  // flat map projection). The interning cache: the previous derivation's
-  // byId stands while the sequence's data is unchanged (the row memo is
-  // keyed on the node identity). The blocks map is read from the store's
-  // live state (the stamp and the map advance in the same atomic write —
-  // the map stands fresh whenever the stamp does).
-  const prevRef = useRef<Map<string, FlatNode> | null>(null);
-  const derivation = useMemo(() => {
-    const result = deriveFlat(pageChildren, store.getState().blocks, prevRef.current ?? undefined);
-    prevRef.current = result.byId;
-    return result;
-  }, [pageChildren, seqStamp, store]);
-  // The visible rows: the sequence with every collapsed block's derived
-  // segment unmounted (a view-state skip — the rows stand in the
-  // data; the local drag order and the commit run over the visible rows).
-  const rowKeys = useMemo(
-    () => visibleRows(pageChildren, derivation.byId, collapsedIds),
-    [pageChildren, derivation, collapsedIds]
-  );
-  const nodesById = derivation.byId;
-  // The read-only stand (the view / published's modes): the consecutive
-  // empty text blocks' chain stands rendered as one (the chain's first
-  // block) — the data stands untouched. The digest stands the remote's
-  // empty's flip (the view's stand reads the live's doc — the peer's
-  // write's stand is the collapse's input). The edit's mode stands no
-  // digest (the collapse's stand is off).
-  const emptyKey = useStore(store, (state) =>
-    viewMode
-      ? pageChildren
-          .map((id) => {
-            const block = state.blocks[id];
-            return isEmptyChainText(block) ? "o" : block === undefined ? "-" : ".";
-          })
-          .join("")
-      : ""
-  );
-  const collapsedRowKeys = useMemo(() => {
-    if (!viewMode) return rowKeys;
-    const nodes: FlatNode[] = [];
-    for (const id of rowKeys) {
-      const node = nodesById.get(id);
-      if (node !== undefined) nodes.push(node);
-    }
-    return collapseEmptyTextChains(nodes, (id) => isEmptyChainText(store.getState().blocks[id])).map((node) => node.id);
-  }, [rowKeys, viewMode, emptyKey, nodesById, store]);
 
   const { order, draggingKey, previewIndent, layoutSlide, onRowDragStart, onRowDragMove, onRowDragEnd, onRowReorder } =
     useMotionDrag({ doc, rootBlockId, store, rootRef, rowKeys: collapsedRowKeys, nodesById });
@@ -220,80 +153,87 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           onPointerDown={onCrossDragPointerDown}
         >
           <style>{HANDLE_GRAB_STYLE}</style>
-          {/* The cover's banner (the frame's top edge's stand): a
+          {/* The editor's content stands the top-level render boundary: a
+              throw of the chrome outside a block's renderer (the panel,
+              the canvas chrome, the row list) is contained to the content
+              area — the root's focus scope and the consumer's application
+              stay mounted. */}
+          <EditorErrorBoundary>
+            {/* The cover's banner (the frame's top edge's stand): a
               non-interactive decoration over the page view only (the
               canvas's view stands no banner). */}
-          {view === "canvas" ? null : <CoverBanner />}
-          <MentionMenuContext.Provider value={mention.api}>
-            <SlashMenuContext.Provider value={slash.api}>
-              <FormatPaletteContext.Provider value={formatPalette}>
-                <BlockContext.Provider value={rootContext}>
-                  {view === "canvas" ? (
-                    <CanvasView />
-                  ) : (
-                    // The page's content column: the derived max width over
-                    // the centered stand (the block content's width — the
-                    // --docblocks-page-max-width token — + the two gutter
-                    // paddings: the token stands on the blocks, the paddings
-                    // stand outside it; the symmetric margins over the wide
-                    // window, the full width over the narrow one) + the
-                    // padding (the gutter band stands inside the column, so
-                    // the grip follows the content's edge, not the
-                    // viewport's). The canvas view owns its own viewport and
-                    // is unpadded. The container is the page's single
-                    // editable (the edit's mode): the native selection
-                    // crosses the blocks' boundaries natively over every
-                    // engine (the WebKit family's cross-editable's clamp
-                    // stands between sibling editables only) — the
-                    // per-block handlers stand dispatched over the surface
-                    // registry (the container's target's stand).
-                    <PageSurfaceProvider map={surfaceMapRef.current}>
-                      <div
-                        ref={pageRef}
-                        data-slot="docblocks/page"
-                        contentEditable={!viewMode}
-                        suppressContentEditableWarning
-                        onKeyDown={surface.onKeyDown}
-                        onInput={surface.onInput}
-                        onPaste={surface.onPaste}
-                        className="
+            {view === "canvas" ? null : <CoverBanner />}
+            <MentionMenuContext.Provider value={mention.api}>
+              <SlashMenuContext.Provider value={slash.api}>
+                <FormatPaletteContext.Provider value={formatPalette}>
+                  <BlockContext.Provider value={rootContext}>
+                    {view === "canvas" ? (
+                      <CanvasView />
+                    ) : (
+                      // The page's content column: the derived max width over
+                      // the centered stand (the block content's width — the
+                      // --docblocks-page-max-width token — + the two gutter
+                      // paddings: the token stands on the blocks, the paddings
+                      // stand outside it; the symmetric margins over the wide
+                      // window, the full width over the narrow one) + the
+                      // padding (the gutter band stands inside the column, so
+                      // the grip follows the content's edge, not the
+                      // viewport's). The canvas view owns its own viewport and
+                      // is unpadded. The container is the page's single
+                      // editable (the edit's mode): the native selection
+                      // crosses the blocks' boundaries natively over every
+                      // engine (the WebKit family's cross-editable's clamp
+                      // stands between sibling editables only) — the
+                      // per-block handlers stand dispatched over the surface
+                      // registry (the container's target's stand).
+                      <PageSurfaceProvider map={surfaceMapRef.current}>
+                        <div
+                          ref={pageRef}
+                          data-slot="docblocks/page"
+                          contentEditable={!viewMode}
+                          suppressContentEditableWarning
+                          onKeyDown={surface.onKeyDown}
+                          onInput={surface.onInput}
+                          onPaste={surface.onPaste}
+                          className="
                           mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
                         "
-                      >
-                        {/* The document-attributes panel (the above-the-first-block's
+                        >
+                          {/* The document-attributes panel (the above-the-first-block's
                             stand): a non-editable island over the page's shared
                             editable (the cross-drag's mousedown guard + the surface's
                             container-targeted dispatch keep their stands over its
                             controls). The canvas view stands no panel (the page-column
                             placement). */}
-                        <AttributesPanel />
-                        <RowList
-                          order={order}
-                          nodesById={nodesById}
-                          layoutSlide={layoutSlide || draggingKey !== null}
-                          draggingKey={draggingKey}
-                          previewIndent={previewIndent}
-                          animated={enterGate.current}
-                          onReorder={onRowReorder}
-                          onDragStart={onRowDragStart}
-                          onDragMove={onRowDragMove}
-                          onDragEnd={onRowDragEnd}
-                        />
-                      </div>
-                    </PageSurfaceProvider>
-                  )}
-                  {viewMode ? null : <PresenceCaretOverlay rootRef={rootRef} />}
-                </BlockContext.Provider>
-              </FormatPaletteContext.Provider>
-            </SlashMenuContext.Provider>
-          </MentionMenuContext.Provider>
-          {slash.menuNode}
-          {mention.menuNode}
-          {mentionCard}
-          <LinkPopoverContext.Provider value={linkPopover.api}>
-            {viewMode ? null : format.toolbarNode}
-          </LinkPopoverContext.Provider>
-          {linkPopover.node}
+                          <AttributesPanel />
+                          <RowList
+                            order={order}
+                            nodesById={nodesById}
+                            layoutSlide={layoutSlide || draggingKey !== null}
+                            draggingKey={draggingKey}
+                            previewIndent={previewIndent}
+                            animated={enterGate.current}
+                            onReorder={onRowReorder}
+                            onDragStart={onRowDragStart}
+                            onDragMove={onRowDragMove}
+                            onDragEnd={onRowDragEnd}
+                          />
+                        </div>
+                      </PageSurfaceProvider>
+                    )}
+                    {viewMode ? null : <PresenceCaretOverlay rootRef={rootRef} />}
+                  </BlockContext.Provider>
+                </FormatPaletteContext.Provider>
+              </SlashMenuContext.Provider>
+            </MentionMenuContext.Provider>
+            {slash.menuNode}
+            {mention.menuNode}
+            {mentionCard}
+            <LinkPopoverContext.Provider value={linkPopover.api}>
+              {viewMode ? null : format.toolbarNode}
+            </LinkPopoverContext.Provider>
+            {linkPopover.node}
+          </EditorErrorBoundary>
         </div>
       </EnumOptionsMotionSlot.Provider>
     </Card>

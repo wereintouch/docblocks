@@ -8,6 +8,8 @@
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks";
 export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
+export { EditorErrorBoundary } from "./EditorErrorBoundary";
+export type { EditorErrorBoundaryProps } from "./EditorErrorBoundary";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
   AccessLevel,

@@ -24,6 +24,8 @@ export {
   visibleRows,
 } from "./flat";
 export type { FlatNode } from "./flat";
+export { usePageSequence } from "./use-page-sequence";
+export type { PageSequence, PageSequenceInput } from "./use-page-sequence";
 export { FormatPaletteContext, useFormatPalette } from "../shared/providers/format-palette-context";
 export { insertParagraphAfter } from "../editing/gutter-plus";
 export { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "./callout-icon";
