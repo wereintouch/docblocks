@@ -1,27 +1,20 @@
-/** The WebSocket sync provider: the WsSyncProvider class. The WebSocket
- *  surface + options types stand in models; the wire parsing + the default
- *  socket factory stand in parse. */
-import * as decoding from "lib0/decoding";
-import * as encoding from "lib0/encoding";
-import { Awareness, applyAwarenessUpdate, removeAwarenessStates } from "y-protocols/awareness";
-import * as sync from "y-protocols/sync";
+/** The WebSocket sync provider: the WsSyncProvider class. The wire's frame
+ *  helpers stand in ws-frames; the incoming message's handling stands in
+ *  frame-handler, the awareness's handling in awareness, the offline
+ *  buffer's bookkeeping in pending-buffer. */
+import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 
 import { DocBlocksError } from "@docblocks-core/core";
 
 import type { PresenceState, SyncProvider, Unsubscribe } from "../models";
-import {
-  MESSAGE_AWARENESS,
-  MESSAGE_QUERY_AWARENESS,
-  MESSAGE_SYNC,
-  buildAwarenessFrame,
-  buildSyncStep1Frame,
-  buildSyncUpdateFrame,
-  concatFrames,
-} from "../ws-frames";
-import type { WsLike, WsSyncOptions } from "./models";
-import type { PendingStats } from "./models";
-import { defaultWebSocketImpl, parsePresenceExtras, parseSelection, swallowDecodeError } from "./parse";
+import { buildAwarenessFrame, buildSyncStep1Frame, buildSyncUpdateFrame } from "../ws-frames";
+import { onAwarenessUpdate, remotePeers, teardownAwareness } from "./awareness";
+import type { AwarenessUpdateEvent } from "./awareness";
+import { handleIncomingMessage } from "./frame-handler";
+import type { PendingStats, WsLike, WsSyncOptions } from "./models";
+import { defaultWebSocketImpl } from "./parse";
+import { PendingBuffer } from "./pending-buffer";
 
 /**
  * Standard y-protocols over WebSocket (the y-websocket wire), wire-
@@ -29,43 +22,35 @@ import { defaultWebSocketImpl, parsePresenceExtras, parseSelection, swallowDecod
  *
  * The provider owns an internal Y.Doc: every sent and received update is
  * applied there, so `getLocalStateVector()` is honest with or without an
- * attached app document. App documents receive updates through `onUpdate`
- * (the attach glue applies them). A received update stands the app FIRST;
- * the internal doc mirrors it only if no onUpdate listener threw — a
- * listener failure keeps the state vector behind, so the next state vector
- * exchange re-sends the missed bytes (the internal doc never claims state
- * the app's doc does not hold, or the divergence is unrecoverable for the
- * connection's life). A listener exception itself stands visible (it is
- * the app's own failure, not a malformed frame); the socket stands.
+ * attached app document. A received update stands the app FIRST (through
+ * `onUpdate`); the internal doc mirrors it only if no onUpdate listener
+ * threw — a listener failure keeps the state vector behind, so the next
+ * state vector exchange re-sends the missed bytes (the internal doc never
+ * claims state the app's doc does not hold, or the divergence is
+ * unrecoverable for the connection's life). A listener exception stands
+ * visible (the app's own failure, not a malformed frame); the socket stands.
  *
  * `connect()` resolves when the socket is open and the step1 handshake is
  * sent; the initial state (step2) arrives through `onUpdate`. The promise
- * stands the CURRENT connection attempt: concurrent calls over the
- * CONNECTING window await the same attempt (they settle together on the
- * open), a cancel (`disconnect`) or a close before the open rejects it,
- * and a connect after that starts a fresh attempt. Updates sent while the
- * socket is not open (before `connect()`, or during the CONNECTING window)
- * are buffered and flushed on the next open. There is no auto-reconnect:
- * after an unexpected close the application calls `connect()` again and the
- * step1/step2 exchange resyncs.
+ * stands the current connection attempt (the concurrent/cancel/close
+ * semantics stand the method's doc). Updates sent while the socket is not
+ * open are buffered and flushed on the next open. There is no
+ * auto-reconnect: after an unexpected close the application calls
+ * `connect()` again and the step1/step2 exchange resyncs.
  *
  * Backpressure and budgets (client-side, not a security boundary — the
- * server stands the ACL and the quotas):
- *
- * - the offline buffer holds a byte count, not a copy of each update; the
- *   updates live in the internal doc and are coalesced into ONE state
- *   update on the open, so an offline edit storm stands one flush frame,
- *   not one frame per edit. `maxPendingBytes` caps the count and sets the
- *   overflow flag (getPendingStats) when it is passed; the flush still
- *   sends the full coalesced state (nothing is dropped).
- * - one incoming socket message over `maxFrameBytes` is dropped whole
- *   (not decoded or applied), bounding the per-message decode/apply work.
+ * server stands the ACL and the quotas): the offline buffer holds a byte
+ * count, not a copy of each update (the updates live in the internal doc
+ * and are coalesced into ONE state update on the open — an offline edit
+ * storm stands one flush frame); `maxPendingBytes` caps the count and sets
+ * the overflow flag (getPendingStats) — the flush still sends the full
+ * coalesced state. One incoming message over `maxFrameBytes` is dropped
+ * whole (not decoded or applied).
  *
  * Safe attach order: `attach` registers its remote subscription before the
- * bootstrap send, so it stands correct pre-connect (the bootstrap buffered
- * until open), mid-handshake, and after the handshake — a late attach over
- * a provider that already holds room state recovers the state through the
- * `onUpdate` accumulated-state delivery.
+ * bootstrap send, so it stands correct pre-connect, mid-handshake, and
+ * after the handshake (a late attach recovers the state through the
+ * `onUpdate` accumulated-state delivery).
  *
  * v1 scope cuts: no reconnect backoff, no periodic resync, no socket
  * watchdog, no sync-status reporting.
@@ -83,20 +68,14 @@ class WsSyncProvider implements SyncProvider {
   #awareness: Awareness;
   #socket: WsLike | null = null;
   #open = false;
-  /** The offline buffer's bookkeeping: a byte count + a flag, not a copy
-   *  of each update (the updates live in the internal doc and are
-   *  coalesced into one state update on the open). */
-  #pendingBytes = 0;
-  #hasPending = false;
-  #pendingOverflow = false;
-  #maxPendingBytes: number;
+  /** The offline buffer's bookkeeping (see pending-buffer). */
+  #pending: PendingBuffer;
   #maxFrameBytes: number;
   /**
    * The provider has received document state from the wire (a step2 or an
-   * update). Gates the onUpdate accumulated-state delivery: a pre-connect
-   * provider holds only the app doc's own buffered bootstrap, which is not
-   * "incoming" state — delivering it would stand the doc's own bytes as a
-   * remote update.
+   * update). Gates the onUpdate accumulated-state delivery (a pre-connect
+   * provider holds only the app doc's own buffered bootstrap — not
+   * "incoming" state).
    */
   #receivedSync = false;
   /**
@@ -114,7 +93,7 @@ class WsSyncProvider implements SyncProvider {
     this.#url = url;
     this.#token = opts.token;
     this.#webSocketImpl = opts.webSocketImpl ?? defaultWebSocketImpl;
-    this.#maxPendingBytes = opts.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
+    this.#pending = new PendingBuffer(opts.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES);
     this.#maxFrameBytes = opts.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES;
     this.#doc = new Y.Doc();
     this.#awareness = new Awareness(this.#doc);
@@ -144,13 +123,10 @@ class WsSyncProvider implements SyncProvider {
           socket.send(buildAwarenessFrame(this.#awareness, [this.#awareness.clientID]));
         }
         // The offline buffer's flush: the internal doc holds every buffered
-        // update, so ONE coalesced state update stands the whole queue (an
-        // offline edit storm is one frame, not one frame per edit).
-        if (this.#hasPending) {
+        // update, so ONE coalesced state update stands the whole queue.
+        if (this.#pending.hasPending) {
           socket.send(buildSyncUpdateFrame(Y.encodeStateAsUpdate(this.#doc)));
-          this.#hasPending = false;
-          this.#pendingBytes = 0;
-          this.#pendingOverflow = false;
+          this.#pending.flush();
         }
         // The attempt is settled: a later connect stands over the open socket.
         this.#connectPromise = null;
@@ -190,7 +166,7 @@ class WsSyncProvider implements SyncProvider {
     const socket = this.#socket;
     this.#socket = null;
     this.#open = false;
-    this.#teardown();
+    teardownAwareness(this.#awareness); // a connection ending ⇒ all remote peers left
     socket.close();
     // A cancel before the open stands the shared attempt's reject (the
     // socket's onclose guard — the cleared #socket — does not reach it).
@@ -216,35 +192,24 @@ class WsSyncProvider implements SyncProvider {
     Y.applyUpdate(this.#doc, bytes);
     // The socket stands CONNECTING between connect() and the open: a raw
     // send there throws (the browser's WebSocket rejects pre-open sends),
-    // so the open flag — not the socket's presence — stands the gate. The
-    // offline path only counts the bytes (the update lives in the internal
-    // doc); the open flush coalesces the count into one state update.
+    // so the open flag — not the socket's presence — stands the gate.
     if (this.#open && this.#socket !== null) {
       this.#socket.send(buildSyncUpdateFrame(bytes));
     } else {
-      this.#pendingBytes += bytes.byteLength;
-      this.#hasPending = true;
-      if (this.#pendingBytes > this.#maxPendingBytes) this.#pendingOverflow = true;
+      this.#pending.count(bytes.byteLength);
     }
   }
 
-  /**
-   * The offline buffer's stats (the observable backpressure): the buffered
-   * local update bytes and whether they passed `maxPendingBytes`. Cleared
-   * on the open flush.
-   */
+  /** The offline buffer's stats (the observable backpressure). */
   getPendingStats(): PendingStats {
-    return { pendingBytes: this.#pendingBytes, overflow: this.#pendingOverflow };
+    return this.#pending.stats;
   }
 
   /**
-   * Subscribe to incoming remote document updates. The provider's
-   * accumulated state stands delivered once at subscribe time, when the
-   * provider has received state from the wire (`#receivedSync`) — a late
-   * attach recovers the room's state over the CRDT merge (the app doc's own
-   * items stand a no-op re-apply); a pre-connect provider stands nothing
-   * (its internal state is the app doc's own buffered bootstrap, not
-   * incoming state). Then every remote update stands as it arrives.
+   * Subscribe to incoming remote document updates. The accumulated state
+   * stands delivered once at subscribe time (when the provider has
+   * received state from the wire — a late attach's recovery; a pre-connect
+   * provider stands nothing), then every remote update as it arrives.
    * Returns unsubscribe.
    */
   onUpdate(cb: (bytes: Uint8Array) => void): Unsubscribe {
@@ -269,13 +234,12 @@ class WsSyncProvider implements SyncProvider {
   }
 
   /**
-   * Subscribe to remote peer states (full list per change). The current
-   * list is delivered once at subscribe time, then on every change.
-   * Returns unsubscribe.
+   * Subscribe to remote peer states (full list per change; the current
+   * list stands delivered once at subscribe time). Returns unsubscribe.
    */
   onAwareness(cb: (peers: PresenceState[]) => void): Unsubscribe {
     this.#awarenessListeners.add(cb);
-    cb(this.#remotePeers());
+    cb(remotePeers(this.#awareness));
     return () => {
       this.#awarenessListeners.delete(cb);
     };
@@ -287,134 +251,30 @@ class WsSyncProvider implements SyncProvider {
     return `${this.#url}${sep}token=${encodeURIComponent(this.#token)}`;
   }
 
-  /** A connection ending (either side) ⇒ all remote peers of the room left. */
-  #teardown(): void {
-    const own = this.#awareness.clientID;
-    const remotes = [...this.#awareness.states.keys()].filter((id) => id !== own);
-    if (remotes.length > 0) removeAwarenessStates(this.#awareness, remotes, "socket closed");
-  }
-
   #onClose(): void {
     if (this.#socket === null) return; // already torn down by disconnect()
     this.#socket = null;
     this.#open = false;
-    this.#teardown();
+    teardownAwareness(this.#awareness); // a connection ending ⇒ all remote peers left
   }
 
   #onMessage(frame: Uint8Array): void {
-    if (this.#socket === null) return;
-    // The client-side frame budget: an oversized message is dropped whole
-    // (not decoded or applied) — bounds the per-message decode/apply work.
-    if (frame.byteLength > this.#maxFrameBytes) return;
-    const parsed = this.#parseFrame(frame);
-    if (parsed === null) return; // malformed frame: drop the batch, keep the connection
-    const out = concatFrames(parsed.replies);
-    if (out !== null) this.#socket.send(out);
-    // The updates stand the app first; the internal doc follows only if
-    // the app accepted them. A listener exception is the app's own
-    // failure — it stands visible (not swallowed as a malformed frame),
-    // and the internal state vector stays behind, so the next state
-    // vector exchange re-sends the missed bytes (the recovery — the
-    // internal doc must never claim state the app's doc does not hold,
-    // or the divergence is unrecoverable for the connection's life).
-    for (const bytes of parsed.updates) {
-      this.#emitUpdate(bytes);
-      Y.applyUpdate(this.#doc, bytes);
-    }
-  }
-
-  /** The parse phase (null = a malformed frame, dropped whole). The sync
-   *  step2/update bytes are collected, not applied: the apply stands the
-   *  delivery (see #onMessage). The step1 (state vector query) is fully
-   *  handled here — it carries no update bytes, and its reply diff is
-   *  computed over the internal doc's state vector. */
-  #parseFrame(frame: Uint8Array): { replies: Uint8Array[]; updates: Uint8Array[] } | null {
-    const decoder = decoding.createDecoder(frame);
-    const replies: Uint8Array[] = [];
-    const updates: Uint8Array[] = [];
-    try {
-      // A socket message may carry several concatenated frames.
-      while (decoding.hasContent(decoder)) {
-        const type = decoding.readVarUint(decoder);
-        if (type === MESSAGE_SYNC) {
-          const syncMsgPos = decoder.pos; // right after the frame type
-          const syncType = decoding.readVarUint(decoder);
-          if (syncType === sync.messageYjsSyncStep2 || syncType === sync.messageYjsUpdate) {
-            // The provider holds wire state now: the late attach's
-            // accumulated-state delivery stands (the onUpdate contract).
-            this.#receivedSync = true;
-            // The app applies the same raw update bytes attach receives;
-            // the internal doc mirrors them after the delivery (above).
-            updates.push(decoding.readVarUint8Array(decoder));
-          } else if (syncType === sync.messageYjsSyncStep1) {
-            const reply = encoding.createEncoder();
-            encoding.writeVarUint(reply, MESSAGE_SYNC);
-            // readSyncMessage reads the sync type itself: the sub-decoder
-            // stands right after the frame type (the shared decoder already
-            // consumed it).
-            const sub = decoding.createDecoder(frame);
-            sub.pos = syncMsgPos;
-            sync.readSyncMessage(sub, reply, this.#doc, this, swallowDecodeError);
-            if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
-          } else {
-            // Unknown sync types stand malformed (the standard reader
-            // throws; the batch is dropped, the connection stands).
-            throw new Error(`unknown sync message type ${syncType}`);
-          }
-        } else if (type === MESSAGE_AWARENESS) {
-          applyAwarenessUpdate(this.#awareness, decoding.readVarUint8Array(decoder), null);
-        } else if (type === MESSAGE_QUERY_AWARENESS) {
-          replies.push(buildAwarenessFrame(this.#awareness, [this.#awareness.clientID]));
-        }
-        // auth and unknown types are ignored (forward compatibility)
+    handleIncomingMessage(
+      frame,
+      this.#socket,
+      this.#maxFrameBytes,
+      this.#doc,
+      this.#awareness,
+      this.#updateListeners,
+      () => {
+        this.#receivedSync = true;
       }
-    } catch {
-      return null; // malformed frame: drop the rest of the batch, keep the connection
-    }
-    return { replies, updates };
+    );
   }
 
-  #onAwarenessUpdate = ({
-    added,
-    updated,
-    removed,
-  }: {
-    added: number[];
-    updated: number[];
-    removed: number[];
-  }): void => {
-    const changed = [...added, ...updated, ...removed];
-    // The open flag's gate (as in sendUpdate): the pre-open awareness
-    // stands resent over the open handshake (the local state's frame).
-    if (changed.length > 0 && this.#open && this.#socket !== null) {
-      this.#socket.send(buildAwarenessFrame(this.#awareness, changed));
-    }
-    this.#emitAwareness();
+  #onAwarenessUpdate = (event: AwarenessUpdateEvent): void => {
+    onAwarenessUpdate(this.#awareness, this.#open, this.#socket, this.#awarenessListeners, event);
   };
-
-  #remotePeers(): PresenceState[] {
-    const own = this.#awareness.clientID;
-    const peers: PresenceState[] = [];
-    this.#awareness.states.forEach((state, clientID) => {
-      if (clientID === own) return;
-      peers.push({
-        peerId: String(clientID),
-        selection: parseSelection(state.selection),
-        updatedAt: typeof state.updatedAt === "number" ? state.updatedAt : 0,
-        ...parsePresenceExtras(state),
-      });
-    });
-    return peers;
-  }
-
-  #emitUpdate(bytes: Uint8Array): void {
-    for (const cb of [...this.#updateListeners]) cb(bytes);
-  }
-
-  #emitAwareness(): void {
-    const peers = this.#remotePeers();
-    for (const cb of [...this.#awarenessListeners]) cb(peers);
-  }
 }
 
 export { WsSyncProvider };
