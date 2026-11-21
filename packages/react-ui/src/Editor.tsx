@@ -196,8 +196,8 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                           onInput={surface.onInput}
                           onPaste={surface.onPaste}
                           className="
-                          mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
-                        "
+                            mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
+                          "
                         >
                           {/* The document-attributes panel (the above-the-first-block's
                             stand): a non-editable island over the page's shared

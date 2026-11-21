@@ -19,7 +19,7 @@ const GRID_CELL_PX = 256;
 const GRID_LARGE_PX = 512;
 /** The obstacle count under which the direct scan stands (the grid's build
  * cost is not worth it over the small sets). */
-export const OBSTACLE_GRID_MIN = 48;
+const OBSTACLE_GRID_MIN = 48;
 
 /**
  * The per-segment interior crossing (the boundary stands clear — a route
@@ -178,5 +178,5 @@ function topKSpanEdges(edges: readonly number[], lo: number, hi: number, cap: nu
   return picked.map((p) => p.v);
 }
 
-export { buildObstacleGrid, routeHitsGrid, segmentHitsRect, topKSpanEdges };
+export { OBSTACLE_GRID_MIN, buildObstacleGrid, routeHitsGrid, segmentHitsRect, topKSpanEdges };
 export type { ObstacleGrid };

@@ -135,7 +135,7 @@ function darkenHexHex(parts: HexParts): string {
  * light's theme, the dark's value, the non-hex) stands verbatim
  * (`undefined` stands the absence — the caller's default's stand).
  */
-export function effectiveColorOf(value: string | undefined, isDark: boolean): string | undefined {
+function effectiveColorOf(value: string | undefined, isDark: boolean): string | undefined {
   if (value === undefined) return undefined;
   if (isDark) {
     const parts = parseHexFill(value);
@@ -153,7 +153,7 @@ export function effectiveColorOf(value: string | undefined, isDark: boolean): st
  * non-hex's effective fill (the theme's foreground's inheritance's stand)
  * and the absent's fill.
  */
-export function contrastTextOf(fill: string | undefined, isDark: boolean): string | null {
+function contrastTextOf(fill: string | undefined, isDark: boolean): string | null {
   const effective = effectiveColorOf(fill, isDark);
   if (effective === undefined) return null;
   const parts = parseHexFill(effective);
@@ -164,4 +164,12 @@ export function contrastTextOf(fill: string | undefined, isDark: boolean): strin
   return ratioOverWhite >= ratioOverBlack ? "#ffffff" : "#000000";
 }
 
-export { parseHexFill, relativeLuminance, LUMINANCE_THRESHOLD, DARK_LIGHTNESS, DARK_SATURATION_SCALE };
+export {
+  parseHexFill,
+  relativeLuminance,
+  LUMINANCE_THRESHOLD,
+  DARK_LIGHTNESS,
+  DARK_SATURATION_SCALE,
+  effectiveColorOf,
+  contrastTextOf,
+};

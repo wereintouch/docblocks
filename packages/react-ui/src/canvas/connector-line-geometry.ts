@@ -22,7 +22,7 @@ import {
 import type { CanvasSession } from "./viewport";
 
 /** The line's resolved geometry (the caller's content's input). */
-export interface ConnectorLineGeometry {
+interface ConnectorLineGeometry {
   /** The path's `d` (the surface's center-anchor space). */
   path: string;
   /** The start's draw point (the badge's endpoint drag's stand). */
@@ -33,7 +33,7 @@ export interface ConnectorLineGeometry {
   dragging: boolean;
 }
 
-export function connectorLineGeometryOf(
+function connectorLineGeometryOf(
   connectorId: BlockId,
   block: ConnectorBlock,
   childIds: readonly BlockId[],
@@ -162,3 +162,6 @@ export function connectorLineGeometryOf(
 
   return { path, startDraw, endDraw, dragging };
 }
+
+export { connectorLineGeometryOf };
+export type { ConnectorLineGeometry };

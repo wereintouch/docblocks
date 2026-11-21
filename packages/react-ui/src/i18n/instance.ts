@@ -20,7 +20,7 @@ import slashRu from "./locales/ru/slash.json";
 import tableRu from "./locales/ru/table.json";
 
 /** The supported language codes (the consumer's `<html lang>` is validated against this set). */
-export type DocblocksLang = "en" | "ru";
+type DocblocksLang = "en" | "ru";
 
 /** The shipped en+ru resources (the catalogs are the only source of the UI's strings). */
 const RESOURCES = {
@@ -65,7 +65,7 @@ function toDocblocksLang(lang: string): DocblocksLang {
  * rules as the `<html lang>`'s read): the `ru*` prefix is `ru`, the `en*`
  * and the unknown / empty's values fall back to `en`.
  */
-export function normalizeDocblocksLocale(locale: string): DocblocksLang {
+function normalizeDocblocksLocale(locale: string): DocblocksLang {
   return toDocblocksLang(locale);
 }
 
@@ -74,7 +74,7 @@ export function normalizeDocblocksLocale(locale: string): DocblocksLang {
  * attribute's read — the legacy uncontrolled mode's source): the absent /
  * unknown language falls back to `en`.
  */
-export function resolveDocblocksLang(): DocblocksLang {
+function resolveDocblocksLang(): DocblocksLang {
   return toDocblocksLang(typeof document === "undefined" ? "" : (document.documentElement.lang ?? ""));
 }
 
@@ -87,7 +87,7 @@ export function resolveDocblocksLang(): DocblocksLang {
  * instance is ready by the first render), so the returned value is the
  * instance itself, not the init's Promise.
  */
-export function createDocblocksI18nInstance(lng: DocblocksLang): I18nInstance {
+function createDocblocksI18nInstance(lng: DocblocksLang): I18nInstance {
   const instance = createInstance().use(initReactI18next);
   void instance.init({ ...INIT_OPTIONS, lng });
   return instance;
@@ -113,4 +113,5 @@ if (typeof document !== "undefined") {
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
 }
 
-export { docblocksI18n };
+export { createDocblocksI18nInstance, docblocksI18n, normalizeDocblocksLocale, resolveDocblocksLang };
+export type { DocblocksLang };
