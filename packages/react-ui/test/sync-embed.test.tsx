@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// The sync-embed's states (the broken's / the resolved's / the cycle's
+// stands, the ref's removal's transition + the restore's back) and the
+// editing through the embed (the master's command updates the nested's
+// store; the outer's doc stands untouched).
+import { render } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import { act } from "react";
 
@@ -8,88 +12,21 @@ import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { MAX_EMBED_DEPTH } from "../src/blocks/SyncEmbedBlock";
-import type { BlockRendererMap } from "../src/blocks/renderers";
 import { EditorProvider } from "../src/editor-provider";
 import type { SyncEmbedResolver } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-
-const MASTER_HEADING = "Master heading";
-const MASTER_P1 = "Master paragraph one";
-const MASTER_P2 = "Master subtree paragraph";
-const MASTER_P3 = "Master paragraph three";
-
-type TestDoc = ReturnType<typeof createDoc>;
-
-/** Deterministic master ids: m0001 heading, m0002-m0004 paragraphs. */
-function masterIdGenerator(): () => string {
-  let next = 0;
-  return () => {
-    next += 1;
-    return `m${String(next).padStart(4, "0")}`;
-  };
-}
-
-/** The pane-style master seed (heading + paragraphs; m0003 is the subtree target). */
-function seedMaster(id: string): TestDoc {
-  const doc = createDoc({ id, createdAt: CREATED_AT, generateId: masterIdGenerator() });
-  doc.transact(() => {
-    const heading = doc.insertBlock("heading", { level: 1 });
-    doc.insertText(heading, 0, MASTER_HEADING);
-    const p1 = doc.insertBlock("paragraph");
-    doc.insertText(p1, 0, MASTER_P1);
-    const p2 = doc.insertBlock("paragraph");
-    doc.insertText(p2, 0, MASTER_P2);
-    const p3 = doc.insertBlock("paragraph");
-    doc.insertText(p3, 0, MASTER_P3);
-  });
-  return doc;
-}
-
-/** The outer doc: one paragraph, then the sync-embed (the fixed layout the locators rely on). */
-function seedOuter(ref: { docId: string; blockId?: string }): TestDoc {
-  const doc = createDoc({ id: "outer", createdAt: CREATED_AT });
-  doc.transact(() => {
-    const p = doc.insertBlock("paragraph");
-    doc.insertText(p, 0, "Outer paragraph");
-    doc.insertBlock("sync-embed", { ref });
-  });
-  return doc;
-}
-
-interface RenderOptions {
-  /** null — no resolver prop on the provider (the broken-state test). */
-  resolver?: SyncEmbedResolver | null;
-  master?: TestDoc;
-  blockRenderers?: BlockRendererMap;
-}
-
-/** Seed the outer doc, then render the provider + editor around the sync-embed. */
-function renderOuter(ref: { docId: string; blockId?: string }, options?: RenderOptions) {
-  const master = options?.master ?? seedMaster("master-1");
-  const outer = seedOuter(ref);
-  // `null` omits the prop (the no-resolver state); an absent option resolves
-  // the seeded master (the default, pane-like, resolver).
-  const resolver =
-    (options?.resolver === undefined
-      ? (r: { docId: string }) => (r.docId === master.meta.id ? master : null)
-      : options.resolver) ?? undefined;
-  render(
-    <EditorProvider doc={outer} syncEmbedResolver={resolver} blockRenderers={options?.blockRenderers}>
-      <Editor />
-    </EditorProvider>
-  );
-  return { outer, master };
-}
-
-/** The first sync-embed wrapper in document order (the outermost one). */
-function wrapperOf(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-block-type="sync-embed"]');
-}
-
-afterEach(() => {
-  cleanup();
-});
+import {
+  CREATED_AT,
+  MASTER_HEADING,
+  MASTER_P1,
+  MASTER_P2,
+  MASTER_P3,
+  masterIdGenerator,
+  renderOuter,
+  seedMaster,
+  seedOuter,
+  wrapperOf,
+} from "./sync-embed.helpers";
+import type { TestDoc } from "./sync-embed.helpers";
 
 describe("states", () => {
   it("no resolver -> broken", () => {
@@ -265,94 +202,5 @@ describe("editing through the embed", () => {
     // The outer doc's JSON is untouched (the ref only, never the master content).
     expect(outer.toJSON()).toEqual(outerBefore);
     expect(JSON.stringify(outer.toJSON())).not.toContain(MASTER_P1);
-  });
-});
-
-describe("subtree projection (the derived segment)", () => {
-  it("re-derives on change: a peer insert into the segment grows it, a removal shrinks it, the untouched blocks keep identity", () => {
-    const { master } = renderOuter({ docId: "master-1", blockId: "m0003" });
-    const wrapper = wrapperOf()!;
-    const editor = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
-    expect(editor).not.toBeNull();
-
-    // The seed: the segment is the subtree root alone (m0004 follows at
-    // indent 0 — outside the segment).
-    expect(editor.querySelector('[data-block-id="m0003"]')).not.toBeNull();
-    expect(editor.querySelector('[data-block-id="m0004"]')).toBeNull();
-    const firstM0003 = editor.querySelector<HTMLElement>('[data-block-id="m0003"]')!;
-
-    // An unrelated change (m0002 stands outside the segment): the
-    // re-derivation runs, the segment stands, and the subtree root's node
-    // is not remounted (the store keeps the block's snapshot reference).
-    act(() => {
-      master.insertText("m0002", 0, "Edited ");
-    });
-    expect(wrapper.querySelector('[data-block-id="m0003"]')).toBe(firstM0003);
-    expect(editor.querySelector('[data-block-id="m0004"]')).toBeNull();
-
-    // A DEEPER block is inserted into the segment (after the root, indent
-    // 1): the insert touches no subtree root — only the projection's
-    // re-derivation sees it (the segment grows without the nested editor
-    // remounting).
-    let childId = "";
-    act(() => {
-      childId = master.insertBlock("paragraph", { indent: 1 }, { parent: master.meta.id, after: "m0003" });
-      master.insertText(childId, 0, "Master subtree child");
-    });
-    expect(wrapper.querySelector('[data-block-id="m0003"]')).toBe(firstM0003);
-    expect(wrapper.textContent).toContain("Master subtree child");
-    expect(editor.querySelector(`[data-block-id="${childId}"]`)).not.toBeNull();
-
-    // A second deeper block after the child: the segment grows again.
-    let grandchildId = "";
-    act(() => {
-      grandchildId = master.insertBlock("paragraph", { indent: 2 }, { parent: master.meta.id, after: childId });
-    });
-    expect(wrapper.textContent).toContain("Master subtree child");
-    expect(editor.querySelector(`[data-block-id="${grandchildId}"]`)).not.toBeNull();
-
-    // The removal shrinks the segment back to the root (the core
-    // removeBlock cascades the derived segment — one call removes both):
-    // the rows unmount, the subtree root's node still stands (no remount
-    // across the grow/shrink cycle).
-    act(() => {
-      master.removeBlock(childId);
-    });
-    expect(wrapper.querySelector('[data-block-id="m0003"]')).toBe(firstM0003);
-    expect(editor.querySelector(`[data-block-id="${childId}"]`)).toBeNull();
-    expect(editor.querySelector(`[data-block-id="${grandchildId}"]`)).toBeNull();
-    expect(wrapper.textContent).not.toContain("Master subtree child");
-  });
-});
-
-describe("renderer registry: sync-embed", () => {
-  it("a consumer renderer for sync-embed replaces the built-in", () => {
-    renderOuter(
-      { docId: "master-1" },
-      {
-        blockRenderers: {
-          "sync-embed": ({ id, block }) => (
-            <div
-              data-testid="custom-sync-embed"
-              data-custom-id={id}
-              data-custom-doc-id={block.type === "sync-embed" ? block.attrs.ref.docId : ""}
-            />
-          ),
-        },
-      }
-    );
-
-    const custom = document.querySelector("[data-testid='custom-sync-embed']");
-    expect(custom).not.toBeNull();
-    expect(custom?.getAttribute("data-custom-doc-id")).toBe("master-1");
-    expect(document.querySelector('[data-slot="docblocks/sync-embed-body"]')).toBeNull();
-  });
-
-  it("a malformed ref literal is a type error and throws at runtime", () => {
-    const doc = createDoc({ id: "scratch", createdAt: CREATED_AT });
-    expect(() => {
-      // @ts-expect-error — the ref is an object, not a string
-      doc.insertBlock("sync-embed", { ref: "master-1" });
-    }).toThrow();
   });
 });
