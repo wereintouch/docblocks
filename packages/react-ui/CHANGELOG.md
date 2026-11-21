@@ -1,5 +1,29 @@
 # docblocks-react-ui
 
+## 0.16.0
+
+### Minor Changes
+
+- 1ca3796: The `DocHeader` avatar slot is customizable: `renderAvatarContent` stands
+  the consumer's content in place of the built-in emoji / "+" render (the
+  wrapper, the emoji picker, and the accessible names stay the library's; the
+  read-only stands pass `editable: false`), and `hideAvatar` removes the slot
+  for consumers that render the document avatar elsewhere. Without the new
+  props the render is unchanged.
+- c1b519d: Link editing: the format toolbar's link button and mod+k open an address
+  popover over the selection (an existing uniform link prefills and can be
+  edited or removed), a bare address resolves by form — a domain becomes an
+  https URL, an email a `mailto:`, a number a `tel:` — and an invalid address
+  stands the error. A link opens on a plain click (web URLs in a new tab with
+  `noopener,noreferrer`, `mailto:` / `tel:` / relative ones in the same tab)
+  and takes a context menu (open, copy the address, edit, remove). A
+  plain-text paste links the bare URLs and the email addresses it carries.
+
+### Patch Changes
+
+- Updated dependencies [ad563a8]
+  - docblocks-core@0.7.0
+
 ## 0.15.1
 
 ### Patch Changes
