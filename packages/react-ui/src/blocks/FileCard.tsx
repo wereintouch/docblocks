@@ -64,6 +64,8 @@ function FileCard({ id, fileId, blockType, url, name, subtype }: FileCardProps) 
       await blobStore.rename(fileId, nextName);
       if (mountedRef.current && operation === operationRef.current) setRenameFailed(false);
     } catch {
+      // A refused rename stands the row's error note over the draft (the
+      // card keeps the stored name; a stale operation's stand is dropped).
       if (mountedRef.current && operation === operationRef.current) setRenameFailed(true);
     }
   };

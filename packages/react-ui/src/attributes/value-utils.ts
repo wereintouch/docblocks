@@ -76,6 +76,8 @@ function formatDate(iso: string | undefined, locale: string): string {
   try {
     return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
   } catch {
+    // An unsupported locale stands the raw ISO (the data's own text), not
+    // a thrown panel.
     return iso;
   }
 }

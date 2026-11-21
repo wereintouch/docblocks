@@ -92,6 +92,8 @@ function useBlobFile(fileId: string, rendersBytes?: (mimeType: string) => boolea
           setFailed(false);
         }
       } catch {
+        // The read's failure stands the failed card (the consumer's
+        // notice) over a stale load's late stand — never a thrown render.
         if (alive && request === sequence) {
           setRef(null);
           setMetaView(null);
