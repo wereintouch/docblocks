@@ -654,9 +654,9 @@ A nested provider that supplies none inherits the enclosing one.
 
 ### Links
 
-The `link` mark's href stands one of four classes (the exported
-`linkHrefKindOf` — the classifier the validator, the renderer, and the
-click's open all stand on):
+The `link` mark's href stands one of four classes (the core's
+`linkHrefKindOf`, exported from `docblocks-core` — the classifier the
+validator, the renderer, and the click's open all stand on):
 
 | Class      | Example                                          | The click's open                     |
 | ---------- | ------------------------------------------------ | ------------------------------------ |

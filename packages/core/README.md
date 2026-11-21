@@ -81,6 +81,9 @@ The commands translate into `Y.Doc` mutations inside a transaction:
 - **Text** — `insertText`, `deleteText`, `setMark`, `unsetMark`, and the
   range forms (`deleteTextRange`, `setMarkRange`).
 - **Document meta** — `setTitle`, `setAvatar`, `setGeometry`, `setZOrder`.
+- **Document attributes** — `setAttribute`, `removeAttribute`,
+  `renameAttribute`, `reorderAttributes` (the `meta.attributes` record);
+  a block's own attrs over `removeBlockAttr`.
 - **Database rows** — the row commands (`insertRow`, `setCell`,
   `removeRow`, `moveRow`, …).
 - **Table rows / columns** — `insertTableRow`, `removeTableRow`,

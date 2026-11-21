@@ -113,8 +113,7 @@ pull requests: the static, unit and packaging gates over the supported Node
 versions (the `engines` floor of each major plus the current major), the E2E
 step over the Node 22 job (the browser tests stand the product, not the
 runner's Node). Releases are a separate job: a changesets Version PR on
-`main`, publishing behind the protected `npm` environment with minimal
-permissions.
+`main`; the publish itself is a manual step (`make publish`).
 
 ## Boundaries (enforced by ESLint)
 
