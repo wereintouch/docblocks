@@ -53,6 +53,14 @@ function useSelectionTracking(
       }
       const next = mapDomSelection(root, window.getSelection(), doc);
       const current = view.get();
+      // The editor's own floating UI (the link popover's / the menu's
+      // input's focus): the DOM's selection's stand inside them stands the
+      // doc's view's no-clobber (the open's autofocus's take-over's
+      // suppression — the doc's selection's life over the popover's edit).
+      const linkAnchor = window.getSelection()?.anchorNode ?? null;
+      const linkAnchorEl = linkAnchor instanceof Element ? linkAnchor : (linkAnchor?.parentElement ?? null);
+      if (linkAnchorEl?.closest("[data-slot='docblocks/link-popover'], [data-slot='docblocks/link-menu']") !== null)
+        return;
       // A `blocks` view (the gutter / canvas selection) has no DOM
       // expression: a selection settling outside the editables (the canvas
       // chrome, the stale residue, a `none` mapping) cannot express it, so

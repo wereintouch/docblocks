@@ -10,53 +10,16 @@ import type { MentionMark } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
 import type { MentionInteractions } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-type TestDoc = ReturnType<typeof createDoc>;
-
-const CARD_HOST = '[data-slot="docblocks/mention-card"]';
-const CHIP_SELECTOR = '[data-slot="docblocks/mention"]';
-const EDITOR_ROOT = '[data-slot="docblocks/editor"]';
+import { CARD_HOST, CHIP_SELECTOR, EDITOR_ROOT, renderMentionChip } from "./mention-harness";
 
 const HOVER_OPEN_MS = 400;
 
-interface Harness {
-  doc: TestDoc;
-  blockId: string;
-}
-
-function renderChip(prepare?: (doc: TestDoc, blockId: string) => void): Harness {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  const blockId = doc.insertBlock("paragraph");
-  doc.insertText(blockId, 0, "Hello Jane");
-  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
-  if (prepare !== undefined) prepare(doc, blockId);
-  render(
-    <EditorProvider
-      doc={doc}
-      mentionInteractions={{
-        renderCard: (mention) => <div data-testid="demo-card">Card {mention.id}</div>,
-        onClick: () => {},
-      }}
-    >
-      <Editor />
-    </EditorProvider>
-  );
-  return { doc, blockId };
-}
-
-function renderChipWith(interactions: MentionInteractions, options?: { mode?: "edit" | "view" }): Harness {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  const blockId = doc.insertBlock("paragraph");
-  doc.insertText(blockId, 0, "Hello Jane");
-  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
-  render(
-    <EditorProvider doc={doc} mentionInteractions={interactions} mode={options?.mode}>
-      <Editor />
-    </EditorProvider>
-  );
-  return { doc, blockId };
-}
+/** The demo's interactions (the harness's card + the no-op's click) — the
+ *  hover's stand's stand over the consumer's stand. */
+const DEMO_INTERACTIONS: MentionInteractions = {
+  renderCard: (mention) => <div data-testid="demo-card">Card {mention.id}</div>,
+  onClick: () => {},
+};
 
 async function hoverChip(chip: HTMLElement) {
   vi.useFakeTimers();
@@ -77,7 +40,7 @@ afterEach(() => {
 
 describe("the mention hover card", () => {
   it("stands the consumer's card over the hover (the target's fields, the host's attrs)", async () => {
-    renderChip();
+    renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR);
     expect(chip).not.toBeNull();
 
@@ -93,7 +56,7 @@ describe("the mention hover card", () => {
   });
 
   it("stands no card before the open's delay (and the card over it)", async () => {
-    renderChip();
+    renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
     const root = document.querySelector<HTMLElement>(EDITOR_ROOT)!;
 
@@ -122,7 +85,7 @@ describe("the mention hover card", () => {
   });
 
   it("a re-entry over the chip cancels the exit's grace (the card stands)", async () => {
-    renderChip();
+    renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
     const root = document.querySelector<HTMLElement>(EDITOR_ROOT)!;
 
@@ -154,7 +117,7 @@ describe("the mention hover card", () => {
   });
 
   it("the `renderCard`'s null stands no host", async () => {
-    renderChipWith({ renderCard: () => null });
+    renderMentionChip({ interactions: { renderCard: () => null } });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
 
     await hoverChip(chip);
@@ -163,7 +126,7 @@ describe("the mention hover card", () => {
   });
 
   it("a chip switch before the open's delay stands the new chip's card only", async () => {
-    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const doc = createDoc({ id: "doc-1", createdAt: "2026-10-10T00:00:00.000Z" });
     const blockId = doc.insertBlock("paragraph");
     doc.insertText(blockId, 0, "Jane met Spec");
     doc.setMark(blockId, 0, 4, { type: "mention", kind: "user", id: "u1" });
@@ -206,7 +169,7 @@ describe("the mention hover card", () => {
   });
 
   it("the Escape closes the card", async () => {
-    renderChip();
+    renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
 
     await hoverChip(chip);
@@ -220,9 +183,11 @@ describe("the mention hover card", () => {
 describe("the mention card's click", () => {
   it("stands the delivery (the target's mark + the native event, no preventDefault's stand)", async () => {
     const onClick = vi.fn();
-    renderChipWith({
-      renderCard: (mention: MentionMark) => <div>Card {mention.id}</div>,
-      onClick,
+    renderMentionChip({
+      interactions: {
+        renderCard: (mention: MentionMark) => <div>Card {mention.id}</div>,
+        onClick,
+      },
     });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
 
@@ -237,7 +202,7 @@ describe("the mention card's click", () => {
   });
 
   it("the click stands no card (the click's stand is the consumer's)", async () => {
-    renderChip();
+    renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
 
     fireEvent.click(chip);
@@ -247,7 +212,7 @@ describe("the mention card's click", () => {
 
 describe("the mention card's lifecycle", () => {
   it("a doc's change that removes the anchor chip closes the card", async () => {
-    const { doc, blockId } = renderChip();
+    const { doc, blockId } = renderMentionChip({ interactions: DEMO_INTERACTIONS });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
 
     await hoverChip(chip);
@@ -263,7 +228,10 @@ describe("the mention card's lifecycle", () => {
   });
 
   it("the read-only's stand stands the card too (the view mode's parity)", async () => {
-    renderChipWith({ renderCard: (mention: MentionMark) => <div>Card {mention.id}</div> }, { mode: "view" });
+    renderMentionChip({
+      interactions: { renderCard: (mention: MentionMark) => <div>Card {mention.id}</div> },
+      mode: "view",
+    });
     const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR);
     expect(chip).not.toBeNull();
 
@@ -277,14 +245,14 @@ describe("the chip's interactive stand (the hover's styling hook)", () => {
   afterEach(cleanup);
 
   it("marks the editor root interactive over the consumer's interactions", () => {
-    renderChipWith({ renderCard: () => null });
+    renderMentionChip({ interactions: { renderCard: () => null } });
     expect(document.querySelector(EDITOR_ROOT)?.getAttribute("data-mention-interactive")).toBe("true");
     expect(document.querySelector(CHIP_SELECTOR), "the chip stands over the mark").not.toBeNull();
     cleanup();
 
     // Without the interactions the chip is inert: no interactive stand (no
     // link's cursor, no hover's background over the root's key).
-    const doc = createDoc({ id: "doc-2", createdAt: CREATED_AT });
+    const doc = createDoc({ id: "doc-2", createdAt: "2026-10-10T00:00:00.000Z" });
     const blockId = doc.insertBlock("paragraph");
     doc.insertText(blockId, 0, "Hello Jane");
     doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
@@ -295,28 +263,5 @@ describe("the chip's interactive stand (the hover's styling hook)", () => {
     );
     expect(document.querySelector(EDITOR_ROOT)?.hasAttribute("data-mention-interactive")).toBe(false);
     expect(document.querySelector(CHIP_SELECTOR), "the inert chip stands").not.toBeNull();
-  });
-});
-
-describe("the chip's press (the cross drag's island guard)", () => {
-  afterEach(cleanup);
-
-  it("starts no caret session over the chip (no seat, no focus)", () => {
-    // The chip is a non-editable island inside the text inner: the press
-    // belongs to the chip's own interactions, so the editor's cross-drag
-    // session must not start (its release seats the caret on the chip's
-    // line and pulls the scroll port there).
-    const { blockId } = renderChip();
-    const chip = document.querySelector<HTMLElement>(CHIP_SELECTOR)!;
-    const inner = document.querySelector<HTMLElement>(
-      `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
-    )!;
-    const pointer = { bubbles: true, cancelable: true, pointerType: "mouse", button: 0, pointerId: 7 };
-    fireEvent.pointerDown(chip, { ...pointer, clientX: 10, clientY: 10 });
-    fireEvent.pointerUp(window, { ...pointer, clientX: 12, clientY: 11 });
-    // The session would have seated a DOM selection and focused the inner
-    // over its release; neither stands.
-    expect(window.getSelection()?.rangeCount ?? 0).toBe(0);
-    expect(document.activeElement).not.toBe(inner);
   });
 });

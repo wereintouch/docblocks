@@ -13,7 +13,9 @@ export {
   isSafeEmbedSrc,
   isSafeLinkHref,
   isPlainObject,
+  linkHrefKindOf,
   show,
 } from "./common";
+export type { LinkHrefKind } from "./common";
 export { validateAttrs, validateContent, validateMarks } from "./content";
 export { validateBlockAttrs, validateDoc, validateMarkSet } from "./doc";

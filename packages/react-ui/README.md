@@ -71,7 +71,11 @@ a bare `tsc`-only setup needs a one-line `declare module "*.css"` shim.
   absent), the avatar, and the title — inline-editable in the edit mode
   only (the read-only modes stand the title/avatar display-only), the
   title/avatar commits are one core command each (one undo step each),
-  the Escape cancels without a write. Over the published's stand the
+  the Escape cancels without a write. The avatar slot's content is
+  replaceable over `renderAvatarContent` (the trigger, the picker, and the
+  accessible names stay the package's; the read-only stands pass
+  `editable: false`), and the slot is removable over `hideAvatar`. Over
+  the published's stand the
   header stands the snapshot's meta (the live's meta stands off — the
   `viewer`'s `doc` is the snapshot itself; the no-snapshot stand renders
   the neutral meta, never the live one). It

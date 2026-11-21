@@ -33,6 +33,7 @@ export type {
   SyncEmbedResolver,
 } from "./editor-provider";
 export { DocHeader } from "./DocHeader";
+export type { DocHeaderAvatarContentContext } from "./DocHeader";
 export { DocblocksI18nProvider } from "./i18n";
 export type { DocblocksI18nProviderProps } from "./i18n";
 export { createMemoryBlobStore } from "./blob-store";

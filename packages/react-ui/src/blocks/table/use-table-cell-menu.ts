@@ -36,6 +36,10 @@ function useTableCellMenu({ doc, viewMode, frameRef }: UseTableCellMenuArgs) {
    */
   const onTableContextMenu = (event: ReactMouseEvent<HTMLTableElement>) => {
     if (viewMode) return;
+    // The link's anchor's stand: the editor root's link menu owns the
+    // gesture (the cell's menu's suppress over it — the two menus' double's
+    // stand is off).
+    if ((event.target as HTMLElement).closest?.("a[data-slot='docblocks/link']") !== null) return;
     const cell = (event.target as HTMLElement).closest<HTMLTableCellElement>("td[data-block-id]");
     if (cell === null) return;
     const cellId = cell.dataset.blockId ?? "";

@@ -10,7 +10,7 @@ import {
   fromJSON,
 } from "../src/core";
 import type { Doc } from "../src/core";
-import { isSafeLinkHref, validateDoc } from "../src/schema";
+import { isSafeLinkHref, linkHrefKindOf, validateDoc } from "../src/schema";
 import type { MarkName } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -279,6 +279,19 @@ describe("mark command errors", () => {
     expect(doc.getRuns(id)[0]!.marks.link).toEqual({ href: "\thttps://example.com" });
   });
 
+  it("the mailto / tel forms pass the write path (the link's scheme contract)", () => {
+    const { doc, id } = markedDoc();
+    doc.setMark(id, 0, 4, { type: "link", href: "mailto:help@example.com" });
+    expect(doc.getRuns(id)[0]!.marks.link).toEqual({ href: "mailto:help@example.com" });
+    doc.unsetMark(id, 0, 4, "link");
+    doc.setMark(id, 0, 4, { type: "link", href: "tel:+79161234567" });
+    expect(doc.getRuns(id)[0]!.marks.link).toEqual({ href: "tel:+79161234567" });
+    // The bad payloads stand the rejection (the validator's stand over the
+    // write path).
+    expect(() => doc.setMark(id, 0, 4, { type: "link", href: "mailto:nope" })).toThrow(InvalidMarkError);
+    expect(() => doc.setMark(id, 0, 4, { type: "link", href: "tel:1234" })).toThrow(InvalidMarkError);
+  });
+
   it("the isSafeLinkHref contract (the public renderer's gate)", () => {
     expect(isSafeLinkHref("https://example.com")).toBe(true);
     expect(isSafeLinkHref("http://example.com")).toBe(true);
@@ -296,9 +309,47 @@ describe("mark command errors", () => {
     expect(isSafeLinkHref("java\nscript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("java\rscript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("data:text/html,<script>alert(1)</script>")).toBe(false);
-    expect(isSafeLinkHref("mailto:a@b.c")).toBe(false);
+    // The mailto's stand (the email's local@domain form; the no-TLD / the
+    // no-local's stands are rejected, the whitespace inside is rejected).
+    expect(isSafeLinkHref("mailto:a@b.c")).toBe(true);
+    expect(isSafeLinkHref("MAILTO:A@B.C")).toBe(true);
+    expect(isSafeLinkHref("mailto:nope")).toBe(false);
+    expect(isSafeLinkHref("mailto:@b.c")).toBe(false);
+    expect(isSafeLinkHref("mailto:a b@c.d")).toBe(false);
+    expect(isSafeLinkHref("mailto:a@b")).toBe(false);
+    // The tel's stand (the digits + the phone's separators, the 5-digits'
+    // minimum; the scheme is case-insensitive over the web's parity).
+    expect(isSafeLinkHref("tel:+79161234567")).toBe(true);
+    expect(isSafeLinkHref("tel:+7 (916) 123-45-67")).toBe(true);
+    expect(isSafeLinkHref("TEL:8001234567")).toBe(true);
+    expect(isSafeLinkHref("tel:12345")).toBe(true);
+    expect(isSafeLinkHref("tel:1234")).toBe(false);
+    expect(isSafeLinkHref("tel:+- - ")).toBe(false);
+    // The payload's length's edges (the 30-character bound's inclusive stand).
+    expect(isSafeLinkHref(`tel:${"1".repeat(30)}`)).toBe(true);
+    expect(isSafeLinkHref("tel:1234567890123456789012345678901")).toBe(false);
+    // The other schemes stay rejected (the custom deep-links' stand).
+    expect(isSafeLinkHref("ftp://example.com")).toBe(false);
+    expect(isSafeLinkHref("myapp://doc/1")).toBe(false);
     expect(isSafeLinkHref("")).toBe(false);
     expect(isSafeLinkHref("   ")).toBe(false);
+  });
+
+  it("the linkHrefKindOf classifier (the href's class over the gate)", () => {
+    expect(linkHrefKindOf("https://example.com")).toBe("web");
+    expect(linkHrefKindOf("  http://example.com  ")).toBe("web");
+    expect(linkHrefKindOf("mailto:help@example.com")).toBe("mailto");
+    expect(linkHrefKindOf("tel:+79161234567")).toBe("tel");
+    expect(linkHrefKindOf("/relative/path")).toBe("relative");
+    expect(linkHrefKindOf("#fragment")).toBe("relative");
+    // The rejection's stand: the unsafe schemes, the empty's form.
+    expect(linkHrefKindOf("javascript:alert(1)")).toBeNull();
+    expect(linkHrefKindOf("data:text/html,x")).toBeNull();
+    expect(linkHrefKindOf("")).toBeNull();
+    // The boolean projection cannot disagree (the single classifier).
+    for (const href of ["https://example.com", "mailto:a@b.c", "tel:12345", "/p", "ftp://e.com", ""]) {
+      expect(isSafeLinkHref(href)).toBe(linkHrefKindOf(href) !== null);
+    }
   });
 
   it("the lenient load stands the poisoned href (the persistence DoS stand; the renderer's gate stands the display)", () => {

@@ -1,15 +1,18 @@
 import { useCallback, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
-import { isSafeLinkHref } from "docblocks-core";
+import { linkHrefKindOf } from "docblocks-core";
+
+import { openLinkHref } from "./link-open";
 
 /**
  * The editor-level's link open (the contenteditable's anchor's gap): the
  * browser cancels the anchor's navigation default inside a contenteditable
  * (the caret's seat stands — the mousedown's default), so the editor opens
- * the href itself — the new tab's stand (`noopener,noreferrer`) over the
- * edit and the view's modes (the parity — the view's mode stands no
- * same-tab's carry-away). The editor's state stands untouched (the caret's
+ * the href itself over the kind's stand (the `link-open`'s unit: the web's
+ * URL stands the new tab's open, the `mailto` / `tel` / the relative's
+ * forms stand the same-tab's navigation) over the edit and the view's
+ * modes (the parity). The editor's state stands untouched (the caret's
  * seat and the focus are the mousedown's default's work — preserved). A
  * press-drag over the link (the selection's gesture) stands no open: the
  * open stands on the down/click point's distance only (a plain click).
@@ -29,6 +32,8 @@ import { isSafeLinkHref } from "docblocks-core";
  * drag, no open. */
 const LINK_CLICK_DRAG_PX = 4;
 
+/** The pressed link's record (the href over the safe gate + the press's
+ * point, the plain-click's tolerance's measure over it). */
 interface LinkPress {
   href: string;
   x: number;
@@ -57,7 +62,9 @@ export function useLinkOpen(): {
     // unsafe scheme's text stands plain, never an anchor, so no record
     // stands over it either).
     pressRef.current =
-      anchor !== null && href !== null && isSafeLinkHref(href) ? { href, x: event.clientX, y: event.clientY } : null;
+      anchor !== null && href !== null && linkHrefKindOf(href) !== null
+        ? { href, x: event.clientX, y: event.clientY }
+        : null;
   }, []);
 
   const onClick = useCallback((event: ReactMouseEvent<HTMLElement>) => {
@@ -70,10 +77,10 @@ export function useLinkOpen(): {
     // The anchor's default's cancel (the view's mode's same-tab's
     // navigation — the edit's mode stands it canceled over the CE's
     // semantics already; the caret's seat is the mousedown's stand,
-    // untouched). The open stands the new tab's stand (the gesture's
-    // window's call — the popup's block's off).
+    // untouched). The open stands the kind's stand (the web's URL's new
+    // tab, the other forms' same-tab's navigation).
     event.preventDefault();
-    window.open(press.href, "_blank", "noopener,noreferrer");
+    openLinkHref(press.href);
   }, []);
 
   return { onMouseDown, onClick };

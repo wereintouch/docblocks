@@ -443,11 +443,11 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(block.runs)).toBe("https://x.com and <mailto:a@b.c>");
   });
 
-  it("the link's href over the other scheme (the mailto / the javascript) degrades to the literal (the data model's link contract)", () => {
+  it("the link's href over the other scheme (the javascript) degrades to the literal; the mailto stands the mark (the data model's link contract)", () => {
     const block = single("[a](mailto:a@b.c) and [b](javascript:alert(1))");
     const linkRuns = block.runs.filter((r) => r.marks.link !== undefined);
-    expect(linkRuns).toEqual([]);
-    expect(textOf(block.runs)).toBe("[a](mailto:a@b.c) and [b](javascript:alert(1))");
+    expect(linkRuns.map((r) => [textOf([r]), r.marks.link])).toEqual([["a", { href: "mailto:a@b.c" }]]);
+    expect(textOf(block.runs)).toBe("a and [b](javascript:alert(1))");
   });
 
   it("the inline <a> tag's href stands the link contract (the safe href's mark, the unsafe's degrade)", () => {
@@ -458,9 +458,15 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(safe.runs)).toBe("visit site now");
     // The unsafe scheme stands the degrade (the content stays plain — the
     // mark would abort the paste over the core's strict rejection).
-    const unsafe = single('mail <a href="mailto:a@b.c">me</a> now');
+    const unsafe = single('mail <a href="javascript:alert(1)">me</a> now');
     expect(unsafe.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
     expect(textOf(unsafe.runs)).toBe("mail me now");
+    // The mailto's href stands the safe's contract (the mark's stand).
+    const mailto = single('mail <a href="mailto:a@b.c">me</a> now');
+    expect(mailto.runs.filter((r) => r.marks.link !== undefined).map((r) => r.marks.link)).toEqual([
+      { href: "mailto:a@b.c" },
+    ]);
+    expect(textOf(mailto.runs)).toBe("mail me now");
   });
 
   it("the href's entity decode re-stands the link contract (the exposed scheme degrades the run)", () => {

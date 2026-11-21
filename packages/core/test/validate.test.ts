@@ -535,7 +535,16 @@ describe("runs and marks", () => {
     );
     expectError(withContent([{ text: "x", marks: { bold: false } }]), "blocks.p.content[0].marks.bold", "must be true");
     expectError(withContent([{ text: "x", marks: { bold: {} } }]), "blocks.p.content[0].marks.bold", "must be true");
-    expectError(withContent([run("x", { link: { href: "mailto:a@b.c" } })]), "blocks.p.content[0].marks.link", "href");
+    // The mailto / tel / relative forms stand the contract; a foreign scheme does not.
+    expectValid(withContent([run("x", { link: { href: "mailto:a@b.c" } })]));
+    expectValid(withContent([run("x", { link: { href: "tel:+79161234567" } })]));
+    expectValid(withContent([run("x", { link: { href: "/docs/page" } })]));
+    expectError(withContent([run("x", { link: { href: "mailto:nope" } })]), "blocks.p.content[0].marks.link", "href");
+    expectError(
+      withContent([run("x", { link: { href: "javascript:alert(1)" } })]),
+      "blocks.p.content[0].marks.link",
+      "href"
+    );
     expectError(withContent([{ text: "x", marks: { link: {} } }]), "blocks.p.content[0].marks.link", "href");
     expectError(
       withContent([{ text: "x", marks: { link: { href: "https://e.com", title: "t" } } }]),

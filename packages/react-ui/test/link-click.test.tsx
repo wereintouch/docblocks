@@ -80,6 +80,25 @@ describe("the link's click (the new tab's stand)", () => {
     expect(window.open).toHaveBeenCalledWith(HREF, "_blank", "noopener,noreferrer");
   });
 
+  it("the non-web's safe forms stand no new tab (the same-tab's navigation's stand — the mail client / the dialer / the page's stand)", () => {
+    for (const href of ["mailto:help@example.com", "tel:+79161234567", "/docs/page"] as const) {
+      const doc = createDoc({ id: `link-kind-${href}`, createdAt: CREATED_AT });
+      const p = doc.insertBlock("paragraph");
+      doc.insertText(p, 0, "go to world now");
+      doc.setMark(p, 6, 11, { type: "link", href }); // the "world"
+      const { link } = renderDoc(doc);
+      act(() => {
+        fireEvent.mouseDown(link, { clientX: 10, clientY: 10, button: 0 });
+        fireEvent.click(link, { clientX: 10, clientY: 10, button: 0 });
+      });
+      // The new tab's stand's off (the web's URL's branch): the open routes
+      // over the same-tab's navigation (the jsdom's no-stand — the real
+      // browser's stand is pinned over the e2e).
+      expect(window.open).not.toHaveBeenCalled();
+      cleanup(); // the fresh render's parity (the "world"'s anchor's single)
+    }
+  });
+
   it("the press-drag over the link stands no open (the selection's gesture's stand)", () => {
     const { doc } = seedDoc();
     const { link } = renderDoc(doc);

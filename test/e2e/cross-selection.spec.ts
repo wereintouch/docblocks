@@ -260,10 +260,11 @@ test("a cross-block selection raises the toolbar; bold marks the per-block segme
   expect(sel!.endOffset).toBe(3);
 
   // The toolbar is up for the cross range; the list-type menu (single-block
-  // only) is absent: five marks + three aligns + the palette = 9 buttons.
+  // only) is absent: six marks (the link's included) + three aligns + the
+  // palette = 10 buttons.
   const bar = toolbar(a, "a");
   await expect(bar).toBeVisible();
-  await expect(bar.locator("button")).toHaveCount(9);
+  await expect(bar.locator("button")).toHaveCount(10);
 
   await bar.locator('[data-mark="bold"]').click();
 

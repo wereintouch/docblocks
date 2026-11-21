@@ -16,9 +16,11 @@
  * edit's mode only (a click opens the emoji grid — a portaled
  * standard-token surface, a pick commits `setAvatar` — one write — and
  * closes, the clear option removes it; the read-only's stand shows the
- * avatar display-only). The mode switchers are controlled (the `view` +
- * the `onViewChange`, the `mode` + the `onModeChange` — the consumer owns
- * the editor's view and the document's mode).
+ * avatar display-only); the slot is the `DocHeaderAvatar` unit, and the
+ * consumer may replace its content or hide it altogether. The mode
+ * switchers are controlled (the `view` + the `onViewChange`, the `mode` +
+ * the `onModeChange` — the consumer owns the editor's view and the
+ * document's mode).
  *
  * The panel stands the standard theme tokens (not the `--docblocks-*` ones):
  * it renders in the consumer's chrome, outside the editor root where the
@@ -26,21 +28,20 @@
  */
 import { useTranslation } from "react-i18next";
 
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import type { Doc, DocMeta } from "docblocks-core";
 
+import type { DocHeaderAvatarContentContext } from "./DocHeaderAvatar";
+import { DocHeaderAvatar } from "./DocHeaderAvatar";
 import type { EditorView } from "./Editor";
 import type { AccessLevel, EditorMode } from "./editor-provider";
 import { DocblocksI18nProvider } from "./i18n";
 import { Button } from "./shared/ui/Button";
-import { EmojiPicker } from "./shared/ui/EmojiPicker";
 import { InlineEditInput } from "./shared/ui/InlineEditInput";
-import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
-import { cn } from "./shared/ui/cn";
 import { BookOpen, Eye, Network, Pen, SquareText } from "./shared/ui/icons";
-import { preventDefault } from "./shared/utils";
 
 /** The header's props (the consumer's state: the doc's stand, the view and
  *  the mode's switchers — the consumer owns the view / the mode's state). */
@@ -57,6 +58,10 @@ interface DocHeaderProps {
   onModeChange?: (mode: EditorMode) => void;
   /** The published snapshot (the meta's source over the published's stand; the "Published"'s option stands disabled over its absence). */
   publishedDoc?: Doc | null;
+  /** Replaces the avatar slot's CONTENT in both states (the emoji / the empty stand). The library owns the wrapper (the edit's button, the read-only's span), the picker, and the accessible names, and a click on the content opens the picker over the edit's mode; the decorative mark-up inside the content is the consumer's (the accessible name stands on the library's wrapper). The absent prop stands the built-in render (the emoji, or the "+" affordance). */
+  renderAvatarContent?: (context: DocHeaderAvatarContentContext) => ReactNode;
+  /** Hides the avatar slot entirely — no wrapper, no focus stop — for consumers that stand the document avatar elsewhere. */
+  hideAvatar?: boolean;
 }
 
 /** The header's i18n scope: the package's instance stands the provider's seat
@@ -80,6 +85,8 @@ function DocHeaderInner({
   mode = "edit",
   onModeChange,
   publishedDoc,
+  renderAvatarContent,
+  hideAvatar = false,
 }: DocHeaderProps) {
   const { t } = useTranslation("editor");
   // The effective mode: the viewer's published's forced stand (the current
@@ -96,7 +103,6 @@ function DocHeaderInner({
     effectiveMode === "published" ? (accessLevel === "viewer" ? (doc ?? null) : (publishedDoc ?? null)) : null;
   const [meta, setMeta] = useState<DocMeta | null>(() => (doc !== undefined ? doc.meta : null));
   const [titleEditing, setTitleEditing] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
 
   // Re-render on the meta changes (the title / the avatar) — the doc's own
   // read (the peer's concurrent edit is not clobbered by a stale
@@ -117,12 +123,10 @@ function DocHeaderInner({
   const pickAvatar = (emoji: string) => {
     if (doc === undefined) return;
     doc.setAvatar(emoji);
-    setAvatarOpen(false);
   };
   const clearAvatar = () => {
     if (doc === undefined) return;
     doc.setAvatar(null);
-    setAvatarOpen(false);
   };
   const commitTitleEdit = (value: string) => {
     setTitleEditing(false);
@@ -160,6 +164,9 @@ function DocHeaderInner({
   const liveMeta: DocMeta = meta ?? NEUTRAL_META;
   const displayMeta: DocMeta =
     snapshot !== null ? snapshot.meta : effectiveMode === "published" ? NEUTRAL_META : liveMeta;
+  // The avatar slot's value (an empty / an absent avatar reads as none —
+  // the placeholder's affordance) over the effective mode's source.
+  const avatarValue = (viewMode ? displayMeta.avatar : liveMeta.avatar) || null;
 
   return (
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">
@@ -195,41 +202,14 @@ function DocHeaderInner({
           buttonAttrName="doc-header-mode-button"
         />
       ) : null}
-      {viewMode ? (
-        // The read-only stand (the view / published's modes): the avatar
-        // stands display-only (the picker's entry is off).
-        <span
-          data-slot="docblocks/doc-header-avatar"
-          aria-label={t("docHeader.documentAvatarAria")}
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-normal",
-            displayMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
-          )}
-        >
-          {displayMeta.avatar ?? ""}
-        </span>
-      ) : (
-        <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              data-slot="docblocks/doc-header-avatar"
-              aria-label={t("docHeader.editAvatarAria")}
-              title={t("docHeader.editAvatar")}
-              className={cn(
-                "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
-                liveMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
-              )}
-            >
-              {liveMeta.avatar ? liveMeta.avatar : "+"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
-            <EmojiPicker selected={liveMeta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
-          </PopoverContent>
-        </Popover>
+      {hideAvatar ? null : (
+        <DocHeaderAvatar
+          avatar={avatarValue}
+          editable={!viewMode}
+          renderContent={renderAvatarContent}
+          onPick={pickAvatar}
+          onClear={clearAvatar}
+        />
       )}
       {titleEditing && !viewMode ? (
         <InlineEditInput
@@ -272,3 +252,4 @@ function DocHeaderInner({
 }
 
 export { DocHeader };
+export type { DocHeaderAvatarContentContext };

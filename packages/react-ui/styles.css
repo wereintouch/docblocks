@@ -621,6 +621,13 @@
   text-underline-offset: 2px;
 }
 
+/* The link's run (the view's + the edit's modes' parity): the underline's
+   stand over the color's token (the `LINK_CLASS`'s tailwind's stand). */
+[data-slot="docblocks/link"] {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* The interactive chip (the consumer's mention interactions stand over the
    editor root): the link's cursor and the light neutral's hover
    background — the rounded 3px rect with the 2px's letters' offset (the

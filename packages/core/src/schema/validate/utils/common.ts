@@ -68,25 +68,58 @@ const isDocAttributeValue = (value: unknown): value is DocAttributeValue => {
   return isMentionRef(value);
 };
 
-/** `http://` / `https://` URLs and relative paths; other schemes are
- *  rejected. The check runs over the browser's normalization of the input:
- *  the WHATWG URL parser removes ASCII tab / LF / CR (U+0009–U+000D) from
- *  ANY position and trims the leading / trailing C0 controls and spaces
- *  (U+0000–U+0020) before the scheme detection — so an unnormalized check
- *  stands the `"java\tscript:…"` bypass (the raw string carries no scheme
- *  per the `^[a-z][a-z0-9+.-]*:` test, the browser's does). */
+/** `http://` / `https://` URLs, the `mailto:` / `tel:` links, and relative
+ *  paths; other schemes are rejected. The check runs over the browser's
+ *  normalization of the input: the WHATWG URL parser removes ASCII tab / LF
+ *  / CR (U+0009–U+000D) from ANY position and trims the leading / trailing C0
+ *  controls and spaces (U+0000–U+0020) before the scheme detection — so an
+ *  unnormalized check stands the `"java\tscript:…"` bypass (the raw string
+ *  carries no scheme per the `^[a-z][a-z0-9+.-]*:` test, the browser's does). */
 // eslint-disable-next-line no-control-regex -- the C0 range is the check's subject.
 const CONTROL_TRIM = /^[\u0000-\u0020]+|[\u0000-\u0020]+$/g;
 // eslint-disable-next-line no-control-regex -- the mid-string strip is the check's subject.
 const MID_STRING_CONTROLS = /[\u0009\u000A\u000D]/g;
 
-/** The public link-href contract (the validator's and the consumer
- *  renderer's gate): the normalized form is an http/https URL or a
- *  scheme-less (relative) path; any other scheme is rejected. */
-const isSafeLinkHref = (value: string): boolean => {
+/** The `mailto:` payload (the email's stand): the `local@domain` form — a
+ *  non-empty local part without whitespace / `@`, a domain carrying a dot.
+ *  The gate is the shape's check (the safety's stand), not the registry's
+ *  validation — a degenerate TLD is a dead mailto, not a risk. */
+const MAILTO_RE = /^mailto:[^\s@]+@[^\s@]*\.[^\s@]+$/i;
+/** The `tel:` payload (the phone number's stand): 5–30 characters of digits
+ *  and the phone separators (`+`, `()`, `-`, `'`, `.`, `,`, the space),
+ *  starting with a digit or `+`. */
+const TEL_RE = /^tel:[0-9+][0-9()'. ,+-]{4,29}$/i;
+/** The minimum digit count of the `tel:` payload (the phone number's stand —
+ *  the separators alone are not a number). */
+const TEL_MIN_DIGITS = 5;
+
+/** The link-href's class over the public contract: the web's URL, the
+ *  `mailto:`'s email, the `tel:`'s phone, the scheme-less (relative) path.
+ *  The classifier `linkHrefKindOf` is the single stand; `null` over any
+ *  other scheme (the rejection's stand). */
+type LinkHrefKind = "web" | "mailto" | "tel" | "relative";
+
+/** The link-href's class over the public contract (the normalized form —
+ *  the browser's C0 / space normalization: the mid-string strip + the
+ *  leading / trailing trim over the WHATWG URL parser's pipeline): the
+ *  web's URL, the `mailto:`'s email, the `tel:`'s phone, the scheme-less
+ *  (relative) path — or `null` over any other scheme (the rejection's
+ *  stand). */
+const linkHrefKindOf = (value: string): LinkHrefKind | null => {
   const trimmed = value.replace(MID_STRING_CONTROLS, "").replace(CONTROL_TRIM, "");
-  return trimmed.length > 0 && (WEB_URL.test(trimmed) || !SCHEME_PREFIX.test(trimmed));
+  if (trimmed.length === 0) return null;
+  if (WEB_URL.test(trimmed)) return "web";
+  if (MAILTO_RE.test(trimmed)) return "mailto";
+  if (TEL_RE.test(trimmed) && (trimmed.match(/\d/g) ?? []).length >= TEL_MIN_DIGITS) return "tel";
+  if (!SCHEME_PREFIX.test(trimmed)) return "relative";
+  return null;
 };
+
+/** The public link-href contract (the validator's and the consumer
+ *  renderer's gate): the normalized form is an http/https URL, a `mailto:`
+ *  email, a `tel:` phone number, or a scheme-less (relative) path; any
+ *  other scheme is rejected. */
+const isSafeLinkHref = (value: string): boolean => linkHrefKindOf(value) !== null;
 
 const isLinkHref = (value: string): boolean => isSafeLinkHref(value);
 
@@ -114,4 +147,15 @@ const isSafeEmbedSrc = (kind: unknown, src: unknown): boolean => {
   return kind === "html" && EMBED_HTML_DATA_URL.test(trimmed);
 };
 
-export { isDocAttributeValue, isHexColor, isIso8601, isLinkHref, isSafeEmbedSrc, isSafeLinkHref, isPlainObject, show };
+export {
+  isDocAttributeValue,
+  isHexColor,
+  isIso8601,
+  isLinkHref,
+  isSafeEmbedSrc,
+  isSafeLinkHref,
+  isPlainObject,
+  linkHrefKindOf,
+  show,
+};
+export type { LinkHrefKind };

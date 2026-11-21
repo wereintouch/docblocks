@@ -67,7 +67,7 @@ function renderMarked(run: TextRun, resolveMentionLabel?: MentionLabelResolver):
       // middle-click / the modified-click's native open — the editor's
       // own click's open stands `noopener,noreferrer` over the
       // window.open's call).
-      <a href={linkHref} rel="noopener noreferrer" className={LINK_CLASS}>
+      <a href={linkHref} rel="noopener noreferrer" data-slot="docblocks/link" className={LINK_CLASS}>
         {node}
       </a>
     );

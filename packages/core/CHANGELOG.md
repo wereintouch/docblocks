@@ -1,5 +1,14 @@
 # docblocks-core
 
+## 0.7.0
+
+### Minor Changes
+
+- ad563a8: The `link` mark's href takes the `mailto:` email and the `tel:` phone forms
+  alongside the http/https URLs and relative paths (the validator's and the
+  writer's single gate). `linkHrefKindOf` classifies the normalized href as
+  `web` / `mailto` / `tel` / `relative`, or `null` for any other scheme.
+
 ## 0.6.0
 
 ### Minor Changes

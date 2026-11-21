@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { useMemo, useRef } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useMemo, useRef } from "react";
 
 import { AttributesPanel, CoverBanner } from "./attributes";
 import { CoverTintController } from "./attributes/cover-tint";
@@ -18,6 +18,7 @@ import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
 import { useEditing } from "./editing/editor-root";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
+import { LinkPopoverContext, useLinkPopover } from "./editing/link";
 import { MentionMenuContext, useMentionCard, useMentionMenu } from "./editing/mention";
 import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surface";
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
@@ -111,6 +112,13 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
     [doc, rootBlockId, rootChildren]
   );
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
+  const linkPopover = useLinkPopover(rootRef);
+  // The mod+k's interception stands before the editor root's own keys (the
+  // handled's keydown's no-pass-through's stand).
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (linkPopover.handleKeyDown(event)) return;
+    onKeyDown(event);
+  };
   const linkOpen = useLinkOpen();
   const slash = useSlashMenu(rootRef);
   const mention = useMentionMenu(rootRef);
@@ -204,8 +212,9 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
             "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
             "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
           )}
-          onKeyDown={onKeyDown}
+          onKeyDown={handleKeyDown}
           onCopy={onCopy}
+          onContextMenu={linkPopover.onContextMenu}
           onMouseDown={linkOpen.onMouseDown}
           onClick={linkOpen.onClick}
           onPointerDown={onCrossDragPointerDown}
@@ -281,7 +290,10 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           {slash.menuNode}
           {mention.menuNode}
           {mentionCard}
-          {viewMode ? null : format.toolbarNode}
+          <LinkPopoverContext.Provider value={linkPopover.api}>
+            {viewMode ? null : format.toolbarNode}
+          </LinkPopoverContext.Provider>
+          {linkPopover.node}
         </div>
       </EnumOptionsMotionSlot.Provider>
     </Card>
