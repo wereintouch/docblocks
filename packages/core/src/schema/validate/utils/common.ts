@@ -93,22 +93,30 @@ const TEL_RE = /^tel:[0-9+][0-9()'. ,+-]{4,29}$/i;
  *  the separators alone are not a number). */
 const TEL_MIN_DIGITS = 5;
 
-/** The link-href's class over the public contract: the web's URL, the
- *  `mailto:`'s email, the `tel:`'s phone, the scheme-less (relative) path.
- *  The classifier `linkHrefKindOf` is the single stand; `null` over any
- *  other scheme (the rejection's stand). */
+/** The protocol-relative form (`//host/…`). The WHATWG URL parser treats a
+ *  leading slash pair — and a backslash pair, the special schemes' slash's
+ *  equivalence — as the base's scheme with an explicit authority, so the
+ *  form is an ABSOLUTE URL resolved against the reader's scheme, never a
+ *  relative path: classified as the web's own. */
+const PROTOCOL_RELATIVE = /^[/\\]{2}/;
+
+/** The link-href's class over the public contract: the web's URL (the
+ *  explicit http/https and the protocol-relative), the `mailto:`'s email,
+ *  the `tel:`'s phone, the scheme-less (relative) path. The classifier
+ *  `linkHrefKindOf` is the single stand; `null` over any other scheme (the
+ *  rejection's stand). */
 type LinkHrefKind = "web" | "mailto" | "tel" | "relative";
 
 /** The link-href's class over the public contract (the normalized form —
  *  the browser's C0 / space normalization: the mid-string strip + the
  *  leading / trailing trim over the WHATWG URL parser's pipeline): the
- *  web's URL, the `mailto:`'s email, the `tel:`'s phone, the scheme-less
- *  (relative) path — or `null` over any other scheme (the rejection's
- *  stand). */
+ *  web's URL (the explicit http/https and the protocol-relative), the
+ *  `mailto:`'s email, the `tel:`'s phone, the scheme-less (relative) path —
+ *  or `null` over any other scheme (the rejection's stand). */
 const linkHrefKindOf = (value: string): LinkHrefKind | null => {
   const trimmed = value.replace(MID_STRING_CONTROLS, "").replace(CONTROL_TRIM, "");
   if (trimmed.length === 0) return null;
-  if (WEB_URL.test(trimmed)) return "web";
+  if (WEB_URL.test(trimmed) || PROTOCOL_RELATIVE.test(trimmed)) return "web";
   if (MAILTO_RE.test(trimmed)) return "mailto";
   if (TEL_RE.test(trimmed) && (trimmed.match(/\d/g) ?? []).length >= TEL_MIN_DIGITS) return "tel";
   if (!SCHEME_PREFIX.test(trimmed)) return "relative";

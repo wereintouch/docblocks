@@ -338,6 +338,13 @@ describe("mark command errors", () => {
   it("the linkHrefKindOf classifier (the href's class over the gate)", () => {
     expect(linkHrefKindOf("https://example.com")).toBe("web");
     expect(linkHrefKindOf("  http://example.com  ")).toBe("web");
+    // The protocol-relative form is the web's absolute URL (the browser
+    // resolves it against the reader's scheme), never a relative path — the
+    // backslash pair stands the WHATWG's special-scheme equivalence.
+    expect(linkHrefKindOf("//example.com/page")).toBe("web");
+    expect(linkHrefKindOf("/\\example.com/page")).toBe("web");
+    expect(linkHrefKindOf("\\/example.com")).toBe("web");
+    expect(linkHrefKindOf("\\\\example.com")).toBe("web");
     expect(linkHrefKindOf("mailto:help@example.com")).toBe("mailto");
     expect(linkHrefKindOf("tel:+79161234567")).toBe("tel");
     expect(linkHrefKindOf("/relative/path")).toBe("relative");
