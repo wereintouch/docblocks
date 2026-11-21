@@ -1,0 +1,189 @@
+/**
+ * The remount survivor's watch (the `./focus`'s siblings): the
+ * selection's re-seat after a structural gesture or a history step
+ * remounts the target block (the MutationObserver's re-attempt until the
+ * seat stands in the survivor inner).
+ */
+import type { BlockId, Doc, SelectionView } from "docblocks-core";
+
+import { caretOffsetIn, logicalTextOf, restoreSelection } from "../../dom-offset";
+import { liveScope } from "./focus-caret";
+
+/** The parent block id per the DOM: the wrapper above the block's own wrapper; null at the doc root. */
+function domParentBlockIdOf(el: HTMLElement): BlockId | null {
+  const ownWrapper = el.parentElement?.closest<HTMLElement>("[data-block-id]");
+  return ownWrapper?.parentElement?.closest<HTMLElement>("[data-block-id]")?.dataset.blockId ?? null;
+}
+
+/**
+ * Whether the candidate inner is the SURVIVOR of the remount, not a framer
+ * exit clone. On a wrapper-tag swap (list-item in/out) the exit clone
+ * renders the block's NEW type at the OLD position — a wrong wrapper tag
+ * for the new type in one shape of the view, or a twin candidate (the
+ * count check's ambiguity stand) in the other. The survivor stands in a
+ * wrapper that matches the new type: a list-item in its li (the motion
+ * view's li stands directly under the row — the nesting is the indent
+ * data, no list wrapper — and the base view's li in the list run), any
+ * other type in a div.
+ */
+function isSurvivorInner(el: HTMLElement, blockType: string): boolean {
+  const wrapper = el.parentElement;
+  if (blockType === "list-item") {
+    return wrapper?.tagName === "LI";
+  }
+  return wrapper?.tagName === "DIV";
+}
+
+/** Whether the DOM selection's endpoints sit in (or on) the element. */
+function seatedIn(el: HTMLElement): boolean {
+  const sel = window.getSelection();
+  if (sel === null || sel.rangeCount === 0) return false;
+  const inOrOn = (node: Node | null): boolean => node !== null && (node === el || el.contains(node));
+  return inOrOn(sel.anchorNode) && inOrOn(sel.focusNode);
+}
+
+/**
+ * Whether the DOM selection sits in the element AT the requested flat
+ * offsets (a collapsed caret at `from`, a span over [from, to)). A
+ * selection inside the element at a different seat (a competing re-seat's
+ * transient — the container's re-seat lands at the block's edge while
+ * the history's seat is the pre-gesture's) is not the gesture's seat:
+ * the watch re-seats over it instead of stopping.
+ */
+function seatedAt(el: HTMLElement, from: number, to: number | null): boolean {
+  if (!seatedIn(el)) return false;
+  const sel = window.getSelection();
+  if (sel === null || sel.rangeCount === 0 || sel.anchorNode === null || sel.focusNode === null) return false;
+  const anchorOffset = caretOffsetIn(el, sel.anchorNode, sel.anchorOffset);
+  if (to === null) return anchorOffset === from;
+  const focusOffset = caretOffsetIn(el, sel.focusNode, sel.focusOffset);
+  return (anchorOffset === from && focusOffset === to) || (anchorOffset === to && focusOffset === from);
+}
+
+/**
+ * Restore a text range (a caret when `to` is null) inside a block's inner
+ * editable after a structural gesture (a Tab/Shift+Tab indent, a list-type
+ * swap) that remounts the block's subtree: the old editable is gone and
+ * the DOM selection cleared with it.
+ *
+ * The re-seat watches the DOM for the remount instead of racing it: a
+ * MutationObserver (microtask-driven, so it fires even while the page's
+ * frames are throttled) re-attempts the seat on every mutation until the
+ * selection stands in the survivor inner. The survivor is the candidate
+ * that is not the gesture's own pre-gesture element (the motion view's
+ * exit clone), whose DOM parent matches the doc's current parent (a clone
+ * lingers at the OLD position), whose wrapper matches the block's type
+ * (see isSurvivorInner), and whose text is seeded (the store-driven
+ * commit seeds it). A live selection inside another block's editable is
+ * the user's and stops the watch — it is never clobbered. The offsets are
+ * the gesture's pre-move ones: a structural gesture never edits the
+ * block's text, so they remain valid. `scope` confines the lookup to one
+ * editor root (a page can render the same doc in several). The deadline
+ * stands the remount's commit window over the engine's scheduling (the
+ * firefox's engine commits the remount slower over the load) — the watch
+ * stops at the first seated attempt or the user's selection, so the
+ * length is the residue's watch lifetime only.
+ */
+const RESTORE_DEADLINE_MS = 2000;
+
+function restoreSelectionIn(
+  doc: Doc,
+  blockId: BlockId,
+  from: number,
+  to: number | null,
+  scope: ParentNode = document,
+  exclude: HTMLElement | null = null
+): void {
+  const selector = `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`;
+  const json = doc.toJSON();
+  // A top-level block's doc parent is the root block; in the DOM its parent
+  // wrapper is absent, so normalize to null (domParentBlockIdOf's domain).
+  // The same normalization stands for a frame: its nested page renders in
+  // its own editor root (no frame wrapper in the DOM). One full read stands
+  // the gesture's context (the parent's scan over the same snapshot — no
+  // second toJSON).
+  let rawParent: BlockId | null = null;
+  for (const [parentId, block] of Object.entries(json.blocks)) {
+    if ("children" in block && block.children !== undefined && block.children.includes(blockId)) {
+      rawParent = parentId;
+      break;
+    }
+  }
+  const rawParentType = rawParent === null ? null : (json.blocks[rawParent]?.type ?? null);
+  const expectedParent = rawParent === null || rawParent === json.id || rawParentType === "frame" ? null : rawParent;
+  const blockType = json.blocks[blockId]?.type ?? "";
+  let observer: MutationObserver | null = null;
+  const deadlineTimer = window.setTimeout(stop, RESTORE_DEADLINE_MS);
+
+  function stop(): void {
+    window.clearTimeout(deadlineTimer);
+    observer?.disconnect();
+  }
+
+  /** One seat attempt: stop when the selection stands or is the user's. */
+  function attempt(): void {
+    const inners = Array.from(liveScope(scope).querySelectorAll<HTMLElement>(selector))
+      .filter((el) => el.isConnected)
+      .filter((el) => el !== exclude)
+      // The DOM parent check is the cell/frame scoping: a top-level block's
+      // expected parent is null (no page-context wrapper in the DOM — the
+      // nesting is the indent attr, not a wrapper), so the check is skipped
+      // then (the id + survivor-tag + seeded-text filters stand).
+      .filter((el) => expectedParent === null || domParentBlockIdOf(el) === expectedParent)
+      .filter((el) => isSurvivorInner(el, blockType))
+      .filter((el) => logicalTextOf(el) === doc.getText(blockId));
+    const el = inners.length === 1 ? (inners[0] as HTMLElement) : null;
+    if (el !== null && seatedAt(el, from, to)) {
+      // The selection may stand in the rebuilt inner while the focus is
+      // stranded elsewhere (the remount takes the focus, not the seat):
+      // focus lands the caret.
+      el.focus();
+      stop();
+      return;
+    }
+    // A live selection inside ANOTHER block's editable is the user's: a
+    // deliberate move — stop and never clobber it.
+    const node = window.getSelection()?.anchorNode ?? null;
+    const anchorEl = node instanceof Element ? node : (node?.parentElement ?? null);
+    const host = anchorEl?.closest<HTMLElement>('[data-slot="docblocks/block-content"]') ?? null;
+    if (host !== null && host.dataset.blockId !== blockId && host !== el) {
+      stop();
+      return;
+    }
+    if (el !== null) {
+      el.focus();
+      restoreSelection(el, from, to);
+    }
+  }
+
+  // Fast path: the remount may already be committed (a synchronous flush).
+  attempt();
+  observer = new MutationObserver(attempt);
+  observer.observe(liveScope(scope), { childList: true, subtree: true });
+}
+
+/**
+ * Re-seat the DOM selection after an undo/redo whose inverse step
+ * remounts the target block (a type change): the core's selection view
+ * restores the doc selection from the step's pre-gesture snapshot, but
+ * the remount takes the DOM caret and focus with the old element. The
+ * seat rides the remount survivor watch (restoreSelectionIn): a
+ * text-only step leaves the DOM selection live in the same element (the
+ * store-driven text rebuild owns that restore) and the watch stops at
+ * the first seated attempt; a cross-block range reduces to a caret at
+ * the range's end (a cross-boundary DOM selection cannot stand from one
+ * inner).
+ */
+function reseatHistorySelection(doc: Doc, view: SelectionView, scope: ParentNode = document): void {
+  const selection = view.get();
+  if (selection.kind !== "text") return;
+  const from = selection.from;
+  const to = selection.to;
+  if (to !== null && to.blockId !== from.blockId) {
+    restoreSelectionIn(doc, to.blockId, to.offset, null, scope);
+    return;
+  }
+  restoreSelectionIn(doc, from.blockId, from.offset, to === null ? null : to.offset, scope);
+}
+
+export { reseatHistorySelection, restoreSelectionIn };
