@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 // The image figure (the image subtype): the width / the align / the
-// selection (the canvas token's outline + the corner ports) / the port
-// resize session (the in-flight preview is view state, one updateBlock on
-// the release) / the hover menu (the download, the caption, the align
-// controls).
+// selection (the canvas token's outline + the corner ports) / the hover
+// menu (the download, the caption, the align controls).
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -12,75 +10,16 @@ import { act } from "react";
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import type { BlobStore } from "../src/blob-store";
 import { EditorProvider, useEditorContext } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-
-const IMAGE_STORE: BlobStore = {
-  get: async () => ({
-    blob: new Blob(["pic"], { type: "image/png" }),
-    meta: { name: "pic.png", mimeType: "image/png" },
-  }),
-  upload: async () => "up-1",
-  rename: async () => ({ name: "pic.png", mimeType: "image/png" }),
-  subscribe: () => () => {},
-};
-
-/** Seed the image (optionally with the view attrs), render, return the ids. */
-function renderImageDoc(prepare?: (attrs: Record<string, unknown>) => void) {
-  const doc = createDoc({ id: "doc-img", createdAt: CREATED_AT });
-  const attrs: Record<string, unknown> = {};
-  prepare?.(attrs);
-  const imageId = doc.insertBlock("image", { src: "key-1", ...attrs });
-  render(
-    <EditorProvider doc={doc} blobStore={IMAGE_STORE}>
-      <Editor />
-    </EditorProvider>
-  );
-  return { doc, imageId };
-}
-
-/** Flush the async blob resolve. */
-async function flushResolve(): Promise<void> {
-  await act(async () => {});
-}
-
-/** The figure wrapper. */
-function figureOf(): HTMLElement {
-  const figure = document.querySelector<HTMLElement>('[data-slot="docblocks/image-figure"]');
-  expect(figure, "the figure should render").not.toBeNull();
-  return figure!;
-}
-
-/** The image block's attrs (the typed reader over the block union). */
-function imageAttrs(doc: ReturnType<typeof createDoc>, id: string): Record<string, unknown> | null {
-  const block = doc.getBlock(id);
-  return block !== null && block.type === "image" ? (block.attrs as unknown as Record<string, unknown>) : null;
-}
-
-/** The img element. */
-function imgOf(): HTMLImageElement {
-  const img = document.querySelector<HTMLImageElement>("img[data-slot='docblocks/image']");
-  expect(img, "the img should render").not.toBeNull();
-  return img!;
-}
-
-/** Stand the figure's and the editor root's rects (jsdom measures nothing). */
-function standRects(figure: HTMLElement, width: number, editorWidth: number): void {
-  const left = 10;
-  const rect = (l: number, w: number) =>
-    ({ left: l, right: l + w, top: 0, bottom: 400, width: w, height: 400, x: l, y: 0, toJSON: () => ({}) }) as DOMRect;
-  figure.getBoundingClientRect = () => rect(left, width);
-  // The resize's clamp scope: the figure's row (the motion page view — the
-  // row's content box over the indent) or the editor root (the no-row's
-  // stand — the table cell's mini-doc).
-  const scope =
-    figure.closest<HTMLElement>("[data-slot='docblocks/row']") ??
-    document.querySelector<HTMLElement>("[data-slot='docblocks/editor']");
-  expect(scope, "the figure's row (or the editor root) should render").not.toBeNull();
-  scope!.getBoundingClientRect = () => rect(0, editorWidth);
-}
+import {
+  CREATED_AT,
+  IMAGE_STORE,
+  figureOf,
+  flushResolve,
+  imageAttrs,
+  imgOf,
+  renderImageDoc,
+} from "./image-block.helpers";
 
 afterEach(() => {
   cleanup();
@@ -190,91 +129,6 @@ describe("the click's blocks selection (the canvas token's ring + the ports)", (
     fireEvent.keyDown(document.querySelector('[data-slot="docblocks/editor"]')!, { key: "Delete" });
     expect(doc.getBlock(imageId)).toBeNull();
     expect(doc.getBlock(dividerId)).toBeNull();
-  });
-});
-
-describe("the corner port's resize session", () => {
-  /** Press the port, drag to `toX`, release — the session's full gesture (the figure is click-selected first: the ports stand only while selected). */
-  async function dragPort(corner: string, fromX: number, toX: number): Promise<void> {
-    await flushResolve();
-    const figure = figureOf();
-    standRects(figure, 400, 800);
-    fireEvent.click(figure);
-    const port = document.querySelector<HTMLElement>(`[data-slot="docblocks/image-port"][data-corner="${corner}"]`);
-    expect(port, `the ${corner} port should stand (the figure is selected)`).not.toBeNull();
-    fireEvent.pointerDown(port!, { clientX: fromX, clientY: 0, pointerId: 1 });
-    fireEvent.pointerMove(port!, { clientX: toX, clientY: 0, pointerId: 1 });
-    fireEvent.pointerUp(port!, { pointerId: 1 });
-  }
-
-  it("the right corner's drag shrinks the width and commits one updateBlock on the release", async () => {
-    const { doc, imageId } = renderImageDoc();
-    await dragPort("se", 410, 310);
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 300 });
-    expect(imgOf().style.width).toBe("300px");
-    // One undo step: the undo drops the width (the absent attr stood before).
-    act(() => {
-      doc.undo();
-    });
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1" });
-    expect(imgOf().style.width).toBe("100%");
-  });
-
-  it("the left corner's drag shrinks against the fixed right edge", async () => {
-    const { doc, imageId } = renderImageDoc();
-    // The nw corner: the pointer left of the start grows nothing — the left
-    // edge's drag: the pointer to the RIGHT (toward the figure) shrinks.
-    await dragPort("nw", 10, 110);
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 300 });
-  });
-
-  it("the right corner's drag past the editor's width clamps at the editor (no stretch)", async () => {
-    const { doc, imageId } = renderImageDoc();
-    await dragPort("se", 410, 1210);
-    // The editor's content width is 800 (the mocked root rect).
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 800 });
-  });
-
-  it("the drag never goes below the width's floor", async () => {
-    const { doc, imageId } = renderImageDoc();
-    await dragPort("se", 410, -400);
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 20 });
-  });
-
-  it("a sub-threshold drag issues no command (the doc stands as it is)", async () => {
-    const { doc, imageId } = renderImageDoc();
-    await dragPort("se", 410, 409);
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1" });
-    expect(imgOf().style.width).toBe("100%");
-  });
-
-  it("the keyboard resize stands the width by a step (the arrows over the corner's side), one updateBlock per press", async () => {
-    const { doc, imageId } = renderImageDoc((attrs) => {
-      attrs.width = 400;
-    });
-    await flushResolve();
-    const figure = figureOf();
-    standRects(figure, 400, 800);
-    fireEvent.click(figure); // the selection's seats (the ports' stand)
-    const ne = document.querySelector<HTMLElement>('[data-slot="docblocks/image-port"][data-corner="ne"]');
-    expect(ne, "the ne's port's stands (the figure's selected)").not.toBeNull();
-    // The ne's (the right's corner): the right's arrow's widens, the left's
-    // shrinks (one `updateBlock` per press — the step's stands on the
-    // committed's width).
-    act(() => {
-      fireEvent.keyDown(ne!, { key: "ArrowRight" });
-    });
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 410 });
-    act(() => {
-      fireEvent.keyDown(ne!, { key: "ArrowLeft" });
-    });
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 400 });
-    // The non-arrow's key's stands the width (the no-op's — the Enter's
-    // default's activate's issues nothing, the resize's is the arrows's).
-    act(() => {
-      fireEvent.keyDown(ne!, { key: "Enter" });
-    });
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 400 });
   });
 });
 

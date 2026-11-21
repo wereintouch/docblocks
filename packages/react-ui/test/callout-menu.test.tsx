@@ -1,105 +1,21 @@
 // @vitest-environment jsdom
 // The callout's block menu (the clickable marker-zone icon): the type
-// preset (one transact), the background's swatches + the custom picker,
-// and the icon catalog commit one updateBlock each (one undo step, one
-// wire update). The menu stands for an empty callout (no text selection
-// needed). The read-only stand renders the icon without a button.
-import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// preset and the icon catalog commit one updateBlock each (one undo step,
+// one wire update). The menu stands for an empty callout (no text
+// selection needed). The read-only stand renders the icon without a
+// button.
+import { describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
-import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-type TestDoc = ReturnType<typeof createDoc>;
-
-function renderDoc(prepare: (doc: TestDoc) => void, mode?: "view"): TestDoc {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  prepare(doc);
-  render(
-    <EditorProvider doc={doc} mode={mode}>
-      <Editor />
-    </EditorProvider>
-  );
-  return doc;
-}
-
-/** The block's inner editable + its text node (the callout carries a run). */
-function innerOf(id: BlockId): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[data-block-id="${id}"][data-slot="docblocks/block-content"]`);
-  expect(el).not.toBeNull();
-  return el!;
-}
-function textNodeOf(id: BlockId): Text {
-  const node = innerOf(id).firstChild;
-  expect(node).not.toBeNull();
-  return node as Text;
-}
-
-/** The callout block's attrs (narrowed to the callout shape; null when absent). */
-function calloutAttrsOf(
-  doc: TestDoc,
-  id: BlockId
-): { variant?: string; color?: string | null; icon?: string | null } | undefined {
-  const block = doc.getBlock(id);
-  if (block === null || block.type !== "callout") return undefined;
-  return block.attrs;
-}
-
-/** Select [from, to) and sync the view selection (the toolbar re-renders in act). */
-function selectRange(id: BlockId, from: number, to: number): void {
-  const range = document.createRange();
-  range.setStart(textNodeOf(id), from);
-  range.setEnd(textNodeOf(id), to);
-  const selection = window.getSelection()!;
-  selection.removeAllRanges();
-  selection.addRange(range);
-  act(() => {
-    document.dispatchEvent(new Event("selectionchange"));
-  });
-}
-
-function toolbarOf(): HTMLElement {
-  const el = document.querySelector('[data-slot="docblocks/format-toolbar"]');
-  expect(el, "the toolbar should be visible for the selected callout range").not.toBeNull();
-  return el as HTMLElement;
-}
-
-function iconButtonOf(): HTMLElement {
-  const el = document.querySelector('[data-slot="docblocks/callout-icon-button"]');
-  expect(el, "the callout's icon button should be present").not.toBeNull();
-  return el as HTMLElement;
-}
-
-function menuOf(): HTMLElement {
-  const el = document.querySelector('[data-slot="docblocks/callout-menu"]');
-  expect(el, "the callout's menu should be open").not.toBeNull();
-  return el as HTMLElement;
-}
-
-/**
- * Open the block menu (a click — the radix Popover trigger activates on
- * click, not pointerdown) and press a control inside it. No text
- * selection stands for the gesture (the menu manages the block's attrs).
- */
-function pressCalloutControl(selector: string): void {
-  act(() => {
-    fireEvent.click(iconButtonOf());
-  });
-  const control = menuOf().querySelector(selector);
-  expect(control, `the ${selector} control should be present`).not.toBeNull();
-  act(() => {
-    (control as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  });
-}
-
-afterEach(() => {
-  cleanup();
-  window.getSelection()?.removeAllRanges();
-});
+import {
+  calloutAttrsOf,
+  iconButtonOf,
+  pressCalloutControl,
+  renderDoc,
+  selectRange,
+  toolbarOf,
+} from "./callout-menu.helpers";
 
 describe("the callout's block menu (the marker-zone icon's button)", () => {
   it("stands the icon button, and the toolbar's callout range keeps no callout controls", () => {
@@ -189,124 +105,6 @@ describe("the callout's block menu (the marker-zone icon's button)", () => {
     });
     pressCalloutControl('[data-callout-type-btn="warning"]');
     expect(calloutAttrsOf(doc, co)).toMatchObject({ variant: "warning" });
-  });
-});
-
-describe("the callout's custom color (the rainbow's swatch + the hex's input — the shared's mechanism)", () => {
-  /** Open the menu; returns the hex's input (the section stands always). */
-  function openMenu(): HTMLInputElement {
-    act(() => {
-      fireEvent.click(iconButtonOf());
-    });
-    const custom = menuOf().querySelector('[data-slot="docblocks/palette-custom"]');
-    expect(custom, "the custom swatch should stand").not.toBeNull();
-    const field = document.querySelector<HTMLInputElement>('input[data-slot="docblocks/callout-color-picker"]');
-    expect(field, "the hex's input should stand (the always-visible section)").not.toBeNull();
-    return field!;
-  }
-
-  it("commits the hex field's valid Enter (one write, the menu's close)", () => {
-    let co: BlockId = "";
-    const doc = renderDoc((d) => {
-      co = d.insertBlock("callout", {});
-      d.insertText(co, 0, "note");
-    });
-    const field = openMenu();
-    act(() => {
-      fireEvent.change(field, { target: { value: "#1A2B3C" } });
-      fireEvent.keyDown(field, { key: "Enter" });
-    });
-    expect(calloutAttrsOf(doc, co)?.color).toBe("#1a2b3c");
-    // The apply stands the menu's close.
-    expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
-  });
-
-  it("commits the hex's valid blur (the write + the menu's close)", () => {
-    let co: BlockId = "";
-    const doc = renderDoc((d) => {
-      co = d.insertBlock("callout", {});
-      d.insertText(co, 0, "note");
-    });
-    const field = openMenu();
-    act(() => {
-      fireEvent.change(field, { target: { value: "#336699" } });
-      fireEvent.blur(field);
-    });
-    expect(calloutAttrsOf(doc, co)?.color).toBe("#336699");
-    expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
-  });
-
-  it("ignores the invalid draft (no write, the menu's stand, the text's keep)", () => {
-    let co: BlockId = "";
-    const doc = renderDoc((d) => {
-      co = d.insertBlock("callout", {});
-      d.insertText(co, 0, "note");
-    });
-    const field = openMenu();
-    const before = doc.encode();
-    act(() => {
-      fireEvent.change(field, { target: { value: "#gg" } });
-      fireEvent.keyDown(field, { key: "Enter" });
-    });
-    expect(doc.encode()).toStrictEqual(before);
-    expect(calloutAttrsOf(doc, co)?.color ?? null).toBe(null);
-    // The invalid draft stands (the input's text, the retry's parity).
-    expect(field.value).toBe("#gg");
-    expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).not.toBeNull();
-  });
-
-  it("writes nothing for the close over the invalid draft (the draft's reset)", () => {
-    let co: BlockId = "";
-    const doc = renderDoc((d) => {
-      co = d.insertBlock("callout", {});
-      d.insertText(co, 0, "note");
-    });
-    const field = openMenu();
-    const before = doc.encode();
-    act(() => {
-      fireEvent.change(field, { target: { value: "#12" } });
-      fireEvent.keyDown(menuOf(), { key: "Escape" });
-    });
-    expect(doc.encode()).toStrictEqual(before);
-    expect(calloutAttrsOf(doc, co)?.color ?? null).toBe(null);
-    expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
-  });
-
-  it("seats the caret over the hex on the custom swatch's press (the focus's parity)", () => {
-    renderDoc((d) => {
-      d.insertBlock("callout", {});
-    });
-    act(() => {
-      fireEvent.click(iconButtonOf());
-    });
-    const field = document.querySelector<HTMLInputElement>('input[data-slot="docblocks/callout-color-picker"]')!;
-    const custom = menuOf().querySelector('[data-slot="docblocks/palette-custom"]');
-    expect(custom).not.toBeNull();
-    act(() => {
-      custom!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    });
-    expect(document.activeElement).toBe(field);
-  });
-
-  it("carries the non-preset value over the custom swatch's dot (the hex's commit's stand)", () => {
-    let co: BlockId = "";
-    const doc = renderDoc((d) => {
-      co = d.insertBlock("callout", {});
-      d.insertText(co, 0, "note");
-    });
-    const field = openMenu();
-    act(() => {
-      fireEvent.change(field, { target: { value: "#ff5500" } });
-      fireEvent.keyDown(field, { key: "Enter" });
-    });
-    expect(calloutAttrsOf(doc, co)?.color).toBe("#ff5500");
-    // Re-open the menu: the custom swatch's dot stands the non-preset's value.
-    act(() => {
-      fireEvent.click(iconButtonOf());
-    });
-    const dot = menuOf().querySelector<HTMLElement>('[data-slot="docblocks/palette-custom-current"]');
-    expect(dot, "the custom swatch's dot should be over the non-preset value").not.toBeNull();
-    expect(getComputedStyle(dot!).backgroundColor).toBe("rgb(255, 85, 0)");
   });
 });
 
