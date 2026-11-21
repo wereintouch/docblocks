@@ -29,14 +29,22 @@ const REF_PAGE_SIZE = 200;
  *  read). */
 const REF_LOAD_ATTEMPTS = 3;
 
+/** One page set of a ref table (the rows of every page + the schema's
+ *  first snapshot + the last page's `R`). */
+interface FullPages {
+  rows: RowWire[];
+  asOfSeq: number;
+  columns: Column[];
+}
+
 /** Loads one page set over the cursor's continuation (the full page set
  *  — the loop runs to the tail; the `cursor_expired` over the concurrent
- *  commit stands the fresh snapshot's retry). The schema stands the first
- *  snapshot's (the page set's stand — the color column's id lookup). */
-async function loadFullPages(
-  bridge: DatabaseBridge,
-  tableId: string
-): Promise<{ rows: RowWire[]; asOfSeq: number; columns: Column[] } | null> {
+ *  commit stands the fresh snapshot's retry, and the churn over the last
+ *  attempt stands the partial set — the lenient read). The schema stands
+ *  the first snapshot's (the page set's stand — the color column's id
+ *  lookup). */
+async function loadFullPages(bridge: DatabaseBridge, tableId: string): Promise<FullPages> {
+  let partial: FullPages = { rows: [], asOfSeq: 0, columns: [] };
   for (let attempt = 0; attempt < REF_LOAD_ATTEMPTS; attempt += 1) {
     const snapshot = await bridge.snapshotTable(tableId, { limit: REF_PAGE_SIZE });
     const rows = [...snapshot.page.rows];
@@ -64,13 +72,12 @@ async function loadFullPages(
         throw pageError;
       }
     }
-    if (cursor === null) return { rows, asOfSeq, columns };
-    // The cursor expired over the last attempt: the partial page set
-    // stands the lenient read (the refresh's next event stands the next
-    // load).
-    if (attempt === REF_LOAD_ATTEMPTS - 1) return { rows, asOfSeq, columns };
+    partial = { rows, asOfSeq, columns };
+    if (cursor === null) return partial;
   }
-  return null;
+  // The cursor expired over every attempt: the partial page set stands the
+  // lenient read (the refresh's next event stands the next load).
+  return partial;
 }
 
 /** The loaded ref-table data: the row ids in the row order + the row

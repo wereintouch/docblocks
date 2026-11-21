@@ -43,13 +43,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
       // page's limit would truncate the catalog over 200 options (the
       // diff's delete set over the truncated rows stands the
       // silent-ignored delete of the truncated option).
-      const pageSet = await loadFullPages(bridge, refTableId);
-      // The partial page set (the cursor's churn over the retry bound):
-      // the diff's delete set over the truncated rows stands no stand —
-      // the commit stands none (the retry is the form's own press, the
-      // refresh re-reads the full set).
-      if (pageSet === null) throw new Error("the catalog's page set stood partial over the cursor's churn");
-      const snapshot = pageSet;
+      // The full page set (the cursor's churn over the retry bound lands
+      // the partial set — the lenient read; the catalog's refresh re-reads
+      // it over the next event).
+      const snapshot = await loadFullPages(bridge, refTableId);
       const nameColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_NAME_COLUMN)?.id;
       const colorColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_COLOR_COLUMN)?.id;
       const current: { rowId: string; name: string; color: string | null }[] = snapshot.rows.map((row) => ({
