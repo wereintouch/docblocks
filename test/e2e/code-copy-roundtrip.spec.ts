@@ -62,9 +62,11 @@ test("the copy's round-trip: the payload's stand (the html's + the plain's), the
       const block = doc.insertBlock("code", { language: "python" });
       doc.insertText(block, 0, code);
     }, CODE);
-    await a.waitForTimeout(500); // the settle (the highlight's layer's mount's stand)
     const codeBlock = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block"][data-block-type="code"]').first();
     await expect(codeBlock).toBeVisible(SETTLE);
+    // The highlight's layer's mount's stand (the token's spans over the raw
+    // text — the grammar's async settle).
+    await expect(codeBlock.locator('[data-slot="docblocks/code-highlight"] span').first()).toBeVisible(SETTLE);
 
     // The copy's button (the real's click — the clipboard's write; the
     // header's hover's reveal's stand — the hover over the block first).

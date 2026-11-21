@@ -53,8 +53,11 @@ test("the persistent bridge keeps the table id across a rename and a reload", as
       );
     }, tableId);
 
-    // Let the save's debounce flush the snapshot to localStorage.
-    await a.waitForTimeout(500);
+    // The save's debounce's flush: the snapshot stands the table over
+    // localStorage (the reload's seed reads it).
+    await expect
+      .poll(() => a.evaluate(() => window.localStorage.getItem("docblocks-playground-bridge-v2") ?? ""))
+      .toContain(tableId);
 
     // Reload: the seed re-creates the tables from the snapshot. The table's
     // original id must survive (the doc's `tableId` references depend on it).
