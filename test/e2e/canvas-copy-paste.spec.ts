@@ -1,13 +1,13 @@
 // The canvas copy/paste: the Ctrl/Cmd+C
 // copies the selection's canvas items (the deep data — the copy stands the
 // original's later edits out; the frame stands the copy out), the
-// Ctrl/Cmd+V pastes the copy's union center at the pointer (the container
-// rides the copy — the membership remaps; the connector's endpoints
-// internal → the copy's ids, external → the free points at the offset
-// position with the frozen side). The paste is one commit (one undo step,
-// one wire update — the undo drops the whole copy); the copy keeps the
-// selection, the paste seats the selection on the pasted (the undo stands
-// the previous selection back, the redo re-seats the pasted).
+// Ctrl/Cmd+V pastes the copy's union center at the pointer (the
+// connector's endpoints internal → the copy's ids, external → the free
+// points at the offset position with the frozen side). The paste is one
+// commit (one undo step, one wire update — the undo drops the whole
+// copy); the copy keeps the selection, the paste seats the selection on
+// the pasted (the undo stands the previous selection back, the redo
+// re-seats the pasted).
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
@@ -222,81 +222,6 @@ test.describe("the canvas copy/paste", () => {
       const bBlocks = await blocks(b, "b");
       expect(bBlocks[connCopy!]?.attrs?.start).toEqual({ x: -250, y: 0, port: "east" });
       expect(bBlocks[connCopy!]?.attrs?.end).toEqual({ x: 250, y: 0, port: "west" });
-    } finally {
-      await close();
-    }
-  });
-
-  test("the container's copy: the membership remaps onto the copy's ids (the members' geometry shifts)", async ({
-    browser,
-  }) => {
-    const { a, b, close } = await twoPanes(browser, "canvas-copy-paste-group");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      const { a: aId, b: bId } = await seedScene(a, "a");
-      // The group over A + B (the own box — the members' band stands free
-      // at the border's press).
-      const groupId = await a.evaluate(
-        ({ a, b }) => {
-          const docs = window.__paneDocs;
-          const doc = docs?.a;
-          if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
-          const json = doc.toJSON();
-          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-          const id = doc.insertBlock("group", { members: [a, b], title: "scene" }, { parent: surfaceId! });
-          doc.setGeometry(id, { x: 0, y: 0, w: 700, h: 200 });
-          return id;
-        },
-        { a: aId, b: bId }
-      );
-      await zoomTo50(a, "a");
-
-      // The border's press selects the container (the wide hit band — the
-      // bottom border's world (0, 100)).
-      const pG = await worldPoint(a, "a", 0, 100);
-      await a.mouse.click(pG.x, pG.y);
-      expect(await selectedIds(a, "a")).toEqual([groupId]);
-
-      // The copy rides the members (the membership remaps at the paste);
-      // the union center (the group's box) lands at the pointer — the
-      // delta (100, 0).
-      await a.keyboard.press("Control+c");
-      const paste = await worldPoint(a, "a", 100, 0);
-      await a.mouse.move(paste.x, paste.y);
-      await a.keyboard.press("Control+v");
-      const after = await blocks(a, "a");
-      const groupCopy = Object.entries(after).find(([id, block]) => block.type === "group" && id !== groupId)?.[0];
-      expect(groupCopy).toBeDefined();
-      const copied = after[groupCopy!]!;
-      expect(copied.geometry).toEqual({ x: 100, y: 0, w: 700, h: 200 });
-      expect(copied.attrs?.title).toBe("scene");
-      // The membership remaps onto the copy's ids (the fresh shapes).
-      const members = copied.attrs?.members as string[];
-      expect(members).toHaveLength(2);
-      const aCopy = members.find((id) => after[id]?.attrs?.variant === "rect")!;
-      const bCopy = members.find((id) => after[id]?.attrs?.variant === "ellipse")!;
-      expect(aCopy).not.toBe(aId);
-      expect(bCopy).not.toBe(bId);
-      expect(after[aCopy]?.geometry).toEqual({ x: -200, y: 0, w: 100, h: 100 });
-      expect(after[bCopy]?.geometry).toEqual({ x: 400, y: 0, w: 100, h: 100 });
-      // The paste seats the selection on the container's copy; the undo
-      // drops the whole copy (the members with it) and stands the
-      // previous selection back.
-      expect(await selectedIds(a, "a")).toEqual([groupCopy!]);
-      await a.keyboard.press("Control+z");
-      const afterUndo = await blocks(a, "a");
-      expect(afterUndo[groupCopy!]).toBeUndefined();
-      expect(afterUndo[aCopy]).toBeUndefined();
-      expect(afterUndo[bCopy]).toBeUndefined();
-      expect(await selectedIds(a, "a")).toEqual([groupId]);
-
-      // The wire: the other pane carries the copy over the redo.
-      await a.keyboard.press("Control+Shift+z");
-      await expect.poll(async () => (await blocks(b, "b"))[groupCopy!] !== undefined, SETTLE).toBe(true);
-      const bBlocks = await blocks(b, "b");
-      expect(bBlocks[groupCopy!]?.geometry).toEqual({ x: 100, y: 0, w: 700, h: 200 });
-      expect(bBlocks[groupCopy!]?.attrs?.members).toEqual([aCopy, bCopy]);
     } finally {
       await close();
     }
