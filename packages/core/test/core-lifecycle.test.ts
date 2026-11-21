@@ -5,7 +5,7 @@ import { Doc, InvalidSnapshotError, createDoc, fromJSON, loadDoc } from "../src/
 import { fixture } from "./fixtures";
 
 /**
- * The Doc lifecycle's stands (the sibling of core.test.ts): the updatedAt
+ * The Doc lifecycle's stands (over the core's entry spec): the updatedAt
  * out of the JSON, the public surface, and the loadDoc's snapshot guard.
  */
 

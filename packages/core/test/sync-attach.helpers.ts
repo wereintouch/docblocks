@@ -68,7 +68,8 @@ class FakeProvider implements SyncProvider {
     return this.#internalDoc;
   }
   /**
-   * Simulate the socket receiving document state (a step2 / an update):
+   * Simulate the socket receiving document state (a post-handshake
+   * update):
    * the internal doc accumulates it, the wire-received gate stands for
    * the accumulated-state delivery at the next onUpdate subscription, and
    * the current subscribers stand the update (as the wire delivers it).

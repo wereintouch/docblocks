@@ -4,7 +4,7 @@ import { InvalidSelectionError, createDoc, createSelection } from "../src/core";
 import type { Doc, Selection } from "../src/core";
 
 /**
- * SelectionView's validation (the sibling of selection.test.ts): the
+ * SelectionView's validation stands: the
  * InvalidSelectionError's rejections over the set's input.
  */
 

@@ -7,7 +7,7 @@ import type { DocJSON, MarkSet, TextRun } from "../src/schema";
 import { fixture } from "./fixtures";
 
 /**
- * The read path's plain snapshots (the sibling of core.test.ts): the
+ * The read path's plain snapshots (over the core's entry spec): the
  * getBlock / getRuns / getText plainness, the lazy run normalization, and
  * the normalizeRuns contract.
  */

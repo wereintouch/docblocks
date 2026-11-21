@@ -10,7 +10,7 @@ describe("late attach", () => {
     provider.internalState(); // the provider stands the accumulated-state stand
 
     // The provider's internal doc holds the room state from a completed
-    // handshake with the other peer (the step2 stand); the app doc is
+    // handshake with the other peer (the accumulated-state stand); the app doc is
     // created and attached only now.
     const room = loadPeer(baseState());
     room.insertText("b0", 0, "remote text");
@@ -77,9 +77,8 @@ describe("late attach", () => {
     const doc1 = loadPeer(state);
     const session = attach(doc1, provider); // the bootstrap stands buffered into the provider's internal doc
 
-    // A consumer that keys off "the first incoming update" (the
-    // playground's seeder settle): over the pre-connect buffered
-    // bootstrap it must stand no delivery — the bootstrap is the doc's
+    // A consumer that keys off "the first incoming update": over the
+    // pre-connect buffered bootstrap it must stand no delivery — the bootstrap is the doc's
     // own state, not incoming state.
     const seen: number[] = [];
     const unsubscribe = provider.onUpdate((bytes) => seen.push(bytes.byteLength));
