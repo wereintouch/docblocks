@@ -2,20 +2,22 @@
  *  + the per-instance customization context. */
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
-import type { Doc, PresenceState, Selection } from "docblocks-core";
+import { createSelection } from "docblocks-core";
+import type { Doc } from "docblocks-core";
 
 import { getDefaultBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
 import type { DatabaseBridge } from "../database";
-import { ensureTrailingParagraph } from "../editing/block-commands";
 import { DocblocksI18nProvider } from "../i18n";
-import { buildPresencePayload, resolvePeerSelection } from "../presence";
+import { EditorProviderError } from "../shared/errors";
 import { createEditorStore } from "../state";
 import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
-import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
+import { defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
 import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
+import { usePresencePublish } from "./use-presence-publish";
+import { usePresenceReceive } from "./use-presence-receive";
+import { useTrailingParagraph } from "./use-trailing-paragraph";
 
 // The published snapshot's stand key (a module stand, one seq per snapshot
 // instance): the nested published provider remounts over a NEW snapshot
@@ -86,23 +88,10 @@ function EditorProviderStand({
   const effectiveAccessLevel = accessLevel ?? parentContext?.accessLevel ?? "editor";
   const effectiveMode: EditorMode =
     effectiveAccessLevel === "viewer" ? "published" : (mode ?? parentContext?.mode ?? "edit");
-  // The editing stand over the mount (the guarantee's write gate): a
-  // read-only stand (view / published) never runs the tail guarantee's
-  // write — the published's snapshot stands static over the render and a
-  // read-only subtree must not write into its own doc (the embedded's
-  // master over the published's stand is read-only too).
-  const editingStandRef = useRef(effectiveMode === "edit");
-  // The presence identity + cipher and the read-only stand are read at
-  // publish/receive time (the awareness effects stay keyed on provider /
-  // store — a fresh inline presence prop must not re-subscribe them).
-  const presenceRef = useRef(presence);
-  presenceRef.current = presence;
-  const viewModeRef = useRef(effectiveMode !== "edit");
-  viewModeRef.current = effectiveMode !== "edit";
 
   useEffect(() => {
     if (docRef.current !== doc) {
-      throw new Error("EditorProvider: the doc instance must not change after mount.");
+      throw new EditorProviderError("EditorProvider: the doc instance must not change after mount.");
     }
     docRef.current = doc;
 
@@ -114,54 +103,17 @@ function EditorProviderStand({
     // Initial sync: seed the selection slice from the view's current state.
     store.getState().setSelection(view.get());
 
-    // The document root's tail guarantee (the session's start stand): a
-    // doc that stands a non-text last block (the external data, the
-    // peer's mid-session stand) has no caret home over its end — the
-    // empty paragraph stands after it. The empty doc stands no stand here
-    // (the starter's seeder owns the empty room, the empty hint owns the
-    // empty editor), the text tail stands no write (no no-op transact —
-    // a mount with nothing to stand must not stamp the doc), and the
-    // subtree providers' sequence ends are the consumer's stand. A
-    // read-only stand skips the write (the snapshot's stand above).
-    if (rootBlockId === undefined && editingStandRef.current) {
-      const sequence = doc.getChildren(doc.meta.id);
-      const lastId = sequence[sequence.length - 1];
-      const last = lastId === undefined ? null : doc.getBlock(lastId);
-      if (last !== null && !BLOCK_REGISTRY[last.type].content) {
-        doc.transact(() => {
-          ensureTrailingParagraph(doc, doc.meta.id);
-        });
-      }
-    }
-
-    // The tail guarantee's remote feed (full-doc editors only): a peer's
-    // write that leaves the tail non-text (a seed load over the wire, a
-    // foreign writer) stands its trailing paragraph over the wire. The
-    // feed is remote-only — the local gesture paths (the removal, the
-    // slash's insert, the drag's commit) stand their own paragraph inside
-    // their one transact, and a local-origin guard would double-stand the
-    // paragraph over the peer's guard of the same write. The check runs
-    // once the in-flight transaction settles (a microtask) so the
-    // insertion commits as its own LOCAL transaction: a guard write inside
-    // the remote transaction would stand the remote origin and the
-    // origin guard would keep it off the wire.
-    let unsubscribeTail: (() => void) | null = null;
-    if (rootBlockId === undefined && editingStandRef.current) {
-      unsubscribeTail = doc.onRemoteChange(() => {
-        void queueMicrotask(() => {
-          ensureTrailingParagraph(doc, doc.meta.id);
-        });
-      });
-    }
-
     return () => {
       unsubscribeDoc();
       unsubscribeSelection();
-      if (unsubscribeTail !== null) unsubscribeTail();
       selectionRef.current.view = null;
       view.destroy();
     };
   }, [doc, store]);
+
+  // The root's trailing-paragraph guarantee over the doc + the peer's wire
+  // writes (the full-doc editing stand only).
+  useTrailingParagraph(doc, rootBlockId, effectiveMode === "edit");
 
   // The store captures the entry root at creation (the useState
   // initializer), so a rootBlockId change after mount desyncs the entry
@@ -170,129 +122,16 @@ function EditorProviderStand({
   // way to switch roots.
   useEffect(() => {
     if (rootIdRef.current !== rootId) {
-      throw new Error("EditorProvider: the rootBlockId must not change after mount.");
+      throw new EditorProviderError("EditorProvider: the rootBlockId must not change after mount.");
     }
     rootIdRef.current = rootId;
   }, [rootId]);
 
-  useEffect(() => {
-    if (provider === undefined) return;
-
-    // Transports re-emit the (unchanged) remote peer list on every
-    // awareness update — including the one triggered by this provider's
-    // own setAwareness — so an unchanged list must not churn the slice
-    // reference (reference stability across unrelated changes).
-    let lastPeers = "";
-    // The latest raw frame per peer: a frame older than the peer's latest
-    // (the async decrypt's race — the older frame's decrypt can resolve
-    // after a newer one's) never enters the set, so the slice always
-    // resolves over the latest frames only.
-    const latest = new Map<string, PresenceState>();
-    // The resolution's generation: the last-started resolution owns the
-    // slice (an earlier one finishing late stands dropped).
-    let generation = 0;
-
-    const unsubscribeAwareness = provider.onAwareness((rawPeers) => {
-      const serialized = JSON.stringify(rawPeers);
-      if (serialized === lastPeers) return;
-      lastPeers = serialized;
-      const rawIds = new Set(rawPeers.map((peer) => peer.peerId));
-      for (const id of [...latest.keys()]) if (!rawIds.has(id)) latest.delete(id);
-      for (const peer of rawPeers) {
-        const prev = latest.get(peer.peerId);
-        if (peer.seq !== undefined && prev?.seq !== undefined && peer.seq < prev.seq) continue;
-        latest.set(peer.peerId, peer);
-      }
-      const gen = ++generation;
-      const crypto = presenceRef.current?.crypto ?? null;
-      const input = [...latest.values()];
-      void (async () => {
-        const resolved: PresenceState[] = [];
-        for (const peer of input) {
-          resolved.push(await resolvePeerSelection({ peer, crypto }));
-        }
-        if (gen !== generation) return;
-        store.getState().setPresence(resolved);
-      })();
-    });
-    return () => unsubscribeAwareness();
-  }, [provider, store]);
-
-  // Publish the local selection state into the provider's awareness over
-  // the sharing contract: the grant is session state (the store's sharing
-  // slice, the default "off" — the privacy stand): "off" / the read-only
-  // stand publishes the identity only, "everyone" publishes the plaintext
-  // selection (the legacy stand), and a targeted grant encrypts per target
-  // over the consumer's cipher (no cipher — the publish stands dropped).
-  // Debounced on change, identity-only immediately on window blur or page
-  // unload, and an immediate re-publish on window focus (closing the
-  // stale-null gap after a blur). A transport that re-sends the local
-  // awareness state on (re)connect (WsSyncProvider does) restores the
-  // payload automatically after a reconnect.
-  useEffect(() => {
-    if (provider === undefined) return;
-
-    // The monotonic publication counter (every publish increments it — the
-    // recipient's seq guard orders the async decrypts).
-    let seq = 0;
-    // The async publish's token: a grant that changed in flight (the
-    // cipher's await) must not land over the newer state.
-    let publishToken = 0;
-
-    const publish = (selection: Selection): void => {
-      const token = ++publishToken;
-      const sharing = store.getState().sharing;
-      void (async () => {
-        const payload = await buildPresencePayload({
-          selection: presenceSelectionOf(selection),
-          sharing,
-          viewMode: viewModeRef.current,
-          identity: presenceRef.current ?? {},
-          crypto: presenceRef.current?.crypto ?? null,
-          seq: ++seq,
-          updatedAt: Date.now(),
-        });
-        if (token !== publishToken || payload === null) return;
-        provider.setAwareness(payload);
-      })();
-    };
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const queue = (selection: Selection): void => {
-      if (timer !== undefined) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = undefined;
-        publish(selection);
-      }, AWARENESS_DEBOUNCE_MS);
-    };
-    const publishNow = (selection: Selection): void => {
-      if (timer !== undefined) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
-      publish(selection);
-    };
-
-    const unsubscribe = store.subscribe((state, prev) => {
-      if (state.selection !== prev.selection) queue(state.selection);
-      if (state.sharing !== prev.sharing) publish(store.getState().selection);
-    });
-    const onBlur = (): void => publishNow({ kind: "none" });
-    const onFocus = (): void => {
-      if (timer !== undefined) return; // a queued publish carries the newest state
-      publishNow(store.getState().selection);
-    };
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("beforeunload", onBlur);
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("beforeunload", onBlur);
-      if (timer !== undefined) clearTimeout(timer);
-    };
-  }, [provider, store]);
+  // The awareness session over the sync provider: the remote frames resolve
+  // into the presence slice, the local selection publishes over the sharing
+  // contract.
+  usePresenceReceive(provider, store, presence);
+  usePresencePublish(provider, store, presence, effectiveMode !== "edit");
 
   // The explicit store wins; otherwise inherit the enclosing store or use
   // the shared in-memory default.
@@ -423,7 +262,7 @@ function EditorProvider(props: EditorProviderProps) {
     return <EditorProviderStand {...props} doc={props.doc} />;
   }
   if (props.doc === undefined) {
-    throw new Error(
+    throw new EditorProviderError(
       "EditorProvider: the doc stand is required over the editor's stand (the viewer's stand stands the placeholder over the absent stand)"
     );
   }
