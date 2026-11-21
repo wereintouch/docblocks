@@ -139,6 +139,10 @@ interface RowOpsContext {
   refresh: (onApplied?: (snapshot: TableSnapshot) => void) => void;
   noteError: (operationError: unknown) => void;
   casOf: (rowId: string) => { expectedRevision?: string };
+  /** The identity stand over the in-flight write's tails: a relink (the
+   *  bridge / the tableId change) makes the late completion's state
+   *  writes land on the previous table's grid — the tail drops them. */
+  sameIdentity: () => boolean;
 }
 
 /** The column-write ops' shared stand: the wire schema (the spec / patch
@@ -151,4 +155,7 @@ interface ColumnOpsContext {
   capabilitiesRef: RefCell<readonly ProtocolCapability[]>;
   pushUndo: (op: InverseOp, opBridge: DatabaseBridge, opTableId: string) => void;
   noteError: (operationError: unknown) => void;
+  /** The identity stand over the in-flight write's failure tail (the same
+   *  stand as the row ops'). */
+  sameIdentity: () => boolean;
 }

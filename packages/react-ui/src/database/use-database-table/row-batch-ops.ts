@@ -21,7 +21,7 @@ interface RowBatchOps {
 
 function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
   const { bridge, tableId, rowsRef, pendingRowRef, revisionsRef, setRows, setPendingRow } = ctx;
-  const { pushUndo, refresh, noteError, casOf } = ctx;
+  const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const updateRows = async (updates: Array<{ rowId: string; cells: Record<string, unknown> }>): Promise<void> => {
     if (updates.length === 0) return;
@@ -53,6 +53,9 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
         },
         newMutationContext()
       );
+      // The relink's drop: the commit landed on the previous table — the
+      // revision map, the entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       const restore = restorePatchesOf(before, cleaned);
       pushUndo(
@@ -82,10 +85,14 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
       );
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      setPendingRow(pendingSnapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        setPendingRow(pendingSnapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
@@ -123,6 +130,10 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
         ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
       ];
       const receipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
+      // The relink's drop: the commit landed on the previous table — the
+      // created rows' ids, the revision map, the entry and the refetch
+      // belong to it.
+      if (!sameIdentity()) return [];
       // The receipt's `rows` stand the created rows over the create
       // op's order (the contract's stand) — the created rows are the
       // ones NOT in the update set (the create's id is fresh; the
@@ -167,12 +178,16 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
       refresh();
       return liveRowIds;
     } catch (operationError) {
-      if (updatesChanged) {
-        setRows(snapshot);
-        setPendingRow(pendingSnapshot);
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        if (updatesChanged) {
+          setRows(snapshot);
+          setPendingRow(pendingSnapshot);
+        }
+        noteError(operationError);
+        refresh();
       }
-      noteError(operationError);
-      refresh();
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };

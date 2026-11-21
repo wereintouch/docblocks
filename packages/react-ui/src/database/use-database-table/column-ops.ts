@@ -22,7 +22,13 @@ interface ColumnOps {
 
 function createColumnOps(ctx: ColumnOpsContext): ColumnOps {
   const { bridge, tableId, descriptionRef, capabilitiesRef } = ctx;
-  const { pushUndo, noteError } = ctx;
+  const { pushUndo, sameIdentity } = ctx;
+  // The relink's drop: a failure of the previous table must not surface
+  // over the fresh one's grid (the undo entry stands guarded by the
+  // history's own identity).
+  const noteError = (operationError: unknown) => {
+    if (sameIdentity()) ctx.noteError(operationError);
+  };
 
   const addColumn = async (column: BridgeColumn, afterColumnId?: string): Promise<string> => {
     const spec = columnSpecOf(column, descriptionRef.current?.columns.length ?? 0);

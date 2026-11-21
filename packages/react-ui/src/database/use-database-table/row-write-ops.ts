@@ -16,7 +16,7 @@ interface RowWriteOps {
 
 function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
   const { bridge, tableId, rowsRef, pendingRowRef, revisionsRef, setRows, setPendingRow } = ctx;
-  const { pushUndo, refresh, noteError, casOf } = ctx;
+  const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const insertRow = async (cells: Record<string, unknown> = {}): Promise<string> => {
     // The row id is bridge-assigned (the `c-` / `r-` allocation), so the
@@ -43,9 +43,12 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
       createdRevision = created.revision;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
     } catch (operationError) {
-      noteError(operationError);
+      // The relink's drop: the failure belongs to the previous table —
+      // its note + rollback would land over the fresh one's grid.
+      if (sameIdentity()) noteError(operationError);
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
+    if (!sameIdentity()) return liveRowId; // the relink's drop: no entry, no refetch over the fresh table
     pushUndo(
       {
         label: `insert row ${liveRowId}`,
@@ -111,6 +114,9 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
         },
         newMutationContext()
       );
+      // The relink's drop: the commit landed on the previous table — the
+      // revision map, the entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       if (current !== undefined) {
         const oldCells = { ...current.cells };
@@ -140,10 +146,14 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
       }
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      setPendingRow(pendingSnapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        setPendingRow(pendingSnapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
