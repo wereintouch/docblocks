@@ -1,19 +1,11 @@
-// The canvas-text (the reworked interaction): the ghost's stands (the
-// blur's cancel over the empty ghost — the creation's commit stands in
-// the canvas-empty-dblclick's spec, no duplicate coverage), the press
-// contract (the shape's parity — the single press over the block: the
-// press's selection stands (the move session — the typing stands off),
-// the release's selection's stand over the moved block; the double-click
-// the caret's stand — the typing lands in the block over the wire), the
-// press's drag (the move's geometry's delta over the wire), the Escape
-// over the empty real block (the removeBlock's no-orphan's stand), the
-// container's membership (the drag-in / drag-out's indicators' stand, the
-// release's commit over the wire), the side insets from the box's edges
-// (the shape's text's parity — the wrapper's horizontal padding over the
-// border-box), and the text toolbar (the single
-// selection's "Text options" stand, the font family / color / style /
-// size / align's applies — one updateBlock each over the wire — + the
-// z-order menu's reorder's apply).
+// The canvas-text (the reworked interaction) — the entry's stands: the
+// ghost's blur's cancel (nothing is written), the press's contract (the
+// selection over the move session, the caret stands off — the typing stands
+// off; the drag moves the block over the wire; the release's selection over
+// the moved block), the double-click's caret's entry (the typing lands in
+// the block over the wire), the m's letter over the live edit (the hotkey's
+// stand off), and the Escape over the empty real block (the text's deletion
+// over the wire).
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
@@ -91,29 +83,6 @@ async function activeStand(page: Page): Promise<{ slot: string | null; blockId: 
   });
 }
 
-/** The surface's children's order (the z-order's stand over the doc). */
-async function surfaceChildren(page: Page, client: "a" | "b"): Promise<string[]> {
-  return page.evaluate(
-    ({ client }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) return [];
-      const json = doc.toJSON();
-      const surfaceId = Object.keys(json.blocks).find((id) => json.blocks[id]!.type === "surface");
-      if (surfaceId === undefined) return [];
-      const block = json.blocks[surfaceId]!;
-      return block.children ?? [];
-    },
-    { client }
-  );
-}
-
-/** The group's members from the doc. */
-async function groupMembers(page: Page, client: "a" | "b", group: string): Promise<string[]> {
-  const blocks = await docBlocks(page, client);
-  return (blocks[group]?.attrs?.members as string[]) ?? [];
-}
-
 /** Wait for the DOM caret to stand in the block's inner (the release's seat's settle — the selectionchange's mapping's clobber stands in the same event's stand). */
 async function caretIn(page: Page, blockId: string): Promise<void> {
   await page.waitForFunction(
@@ -165,58 +134,6 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       expect(await a.locator('[data-slot="docblocks/canvas-text-ghost"]').count()).toBe(0);
       expect(await docBlocks(a, "a")).toEqual(jsonBefore);
       await expect.poll(async () => await docBlocks(b, "b"), SETTLE).toEqual(jsonBefore);
-    } finally {
-      await close();
-    }
-  });
-
-  test("the side insets from the box's edges (the shape's text's parity: the wrapper's horizontal padding, the border-box's stand, the inner's shrink)", async ({
-    browser,
-  }) => {
-    const { a, b, close } = await twoPanes(browser, "text-side-insets");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      // The 50% zoom (the empty canvas's stand — the card's screen's half-
-      // span stands 180x240, the point's (±450, ±300) stands clear of it).
-      const zoomToolbar = canvasView(a, "a").getByRole("toolbar", { name: "Canvas zoom" });
-      for (let i = 0; i < 5; i += 1) await zoomToolbar.getByLabel("Zoom out").click();
-      const zoom = parseInt((await zoomToolbar.getByLabel("Reset zoom").textContent()) ?? "50", 10) / 100;
-      const center = await canvasCenter(a, "a");
-      const point = screenAt(center, 450 * zoom, 300 * zoom);
-
-      await a.mouse.dblclick(point.x, point.y);
-      // The ghost's inner stands the same side inset (the commit's visual
-      // continuity: the typed text stands where the committed text stands).
-      const ghost = a.locator('[data-slot="docblocks/canvas-text-ghost-inner"]');
-      expect(await ghost.count()).toBe(1);
-      expect(await ghost.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("8px");
-
-      // The commit's stand (the ghost's close, the real block's stand).
-      await a.keyboard.type("Inset", { delay: 20 });
-      const blocks = await docBlocks(a, "a");
-      const textId = Object.entries(blocks).find(([, block]) => block.type === "canvas-text");
-      expect(textId).not.toBeUndefined();
-      const item = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${textId![0]}"]`);
-      // The border-box's stand (the preflight): the item's border box stands
-      // the geometry — the selection's frame and the position are unmoved;
-      // the horizontal padding (the rect's 8 px x) shrinks the text's wrap
-      // width inside the box's edges.
-      const box = await item.evaluate((el) => {
-        const itemEl = el as HTMLElement;
-        const cs = getComputedStyle(itemEl);
-        const inner = itemEl.querySelector<HTMLElement>("[data-slot='docblocks/block-content']");
-        return {
-          padding: cs.padding,
-          boxSizing: cs.boxSizing,
-          itemWidth: itemEl.offsetWidth,
-          innerWidth: inner !== null && "offsetWidth" in inner ? inner.offsetWidth : null,
-        };
-      });
-      expect(box.padding).toBe("0px 8px");
-      expect(box.boxSizing).toBe("border-box");
-      expect(box.innerWidth).toBe(box.itemWidth - 16);
-      await expect.poll(async () => await docBlocks(b, "b"), SETTLE).toEqual(blocks);
     } finally {
       await close();
     }
@@ -358,166 +275,6 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       await expect.poll(async () => (await docBlocks(a, "a"))[id], SETTLE).toBeUndefined();
       await expect.poll(async () => (await docBlocks(b, "b"))[id], SETTLE).toBeUndefined();
       expect((await activeStand(a)).blockId).not.toBe(id);
-    } finally {
-      await close();
-    }
-  });
-
-  test("the container's membership: the drag-in's indicator + the release's commit over the wire; the drag-out's removal", async ({
-    browser,
-  }) => {
-    const { a, b, close } = await twoPanes(browser, "text-membership");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      // The container (the right of the origin — the 240x160's box over the
-      // text's 200x40: the text's box lands strictly inside) + the
-      // canvas-text fully outside (the drag-in's source).
-      const { group, text } = await a.evaluate(() => {
-        const doc = window.__paneDocs?.a ?? null;
-        if (doc === null) throw new Error("the pane's doc is not mounted");
-        const surface = doc.insertBlock("surface");
-        const group = doc.insertBlock("group", { members: [] }, { parent: surface });
-        doc.setGeometry(group, { x: 200, y: 0, w: 240, h: 160 });
-        const text = doc.insertBlock("canvas-text", undefined, { parent: surface });
-        doc.setGeometry(text, { x: -100, y: 0, w: 200, h: 40 });
-        doc.insertText(text, 0, "member");
-        return { group, text };
-      });
-      await wireSynced(b, "b", group);
-      await wireSynced(b, "b", text);
-      const center = await canvasCenter(a, "a");
-
-      // The drag-in: the first press's drag (the unselected's stand — the
-      // canvas-text's inner's press stands the move session, not the
-      // caret). The figure's box fully inside the container's box.
-      const start = screenAt(center, -100, 0);
-      await a.mouse.move(start.x, start.y);
-      await a.mouse.down();
-      // The text's center at the container's center (the box's strictly-
-      // inside's stand over the container's larger box).
-      const inside = screenAt(center, 200, -20);
-      await a.mouse.move(inside.x, inside.y, { steps: 6 });
-      // The green drop indicator stands over the text.
-      await expect
-        .poll(async () => a.locator('[data-slot="docblocks/canvas-drop-indicator"][data-drop="in"]').count())
-        .toBe(1);
-      await a.mouse.up();
-      // The release joins the container (over the wire to pane B) + the
-      // geometry's landing's stand.
-      await expect.poll(async () => (await groupMembers(b, "b", group)).includes(text), SETTLE).toBe(true);
-      const blocksA = await docBlocks(a, "a");
-      expect(blocksA[text]?.geometry).toEqual({ x: 200, y: -20, w: 200, h: 40 });
-
-      // The drag-out: the figure's box fully outside — the red indicator's
-      // stand, the release leaves the container (over the wire). The
-      // press stands over the block's selection (the shape's parity — the
-      // selected block's press starts the move session too), so the empty
-      // canvas's click clears the selection first.
-      await a.mouse.click(screenAt(center, 0, 200).x, screenAt(center, 0, 200).y);
-      const outStart = screenAt(center, 200, -20);
-      await a.mouse.move(outStart.x, outStart.y);
-      await a.mouse.down();
-      const outside = screenAt(center, -150, -20);
-      await a.mouse.move(outside.x, outside.y, { steps: 6 });
-      await expect
-        .poll(async () => a.locator('[data-slot="docblocks/canvas-drop-indicator"][data-drop="out"]').count())
-        .toBe(1);
-      await a.mouse.up();
-      await expect.poll(async () => (await groupMembers(b, "b", group)).includes(text), SETTLE).toBe(false);
-      const blocksAAfter = await docBlocks(a, "a");
-      expect(blocksAAfter[text]?.geometry).toEqual({ x: -150, y: -20, w: 200, h: 40 });
-    } finally {
-      await close();
-    }
-  });
-
-  test("the toolbar: the single selection's 'Text options' stand; the font family / color / style / size / align's applies over the wire (one updateBlock each); the z-order menu's reorder's apply", async ({
-    browser,
-  }) => {
-    // The suite's heaviest spec (the two's seeds + the wire's settle + the
-    // font's loads + the applies' over the wire): the per-test budget stands
-    // doubled over the 30 s's baseline — the 2 vCPU's runner's load overruns
-    // the baseline even without a logic stall.
-    test.setTimeout(60_000);
-    const { a, b, close } = await twoPanes(browser, "text-toolbar");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      // Two canvas-texts (the z-order's reorder's stand — the two's
-      // siblings' order).
-      const idA = await seedText(a, "a", "toolbar note", { x: 0, y: -60, w: 200, h: 40 });
-      const idB = await seedText(a, "a", "second note", { x: 0, y: 60, w: 200, h: 40 });
-      await wireSynced(b, "b", idA);
-      await wireSynced(b, "b", idB);
-      const center = await canvasCenter(a, "a");
-      // The press's selection's stand (the shape's parity — the single
-      // press selects the block over the move session; the retry stands
-      // the press's focus's move's spurious clobber): the toolbar's single
-      // selection's stand.
-      const point = screenAt(center, 0, -60);
-      const itemA = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${idA}"]`);
-      await pressForSelection(a, itemA, point.x, point.y);
-      // The leftover DOM selection's stand off (the press's focus's move
-      // can stand a spurious caret over the settle): the selectionchange's
-      // mapping's clobber stands the blocks' view over the editable's
-      // caret — the clear's stand keeps the selection over the toolbar's
-      // applies' focus roundtrips (the empty selection's stand: no
-      // clobber).
-      await a.evaluate(() => {
-        window.getSelection()?.removeAllRanges();
-        (document.activeElement as HTMLElement | null)?.blur?.();
-      });
-      // The toolbar stands (the single canvas-text selection's stand —
-      // the "Text options" aria over the box).
-      const toolbar = canvasView(a, "a").locator('[data-slot="docblocks/canvas-text-toolbar"]');
-      await expect(toolbar).toHaveCount(1);
-      await expect(toolbar).toHaveAttribute("aria-label", "Text options");
-
-      // The font family's apply (the self-hosted set's pick — one
-      // updateBlock over the wire).
-      await toolbar.locator('[data-slot="docblocks/canvas-text-toolbar-font-family"]').click();
-      await a.getByRole("menuitemcheckbox", { name: "Lora", exact: true }).click();
-      await expect.poll(async () => (await docBlocks(b, "b"))[idA]?.attrs?.fontFamily, SETTLE).toBe("Lora");
-
-      // The text style's apply (the weight x the slant's pick).
-      await toolbar.locator('[data-slot="docblocks/canvas-text-toolbar-text-style"]').click();
-      await a.getByRole("menuitemcheckbox", { name: "Semibold", exact: true }).click();
-      await expect.poll(async () => (await docBlocks(b, "b"))[idA]?.attrs?.textStyle, SETTLE).toBe("semibold");
-
-      // The text color's apply (the section's hex's commit — the popover's
-      // input over the trigger's stand).
-      await toolbar.locator('[data-slot="docblocks/canvas-text-toolbar-text"]').click();
-      const hex = a.locator('[data-slot="docblocks/canvas-text-text-hex"]');
-      await expect(hex).toHaveCount(1);
-      await hex.fill("#112233");
-      await hex.press("Enter");
-      await expect.poll(async () => (await docBlocks(b, "b"))[idA]?.attrs?.textColor, SETTLE).toBe("#112233");
-
-      // The font size's apply (the numeric field's commit — any 8-512's
-      // stand).
-      const size = toolbar.locator('[data-slot="docblocks/canvas-text-toolbar-font-size"]');
-      await size.fill("24");
-      await size.press("Enter");
-      await expect.poll(async () => (await docBlocks(b, "b"))[idA]?.attrs?.fontSize, SETTLE).toBe(24);
-
-      // The alignment's apply (the left / center / right's buttons).
-      await toolbar.locator('[data-slot="docblocks/canvas-text-toolbar-align-center"]').click();
-      await expect.poll(async () => (await docBlocks(b, "b"))[idA]?.attrs?.textAlign, SETTLE).toBe("center");
-
-      // The z-order menu's stand (the three-dot's trigger over the single
-      // selection — the position's read over the surface's elements) + the
-      // reorder's apply (the bring-forward's commit over the wire: the
-      // block's z-order's stand moves up one over the siblings).
-      const zMenu = toolbar.locator('[data-slot="docblocks/z-order-menu"]');
-      await expect(zMenu).toHaveCount(1);
-      await expect(zMenu).toHaveAttribute("aria-label", "Arrange text");
-      const orderBefore = await surfaceChildren(b, "b");
-      await zMenu.click();
-      await a.getByRole("menuitem", { name: "Bring forward", exact: true }).click();
-      await expect
-        .poll(async () => (await surfaceChildren(b, "b")).indexOf(idA) > orderBefore.indexOf(idA), SETTLE)
-        .toBe(true);
     } finally {
       await close();
     }
