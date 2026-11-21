@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, expectStays, twoPanes } from "./helpers";
 
 async function docText(page: Page, client: "a" | "b"): Promise<string> {
   return page.getByTestId(`doc-${client}`).innerText();
@@ -144,9 +144,10 @@ test("mod+z outside the editor does not undo the document", async ({ browser }) 
       new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true })
     );
   });
-  await a.waitForTimeout(500);
-  await expect(paragraph(a, "a")).toHaveText("ab");
-  await expect(paragraph(b, "b")).toHaveText("ab");
+  await expectStays(async () => {
+    await expect(paragraph(a, "a")).toHaveText("ab");
+    await expect(paragraph(b, "b")).toHaveText("ab");
+  });
 
   await close();
 });

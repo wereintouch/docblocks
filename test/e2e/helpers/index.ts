@@ -20,7 +20,7 @@ import {
 import { editorContext, insertBlockType, openPane, pane, switchPaneView, twoPanes } from "./harness";
 import type { PaneDoc } from "./pane-doc";
 import { caretIn } from "./text";
-import { RELAY, SETTLE, outCount } from "./wire";
+import { RELAY, SETTLE, expectStays, outCount } from "./wire";
 
 export {
   caretIn,
@@ -31,6 +31,7 @@ export {
   canvasCenter,
   canvasView,
   editorContext,
+  expectStays,
   grantClipboardPermissions,
   hitPointOf,
   interceptClipboardWrites,
