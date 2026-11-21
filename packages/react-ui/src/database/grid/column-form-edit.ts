@@ -6,11 +6,11 @@
  * `renameColumn` (the undo entry's stand). The bridge's calls stand direct
  * (the system table's rows keep no per-block undo — the create form's
  * table-creation contract). The commit's failure stands the form open (the
- * retry is the form's own save press) + the catalog's re-read (the
- * partial's stand).
+ * retry is the form's own save press) with the cause over the form's error
+ * line + the catalog's re-read (the partial's stand).
  */
 import type { BatchOp, BridgeColumn, DatabaseBridge } from "../bridge";
-import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, toBridgeError } from "../bridge";
 import { newMutationContext } from "../use-database-table";
 import type { AddColumnFormDraft } from "./models";
 import { loadFullPages } from "./use-ref-tables";
@@ -25,10 +25,12 @@ interface ColumnFormEditContext {
   bumpCatalogRefresh: () => void;
   /** The form's close (the commit's success stand). */
   close: () => void;
+  /** The commit's failure message (the form's error line). */
+  onError: (message: string) => void;
 }
 
 function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDraft): void {
-  const { bridge, data, bumpCatalogRefresh, close } = ctx;
+  const { bridge, data, bumpCatalogRefresh, close, onError } = ctx;
   const columnId = draft.editColumnId;
   const refTableId = draft.refPick;
   const column = data.table?.columns.find((entry) => entry.id === columnId);
@@ -162,12 +164,11 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
       if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
       close();
     } catch (error) {
-      // The commit's failure: the form stands open (the retry is the
-      // form's own save press); the partial's stand (the mixed batch's
-      // atomic commit + the move's second commit) re-reads the catalog
-      // (the move over the failed batch stands applied), the error
-      // stands the log.
-      console.error("docblocks: the column's enum commit failed — the catalog re-reads", error);
+      // The commit's failure: the form stands open with the cause (the
+      // retry is the form's own save press); the partial's stand (the
+      // mixed batch's atomic commit + the move's second commit) re-reads
+      // the catalog (the move over the failed batch stands applied).
+      onError(toBridgeError(error).message);
       bumpCatalogRefresh();
     }
   })();

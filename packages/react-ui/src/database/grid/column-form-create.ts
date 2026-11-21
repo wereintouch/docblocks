@@ -6,11 +6,11 @@
  * over the `name` / the `color` columns — the table's name is derived over
  * the data table + the column's name, so the two tabs' seeds share one
  * table). The failures stand the form open (the retry is the form's own
- * create press) + the log's stand; the catalog re-reads over the partial's
- * stand.
+ * create press) with the cause over the form's error line; the catalog
+ * re-reads over the partial's stand.
  */
 import type { BridgeColumn, DatabaseBridge } from "../bridge";
-import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, toBridgeError } from "../bridge";
 import { newMutationContext } from "../use-database-table";
 import { NEW_TABLE_PICK } from "./constants";
 import type { AddColumnFormDraft } from "./models";
@@ -27,10 +27,12 @@ interface ColumnFormCreateContext {
   bumpCatalogRefresh: () => void;
   /** The form's close (the commit's success stand). */
   close: () => void;
+  /** The commit's failure message (the form's error line). */
+  onError: (message: string) => void;
 }
 
 function commitColumnFormCreate(ctx: ColumnFormCreateContext, draft: AddColumnFormDraft): void {
-  const { bridge, tableId, data, readColumnOrder, onViewChange, bumpCatalogRefresh, close } = ctx;
+  const { bridge, tableId, data, readColumnOrder, onViewChange, bumpCatalogRefresh, close, onError } = ctx;
   if (draft.name.trim() === "") return;
   const name = draft.name.trim();
 
@@ -66,11 +68,10 @@ function commitColumnFormCreate(ctx: ColumnFormCreateContext, draft: AddColumnFo
         onViewChange({ columnOrder: [...currentOrder, liveColumnId] });
       }
     } catch (error) {
-      // The create's failure: the form stands open (the retry is the
-      // form's own create press); the hook's operation failure stands
-      // the hook's transient display, the log stands the diagnostic's
-      // stand (the view attr's write's throw sets no state).
-      console.error("docblocks: the column's create failed — the form stays open", error);
+      // The create's failure: the form stands open with the cause (the
+      // retry is the form's own create press); the hook's operation
+      // failure stands the hook's transient display.
+      onError(toBridgeError(error).message);
       return;
     }
     close();
@@ -120,9 +121,9 @@ function commitColumnFormCreate(ctx: ColumnFormCreateContext, draft: AddColumnFo
       } catch (error) {
         // The system table's create failure (the partial sequence — the
         // created rows over the failed column stand a residue): the form
-        // stands open (the retry is the form's own press), the catalog
-        // re-reads (the partial's stand), the error stands the log.
-        console.error("docblocks: the enum's system table create failed — the catalog re-reads", error);
+        // stands open with the cause (the retry is the form's own press),
+        // the catalog re-reads (the partial's stand).
+        onError(toBridgeError(error).message);
         bumpCatalogRefresh();
       }
     })();
@@ -141,10 +142,10 @@ function commitColumnFormCreate(ctx: ColumnFormCreateContext, draft: AddColumnFo
         bumpCatalogRefresh();
         await commitRef(newTableId);
       } catch (error) {
-        // The table's create failure: the form stands open (the commit
-        // stands none — the retry is the form's own create press); the
-        // error stands the log.
-        console.error("docblocks: the table's create failed — the form stays open", error);
+        // The table's create failure: the form stands open with the cause
+        // (the commit stands none — the retry is the form's own create
+        // press).
+        onError(toBridgeError(error).message);
       }
     })();
     return;
