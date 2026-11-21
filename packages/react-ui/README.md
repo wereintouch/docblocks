@@ -652,6 +652,39 @@ or the removed state yourself — the `label` is the display snapshot. The
 value is read per render into the provider context: pass a stable reference.
 A nested provider that supplies none inherits the enclosing one.
 
+### Links
+
+The `link` mark's href stands one of four classes (the exported
+`linkHrefKindOf` — the classifier the validator, the renderer, and the
+click's open all stand on):
+
+| Class      | Example                                          | The click's open                     |
+| ---------- | ------------------------------------------------ | ------------------------------------ |
+| `web`      | `https://example.com/page`, `//example.com/page` | a new tab (`noopener,noreferrer`)    |
+| `mailto`   | `mailto:help@example.com`                        | the same tab (the mail client)       |
+| `tel`      | `tel:+79161234567`                               | the same tab (the dialer)            |
+| `relative` | `/docs/page`, `#section`, `./page`               | the same tab (the page's navigation) |
+
+The protocol-relative form is an absolute URL of the reader's scheme — the
+`web` class, never a relative path. Any other scheme is rejected by the
+writer (`InvalidMarkError` over the semantic API) and renders as plain text
+over the lenient read.
+
+Editing: the format toolbar's link button and mod+k over a text selection
+open the address popover. A typed address resolves by form — a bare domain
+stands `https://`, a bare email the `mailto:` form, a phone number the
+`tel:` form, the protocol-relative form the explicit `https://`; an
+existing uniform link prefills the input, and an invalid address stands the
+error without a write. A commit is one `setMark` (one undo step), the
+remove one `unsetMark`.
+
+A plain click on a link opens it (a press-drag keeps the selection; the
+modified and middle clicks keep the browser's native stand). A right-click
+on a link opens the link menu — open, copy the address, edit, remove; the
+read-only modes (`view` / `published`) stand the open and the copy only. A
+plain-text paste links the bare URLs and the email addresses it carries
+(the code blocks keep their raw text); typed text stands plain.
+
 ### Canvas
 
 `view: "canvas"` renders the page miniature plus the document's
