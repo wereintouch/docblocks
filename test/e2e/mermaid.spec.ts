@@ -333,6 +333,28 @@ async function mermaidAttrs(page: Page, client: "a" | "b") {
   }, client);
 }
 
+/**
+ * The layer's scale over the settled boxes (the transform's matrix). The
+ * boxes may settle once more after the height's write (the observer's pass),
+ * so the read follows two identical samples a frame apart.
+ */
+async function settledScale(viewport: Locator): Promise<number> {
+  const read = () =>
+    viewport.evaluate((el) => {
+      const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
+      return layer === null ? null : new DOMMatrix(getComputedStyle(layer).transform).a;
+    });
+  let prev = await read();
+  for (let i = 0; i < 40; i++) {
+    await viewport.page().waitForTimeout(50);
+    const next = await read();
+    if (next !== null && next === prev) return next;
+    prev = next;
+  }
+  if (prev === null) throw new Error("the diagram's layer stands absent");
+  return prev;
+}
+
 test("the preview's viewport: the height's resize + the pan/zoom over the persisted attrs (the panes' shared stand)", async ({
   browser,
 }) => {
@@ -401,16 +423,24 @@ test("the preview's viewport: the height's resize + the pan/zoom over the persis
     // percent — and the press is the explicit gesture that persists it.
     const label = viewport.locator('[data-slot="docblocks/mermaid-zoom"]');
     await expect(label).toHaveText(/^\d+%$/);
-    // The fit's exact scale (the transform's matrix — the label rounds).
-    const scaleBefore = await viewport.evaluate((el) => {
-      const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
-      return layer === null ? null : new DOMMatrix(getComputedStyle(layer).transform).a;
-    });
-    expect(scaleBefore).not.toBeNull();
     await viewport.hover();
+    // The fit's exact scale over the settled boxes (the transform's matrix —
+    // the label rounds). The hover reveals the controls, and the boxes settle
+    // once more after the height's write — the read follows the settle.
+    const scaleBefore = await settledScale(viewport);
     await viewport.locator('[data-slot="docblocks/mermaid-zoom-in"]').click();
-    const expectedScale = (scaleBefore as number) * 1.2;
-    await expect(label).toHaveText(`${Math.round(expectedScale * 100)}%`);
+    const expectedScale = scaleBefore * 1.2;
+    // The label rounds the scale's percent, so a scale sitting on the half's
+    // point reads one point off the value computed from the serialized
+    // matrix — the percent stands within one point; the exact scale stands
+    // over the zoom's attr.
+    const expectedPercent = expectedScale * 100;
+    await expect
+      .poll(async () => {
+        const text = (await label.textContent())?.replace("%", "") ?? "";
+        return Math.abs(Number(text) - expectedPercent) <= 1;
+      }, SETTLE)
+      .toBe(true);
     await expect.poll(async () => (await mermaidAttrs(a, "a"))?.zoom ?? null, SETTLE).toBeCloseTo(expectedScale, 2);
 
     // The pan's stand (the wheel over the clipped's diagram — the content

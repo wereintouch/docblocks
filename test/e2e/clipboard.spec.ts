@@ -59,7 +59,9 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   // does not rebuild while the selection is inside the block).
   await firstA.click();
   await a.keyboard.type("hello");
-  await expect(inners(b, "b").first()).toHaveText("hello");
+  // The two-pane sync settles over the wire (the SETTLE's deadline, not the
+  // assertion's default).
+  await expect.poll(async () => await inners(b, "b").first().textContent(), SETTLE).toBe("hello");
   await a.getByTestId("status-a").click();
 
   const firstB = inners(b, "b").first();
@@ -67,7 +69,7 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   await b.keyboard.press("End");
   await selectLeft(b, 5);
   await b.keyboard.press("Control+b");
-  await expect(firstA.locator("strong")).toHaveText("hello");
+  await expect.poll(async () => await firstA.locator("strong").textContent(), SETTLE).toBe("hello");
 
   // Copy the bold word to the clipboard (what a default copy would carry),
   // then paste it into a second (empty) block (inserted explicitly — the
