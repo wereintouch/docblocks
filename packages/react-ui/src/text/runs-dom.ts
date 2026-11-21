@@ -96,7 +96,12 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement, resolveMentionL
     // `rel`'s stand (the editor's click's open stands `noopener,noreferrer`
     // over the window.open's call, the native open's parity over it).
     if (run.marks.link !== undefined && isSafeLinkHref(run.marks.link.href))
-      node = wrap(node, "a", { href: run.marks.link.href, rel: "noopener noreferrer", class: LINK_CLASS });
+      node = wrap(node, "a", {
+        href: run.marks.link.href,
+        rel: "noopener noreferrer",
+        class: LINK_CLASS,
+        "data-slot": "docblocks/link",
+      });
     if (run.marks.bold === true) node = wrap(node, "strong");
     if (run.marks.italic === true) node = wrap(node, "em");
     if (run.marks.strike === true) node = wrap(node, "s");

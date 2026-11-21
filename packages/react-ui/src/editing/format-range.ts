@@ -1,5 +1,5 @@
 import { BLOCK_REGISTRY } from "docblocks-core";
-import type { Block, BlockId, Doc, Selection, TextAlign, TextPoint, TextRun } from "docblocks-core";
+import type { Block, BlockId, Doc, MarkName, Selection, TextAlign, TextPoint, TextRun } from "docblocks-core";
 
 import { markToggleAction } from "./keyboard";
 import type { FormatMark } from "./keyboard";
@@ -36,6 +36,12 @@ interface CrossRange {
   chain: BlockId[];
 }
 
+/** The format target range: a same-block text range or a cross-block range
+ * over the engine's chain (the toolbar's target + the link editor's
+ * target share the shape). */
+type ToolbarRange =
+  { kind: "single"; blockId: BlockId; from: number; to: number } | { kind: "cross"; cross: CrossRange };
+
 /** The cross text range of a view selection (from/to in different blocks); null for a caret or a same-block range. */
 function crossRangeOf(selection: Selection): CrossRange | null {
   if (selection.kind !== "text" || selection.to === null) return null;
@@ -45,6 +51,19 @@ function crossRangeOf(selection: Selection): CrossRange | null {
     to: selection.to,
     chain: selection.blocks ?? [selection.from.blockId, selection.to.blockId],
   };
+}
+
+/** The format target range over a text view selection (a same-block range
+ * or a cross-block range over the engine's chain; `null` over a caret, a
+ * non-text view, or an ineligible cross chain). */
+function toolbarRangeOf(doc: Doc, selection: Selection): ToolbarRange | null {
+  if (selection.kind !== "text" || selection.to === null) return null;
+  if (selection.from.blockId === selection.to.blockId) {
+    if (selection.from.offset === selection.to.offset) return null;
+    return { kind: "single", blockId: selection.from.blockId, from: selection.from.offset, to: selection.to.offset };
+  }
+  const cross = crossRangeOf(selection);
+  return cross !== null && crossRangeEligible(doc, cross) ? { kind: "cross", cross } : null;
 }
 
 /** Whether every text block of the chain is a toolbar-eligible type. */
@@ -91,7 +110,7 @@ function applyValueMarkRange(doc: Doc, range: CrossRange, target: "color" | "hig
 }
 
 /** Clear a mark over the range: the per-block segments, one transaction. */
-function clearMarkRange(doc: Doc, range: CrossRange, mark: FormatMark | "color" | "highlight"): void {
+function clearMarkRange(doc: Doc, range: CrossRange, mark: MarkName): void {
   doc.transact(() => {
     for (const [blockId, from, to] of rangeSegments(doc, range)) {
       if (from < to) doc.unsetMark(blockId, from, to, mark);
@@ -211,8 +230,10 @@ export {
   crossRangeEligible,
   crossRangeOf,
   rangeMarkAction,
+  rangeSegments,
+  toolbarRangeOf,
   uniformAlignOfRange,
   uniformMarkValue,
   uniformMarkValueRange,
 };
-export type { CrossRange };
+export type { CrossRange, ToolbarRange };

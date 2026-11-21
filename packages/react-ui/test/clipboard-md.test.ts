@@ -414,6 +414,49 @@ describe("applyMdPaste: the one-transact undo", () => {
   });
 });
 
+describe("applyMdPaste: the plain-text's linkify (the URL's + the email's forms)", () => {
+  it("a bare URL + a bare email pasted as plain text stand the link's marks (the phones' stand the plain)", () => {
+    const { doc, seat } = docWithParagraph("");
+    applyMdPaste(
+      doc,
+      seat,
+      0,
+      0,
+      "see https://example.com/page now and call +7 (916) 123-45-67\nwrite to user@example.com"
+    );
+    const ids = doc.getChildren(doc.meta.id);
+    expect(ids).toHaveLength(1);
+    const runs = doc.getRuns(seat);
+    // The soft break's stand: the lines' space-join over one paragraph.
+    expect(runs.map((r) => r.text).join("")).toBe(
+      "see https://example.com/page now and call +7 (916) 123-45-67 write to user@example.com"
+    );
+    expect(runs.filter((r) => r.marks.link !== undefined)).toEqual([
+      { text: "https://example.com/page", marks: { link: { href: "https://example.com/page" } } },
+      { text: "user@example.com", marks: { link: { href: "mailto:user@example.com" } } },
+    ]);
+  });
+
+  it("the code target stands the raw text (the linkify's stand is off over the code's data)", () => {
+    const doc = createDoc({ id: "doc-clip-md-link", createdAt: CREATED_AT });
+    const code = doc.insertBlock("code");
+    doc.insertText(code, 0, "");
+    const landing = applyMdPaste(doc, code, 0, 0, "https://example.com user@example.com");
+    expect(landing).not.toBeNull();
+    expect(doc.getRuns(code)).toEqual([{ text: "https://example.com user@example.com", marks: {} }]);
+  });
+
+  it("the markdown's explicit link stands the parser's run (the no-relinkify's stand)", () => {
+    const { doc, seat } = docWithParagraph("");
+    applyMdPaste(doc, seat, 0, 0, "[text](https://example.com/a) and https://example.com/b");
+    expect(doc.getRuns(seat)).toEqual([
+      { text: "text", marks: { link: { href: "https://example.com/a" } } },
+      { text: " and ", marks: {} },
+      { text: "https://example.com/b", marks: { link: { href: "https://example.com/b" } } },
+    ]);
+  });
+});
+
 // ---- helpers (the non-root parent) ----
 
 function rootBlocksOf(

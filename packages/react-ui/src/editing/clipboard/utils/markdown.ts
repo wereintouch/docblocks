@@ -8,8 +8,25 @@
 import type { BlockId, Doc } from "docblocks-core";
 
 import { isFreshForMeta, mapFrontmatter, parseFrontmatter } from "../../frontmatter";
+import { linkifyRuns } from "../../linkify";
 import { mdToBlocks } from "../../markdown";
 import { materializePaste } from "./materialize";
+
+/** The paste's linkify's pass (the `text/plain`'s branch's stand — the
+ *  markdown's faithful import's path stands the explicit's links only):
+ *  the bare's URLs + the email's forms over the plain's runs; the code's
+ *  block's runs stand untouched (the fence's syntax is the code's data). */
+function linkifyPasteBlocks(blocks: ReturnType<typeof mdToBlocks>): ReturnType<typeof mdToBlocks> {
+  return blocks.map((block) =>
+    block.type === "code"
+      ? block
+      : {
+          ...block,
+          runs: linkifyRuns(block.runs),
+          rows: block.rows?.map((row) => row.map((cell) => linkifyRuns(cell))),
+        }
+  );
+}
 
 function applyMdPaste(
   doc: Doc,
@@ -48,12 +65,12 @@ function applyMdPaste(
       for (const [key, value] of Object.entries(meta.attributes)) {
         doc.setAttribute(key, value);
       }
-      landing = materializePaste(doc, seatId, from, to, mdToBlocks(frontmatter.body), opts);
+      landing = materializePaste(doc, seatId, from, to, linkifyPasteBlocks(mdToBlocks(frontmatter.body)), opts);
     });
     return landing;
   }
 
-  return materializePaste(doc, seatId, from, to, mdToBlocks(markdown), opts);
+  return materializePaste(doc, seatId, from, to, linkifyPasteBlocks(mdToBlocks(markdown)), opts);
 }
 
 export { applyMdPaste };

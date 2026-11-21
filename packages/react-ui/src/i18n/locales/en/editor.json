@@ -22,7 +22,8 @@
       "code": "Monospace",
       "italic": "Italic",
       "underline": "Underline",
-      "strike": "Strikethrough"
+      "strike": "Strikethrough",
+      "link": "Link"
     },
     "align": {
       "left": "Align left",
@@ -123,5 +124,15 @@
     "addAttribute": "Add attribute",
     "addConfirm": "Add",
     "keyReserved": "The key cannot be used (a reserved document key)."
+  },
+  "link": {
+    "aria": "Link editor",
+    "placeholder": "Paste or type a link address",
+    "invalid": "Invalid link address",
+    "remove": "Remove link",
+    "open": "Open link",
+    "copy": "Copy link address",
+    "edit": "Edit link",
+    "menuAria": "Link actions"
   }
 }

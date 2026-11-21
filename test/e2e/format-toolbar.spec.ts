@@ -52,9 +52,9 @@ test("a range selection raises the floating toolbar; a collapsed selection dismi
   await a.keyboard.press("Home");
   await a.keyboard.up("Shift");
   await expect(toolbar(a, "a")).toBeVisible();
-  // The control set: the five mark buttons, the three align buttons, the
-  // list-type button, and the palette button.
-  await expect(toolbar(a, "a").locator("button")).toHaveCount(10);
+  // The control set: the five mark buttons, the link button, the three
+  // align buttons, the list-type button, and the palette button.
+  await expect(toolbar(a, "a").locator("button")).toHaveCount(11);
 
   // Collapsing the selection (a plain click) dismisses the toolbar.
   await inner.click();

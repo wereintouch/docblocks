@@ -27,6 +27,7 @@ import {
   uniformMarkValueRange,
 } from "../format-range";
 import { type FormatMark, markToggleAction } from "../keyboard";
+import { uniformLinkHrefOf } from "../link";
 import { LIST_MENU_OPTIONS } from "./constants";
 import type { PaletteTarget, ToolbarRange } from "./models";
 
@@ -182,6 +183,10 @@ function createFormatToolbarActions({
       ? uniformMarkValueRange(doc, range.cross, target)
       : uniformMarkValue(single, range.from, range.to, target);
 
+  // The link's uniform href over the range (the prefill's stand — the
+  // absent / the mixed's stand stands `null`).
+  const linkUniformHref = uniformLinkHrefOf(doc, range);
+
   // The trigger's chip preview (the shared language — the canvas's stand):
   // the uniform hex fills the chip; the absent mark and the mixed range
   // stand the X (the no-uniform-color's stand).
@@ -197,6 +202,7 @@ function createFormatToolbarActions({
     paletteActive,
     currentMarkValue,
     chipValue,
+    linkUniformHref,
   };
 }
 

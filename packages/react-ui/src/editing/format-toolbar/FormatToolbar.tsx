@@ -32,34 +32,30 @@ import { useBlock, useSelection } from "../../hooks";
 import { Button } from "../../shared/ui/Button";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
+import { Link } from "../../shared/ui/icons";
 import { clamp, preventDefault } from "../../shared/utils";
-import { TOOLBAR_BLOCK_TYPES, crossRangeEligible, crossRangeOf } from "../format-range";
+import { TOOLBAR_BLOCK_TYPES, toolbarRangeOf } from "../format-range";
+import { useLinkPopoverApi } from "../link";
 import { FormatListMenu } from "./FormatListMenu";
 import { FormatPalette } from "./FormatPalette";
 import { ACTIVE_ITEM_CLASS, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
 import { createFormatToolbarActions } from "./format-toolbar-actions";
-import type { FormatToolbarProps, PaletteTarget, ToolbarRange } from "./models";
+import type { FormatToolbarProps, PaletteTarget } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const { t } = useTranslation("editor");
   const { doc } = useEditorContext();
   const selection = useSelection();
+  const linkApi = useLinkPopoverApi();
   const barRef = useRef<HTMLDivElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [listMenuOpen, setListMenuOpen] = useState(false);
   const [target, setTarget] = useState<PaletteTarget>("highlight");
 
   // The toolbar's target: a range inside a single block, or a cross-block
-  // range whose chain text blocks are all toolbar-eligible.
-  const range = useMemo<ToolbarRange | null>(() => {
-    if (selection.kind !== "text" || selection.to === null) return null;
-    if (selection.from.blockId === selection.to.blockId) {
-      if (selection.from.offset === selection.to.offset) return null;
-      return { kind: "single", blockId: selection.from.blockId, from: selection.from.offset, to: selection.to.offset };
-    }
-    const cross = crossRangeOf(selection);
-    return cross !== null && crossRangeEligible(doc, cross) ? { kind: "cross", cross } : null;
-  }, [doc, selection]);
+  // range whose chain text blocks are all toolbar-eligible (the shared
+  // resolution — the link editor's target's parity).
+  const range = useMemo(() => toolbarRangeOf(doc, selection), [doc, selection]);
 
   const block = useBlock(range !== null && range.kind === "single" ? range.blockId : "");
 
@@ -138,6 +134,18 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   // the CalloutBlockMenu): the toolbar for a callout's text range is the
   // shared text marks + the alignment only.
 
+  // The link's controls (the address's input's stand over the toolbar's
+  // button): the popover's open at the bar's edge over the current's range
+  // (the uniform link's prefill's stand).
+  const onLinkClick = () => {
+    const bar = barRef.current;
+    const root = rootRef.current;
+    if (bar === null || root === null || range === null || linkApi === null) return;
+    const barRect = bar.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    linkApi.open({ x: barRect.left - rootRect.left, y: barRect.bottom - rootRect.top + 4 }, { target: range });
+  };
+
   return (
     <div
       data-slot="docblocks/format-toolbar"
@@ -168,6 +176,18 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           <Icon className="size-4" />
         </Button>
       ))}
+      <Button
+        variant="ghost"
+        size="icon"
+        data-link-btn
+        title={t("formatToolbar.marks.link")}
+        aria-label={t("formatToolbar.marks.link")}
+        aria-pressed={actions.linkUniformHref !== null}
+        className={cn(actions.linkUniformHref !== null && ACTIVE_ITEM_CLASS)}
+        onClick={onLinkClick}
+      >
+        <Link className="size-4" />
+      </Button>
       <Separator orientation="vertical" className="h-5" />
       {TOOLBAR_ALIGNS.map(({ align, title, icon: Icon }) => (
         <Button
