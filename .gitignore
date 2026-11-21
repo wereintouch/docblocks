@@ -29,3 +29,4 @@ graphify-out/
 
 # tooling caches
 .ruff_cache/
+.vitest/
