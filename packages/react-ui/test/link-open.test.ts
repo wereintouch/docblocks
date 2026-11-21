@@ -15,6 +15,7 @@ describe("linkOpenTargetOf (the open's tab stand over the href's class)", () => 
   const CASES: { href: string; kind: string; target: "new-tab" | "same-tab" }[] = [
     { href: "https://example.com/page?q=1", kind: "web", target: "new-tab" },
     { href: "http://example.com", kind: "web", target: "new-tab" },
+    { href: "//example.com/page", kind: "web", target: "new-tab" },
     { href: "\thttps://example.com", kind: "web", target: "new-tab" },
     { href: "mailto:help@example.com", kind: "mailto", target: "same-tab" },
     { href: "tel:+79161234567", kind: "tel", target: "same-tab" },

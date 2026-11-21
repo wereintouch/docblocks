@@ -26,7 +26,8 @@ interface MarkSet {
   underline?: true;
   /** Exclusive: never coexists with other marks on the same run. */
   code?: true;
-  /** http/https URL, `mailto:` email, `tel:` phone, or relative path. */
+  /** http/https URL (the protocol-relative `//host` stands the same
+   *  absolute class), `mailto:` email, `tel:` phone, or relative path. */
   link?: { href: string };
   /** A weak ref to a user / document (the id-only stand; the legacy
    *  label snapshot is tolerated). */

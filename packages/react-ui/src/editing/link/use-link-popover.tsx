@@ -4,7 +4,7 @@
  * resolution + the uniform link's prefill), and the root's `contextmenu`'s
  * handler (the link's anchor's stand — the native menu's suppress over the
  * link's own menu; the other's targets stand the native's stand). */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
 
 import type { Doc, Selection } from "docblocks-core";
@@ -66,20 +66,25 @@ function useLinkPopover(rootRef: RefObject<HTMLElement | null>): LinkPopoverHand
     selectionRef.reseatUntil.current = Date.now() + LINK_RESEAT_WINDOW_MS;
   };
 
+  // The close's focus park: the popover's / the menu's input's removal
+  // leaves the body focused, and the next gesture's keys (mod+k, typing)
+  // would miss the root's handlers. The park stands the commit's effect —
+  // a frame's deferral leaves the keys on the body for a whole frame, and
+  // a fast next key is lost under load.
+  const parkFocusRef = useRef(false);
   const closeAll = useCallback(() => {
     setPopover(null);
     setMenu(null);
     suppressTransientSelection();
-    // The popover's / the menu's focus's residue stands the editor root's
-    // refocus (the parked focus's stand — the next key's reach over the
-    // root's own keydown: the body's focus would leave the root's handlers
-    // out of the key's path). The DOM selection's collapse over it stands
-    // the reseat's window (the doc's view's no-clobber).
-    requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (active === null || active === document.body) rootRef.current?.focus();
-    });
+    parkFocusRef.current = true;
   }, [rootRef, selectionRef]);
+
+  useEffect(() => {
+    if (!parkFocusRef.current) return;
+    parkFocusRef.current = false;
+    const active = document.activeElement;
+    if (active === null || active === document.body) rootRef.current?.focus();
+  });
 
   const open = useCallback(
     (anchor: { x: number; y: number }, opts?: LinkPopoverOpen): void => {

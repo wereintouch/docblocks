@@ -1,5 +1,15 @@
 # docblocks-core
 
+## 0.8.0
+
+### Minor Changes
+
+- 348f4ad: A protocol-relative href (`//example.com/page` — the slash / backslash
+  pair's equivalence) stands the `web` class: the browser resolves it against
+  the document's scheme, so it is an absolute URL, never a relative path. The
+  validator's gate is unchanged — the form was accepted before and stays
+  accepted.
+
 ## 0.7.0
 
 ### Minor Changes

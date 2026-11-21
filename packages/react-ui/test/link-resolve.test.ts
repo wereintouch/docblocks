@@ -2,8 +2,9 @@
 /**
  * The link popover's input's resolution (the smart scheme's inference):
  * the explicit scheme's pass-through (the core's gate's stand), the
- * relative's forms, the email's / the phone's inference, and the bare's
- * form's `https://`'s prefix.
+ * protocol-relative's explicit https's stand, the relative's forms, the
+ * email's / the phone's inference, and the bare's form's `https://`'s
+ * prefix.
  */
 import { describe, expect, it } from "vitest";
 
@@ -31,6 +32,15 @@ describe("resolveLinkHref: the explicit scheme's stand", () => {
 describe("resolveLinkHref: the relative's forms", () => {
   it.each(["/docs/page", "#section", "./relative/path"])("$value stands the relative's form", (value) => {
     expect(resolveLinkHref(value)).toBe(value);
+  });
+});
+
+describe("resolveLinkHref: the protocol-relative form", () => {
+  it("a typed protocol-relative host stands the explicit https's form", () => {
+    expect(resolveLinkHref("//example.com/page")).toBe("https://example.com/page");
+    expect(resolveLinkHref("/\\example.com")).toBe("https://example.com");
+    expect(resolveLinkHref("\\\\example.com")).toBe("https://example.com");
+    expect(resolveLinkHref("  //example.com  ")).toBe("https://example.com");
   });
 });
 
