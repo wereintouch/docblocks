@@ -1,0 +1,271 @@
+/** The flat-row drag's release commit (the range move of the dragged
+ * block's derived subtree within the container's sequence + the
+ * seam's indent assignment — one transact, one undo step, one wire
+ * update); the module's full contract stands in `commit.ts`. */
+import type { BlockId, Doc } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+
+import { entrySequenceParent } from "../../blocks";
+import { ensureTrailingParagraph, moveSegmentInSequence, segmentRange } from "../../editing/block-commands";
+import { hiddenSegmentRows, indentOf, sameIds } from "./geometry";
+
+/**
+ * The commit of a flat-row drag (the scope and the visible-order mapping:
+ * the module header). `contextId` is the provider's entry root: the commit
+ * resolves its sequence container and runs over its SCOPE — the full
+ * sequence for a sequence-container entry root, the entry root's derived
+ * segment (in the container's sequence) for a page-block one — and issues
+ * the range move of the dragged block's derived subtree within the
+ * CONTAINER's sequence (the scope's indices translated by the scope's
+ * offset — the scope's membership stands, so a valid permutation of the
+ * scope always commits: the segment's internal adjacencies and the
+ * boundary neighbors are unchanged, and the indent-jump rule holds) plus
+ * the seam's indent assignment (the `candidateIndent`, the module
+ * header's seam rule).
+ *
+ * Returns true when the drag landed (a command issued or a no-op — the
+ * local order already matches the store); false when the commit was
+ * dropped (stale — the caller resyncs the local order to the store).
+ */
+function commitFlatDrag(
+  doc: Doc,
+  contextId: BlockId,
+  draggedId: BlockId,
+  visibleFinalOrder: readonly BlockId[],
+  collapsedIds: readonly BlockId[],
+  candidateIndent: number
+): boolean {
+  // The entry root's sequence container (the container itself when the
+  // entry root is one — the document root, the common case), and the
+  // VISIBLE rows' scope: the container's full sequence, or the entry
+  // root's derived segment within it (a vertical drag keeps every indent,
+  // so the segment membership is invariant — the visible final order is a
+  // permutation of the segment's blocks).
+  const containerId = entrySequenceParent(doc, contextId);
+  const containerSequence = doc.getChildren(containerId);
+  let scopeOffset = 0;
+  let sequence = containerSequence;
+  if (containerId !== contextId) {
+    const entry = segmentRange(doc, containerId, contextId);
+    if (entry === null) return false; // the entry root vanished mid-drag
+    scopeOffset = entry.start;
+    sequence = containerSequence.slice(entry.start, entry.end);
+  }
+
+  const start = sequence.indexOf(draggedId);
+  if (start === -1) return false; // the block vanished mid-drag
+  const segment = segmentRange(doc, containerId, draggedId);
+  if (segment === null) return false;
+  // The dragged segment lies wholly inside the scope (its followers are
+  // deeper than the dragged block, hence inside the entry root's segment)
+  // — its range relative to the scope.
+  if (segment.start < scopeOffset || segment.end > scopeOffset + sequence.length) return false; // stale
+  const segmentLength = segment.end - segment.start;
+
+  // The dragged segment's other rows (visible or hidden — the drag moves
+  // them as a unit, so they reinsert contiguously after the dragged item
+  // in data order, wherever the visible order left the visible ones).
+  const segmentRows = sequence.slice(start, start + segmentLength);
+  const segmentOthers = segmentRows.filter((id) => id !== draggedId);
+
+  // The hidden rows of the OTHER collapsed items (a collapsed item is
+  // itself visible — only its segment rows are unmounted); the dragged
+  // item's hidden rows stand in segmentOthers.
+  const collapsed = new Set(collapsedIds);
+  const hiddenByItem = new Map<BlockId, BlockId[]>();
+  for (const id of sequence) {
+    if (id === draggedId) continue;
+    const block = doc.getBlock(id);
+    if (block === null || block.type !== "list-item") continue;
+    if (!collapsed.has(id)) continue;
+    const rows = hiddenSegmentRows(doc, sequence, id);
+    if (rows.length > 0) hiddenByItem.set(id, rows);
+  }
+
+  // The scope members that stand no visible row — a FIXED member: a
+  // surface (the page view filters the canvas layer out of the page
+  // sequence — a page gesture does not reorder the canvas layer) and a
+  // collapsed item's hidden segment row (unmounted). Framer's reorder runs
+  // over the visible rows only: the non-segment visible rows keep their
+  // relative order in the visible values, and a fixed member (no row of
+  // its own) stands at its scope slot. The stale checks: the visible set
+  // stands (no ghost or vanished row) and the rest (the non-segment
+  // visible rows) stands in scope order (a remote reorder of the rest
+  // stands the mismatch — the stale drop's posture, the order resyncs to
+  // the store). The commit: the segment (the head's derived span)
+  // reinserts at the head's landing over the rest — the fixed members'
+  // scope slots stand, so a landing across a surface's slot stands the
+  // segment adjacent to it (the surface's slot stands — the segment does
+  // not cross it).
+  const hiddenRowSet = new Set<BlockId>();
+  for (const rows of hiddenByItem.values()) for (const row of rows) hiddenRowSet.add(row);
+  const isFixed = (id: BlockId): boolean => doc.getBlock(id)?.type === "surface" || hiddenRowSet.has(id);
+  const scopeVisible = sequence.filter((id) => !isFixed(id));
+  const scopeVisibleSet = new Set(scopeVisible);
+  const headLanding = visibleFinalOrder.indexOf(draggedId);
+  if (headLanding === -1) return false; // the dragged block vanished mid-drag
+  if (visibleFinalOrder.length !== scopeVisible.length) return false; // stale: the visible set changed mid-drag
+  if (!visibleFinalOrder.every((id) => scopeVisibleSet.has(id))) return false; // stale: a ghost row
+  const segmentSet = new Set(segmentRows);
+  const restNow = [...sequence.slice(0, start), ...sequence.slice(start + segmentLength)];
+  const restVisible = restNow.filter((id) => !isFixed(id));
+  // The rest (the non-segment visible rows) stands in scope order — the
+  // segment's own visible rows (wherever the visible order left them) are
+  // not part of the rest.
+  if (
+    !sameIds(
+      visibleFinalOrder.filter((id) => !segmentSet.has(id)),
+      restVisible
+    )
+  ) {
+    return false; // stale: a remote reorder of the rest mid-drag
+  }
+  // The no-op drop: the head's visible landing is its own visible slot
+  // (the data stands — a fixed member's slot may stand around the head,
+  // but the head's position stands).
+  if (headLanding === scopeVisible.indexOf(draggedId)) return true;
+  // The head's landing over the rest's visible members: the rest's visible
+  // members that stand before the head in the visible order (the segment's
+  // own visible followers stand at the head's span — they ride the
+  // segment, they do not count).
+  let restVisibleBeforeHead = 0;
+  for (let i = 0; i < headLanding; i += 1) {
+    if (!segmentSet.has(visibleFinalOrder[i]!)) restVisibleBeforeHead += 1;
+  }
+  // The splice point over the rest (scope units): right after the head's
+  // preceding visible rest member — the fixed members that stand behind it
+  // in scope stand behind the segment (a scope-trailing surface's slot
+  // stands — the segment does not cross the canvas layer's slot; a leading
+  // fixed member stands ahead of the head's first visible seat).
+  const restIndexOf = new Map<BlockId, number>();
+  restNow.forEach((id, i) => restIndexOf.set(id, i));
+  const precedingVisible = restVisible[restVisibleBeforeHead - 1];
+  const spliceAt = precedingVisible === undefined ? 0 : (restIndexOf.get(precedingVisible) ?? 0) + 1;
+  const finalFull = [...restNow.slice(0, spliceAt), ...segmentRows, ...restNow.slice(spliceAt)];
+
+  const target = spliceAt;
+
+  // The core's pre-move index of the item the segment's head precedes, in
+  // the CONTAINER's sequence (the scope-relative index translated by the
+  // scope's offset): up — that item's index stands (target); down — the
+  // head precedes scope[target + length] (the segment's own trailing
+  // edge), and the move to the scope's end maps onto the container's own
+  // trailing edge (target + length there).
+  let t = target < start ? target : target + segmentLength;
+  // The document root's tail seat (the full-doc tail contract): a down
+  // landing at the sequence's end stands a non-text last block when the
+  // segment's own last block is non-text (a text-terminated segment lands
+  // its text tail last — the invariant stands, the end landing is clean).
+  // In the non-text case the move's own tail guarantee would stand a NEW
+  // paragraph behind the segment and the existing trailing block would
+  // stand stranded above the drag (an extra row appears on release and
+  // the block stands above where it was released). The seat stands last:
+  // the segment lands just before the trailing top-level text block (the
+  // pre-move index of that block — the head precedes it); the trailing
+  // block stays last, so the guarantee is a no-op — no stand, no jump.
+  // A nested trailing block (indent > 0) stands no seat: landing before
+  // it would re-attach it to the childless non-text segment, so the end
+  // landing (with its own guaranteed paragraph) stands there.
+  if (target >= start && containerId === doc.meta.id && scopeOffset === 0 && t === sequence.length) {
+    const segmentLast = segmentRows[segmentRows.length - 1];
+    const segmentLastBlock = segmentLast === undefined ? null : doc.getBlock(segmentLast);
+    const trailingId = containerSequence[containerSequence.length - 1];
+    const trailingBlock = trailingId === undefined ? null : doc.getBlock(trailingId);
+    if (
+      segmentLastBlock !== null &&
+      trailingId !== undefined &&
+      trailingBlock !== null &&
+      trailingId !== segmentLast &&
+      !BLOCK_REGISTRY[segmentLastBlock.type].content &&
+      BLOCK_REGISTRY[trailingBlock.type].content &&
+      indentOf(doc, trailingId) === 0
+    )
+      t -= 1;
+  }
+
+  // The seam's candidate (the module header): the head stands at the
+  // seam's neighbor's indent — the block before the landed span (A) or
+  // the block after it (B). The block's own indent is the no-op drop's
+  // only (the early return above), so a candidate that matches neither
+  // neighbor is a stale measurement (a mid-slide box) — the stale drop's
+  // posture: no command, the caller resyncs.
+  // The seam's VISIBLE neighbors (a fixed member stands no seam candidate
+  // — the candidate is measured from the visible rows): the nearest
+  // visible block before / after the landed span.
+  let before: BlockId | undefined;
+  for (let i = target - 1; i >= 0; i -= 1) {
+    const id = finalFull[i];
+    if (id !== undefined && !isFixed(id)) {
+      before = id;
+      break;
+    }
+  }
+  let after: BlockId | undefined;
+  for (let i = target + segmentLength; i < finalFull.length; i += 1) {
+    const id = finalFull[i];
+    if (id !== undefined && !isFixed(id)) {
+      after = id;
+      break;
+    }
+  }
+  const matchesSeam =
+    (before !== undefined && candidateIndent === indentOf(doc, before)) ||
+    (after !== undefined && candidateIndent === indentOf(doc, after));
+  if (!matchesSeam) return false;
+
+  const headIndent = indentOf(doc, draggedId);
+  const delta = candidateIndent - headIndent;
+  const followers = segmentOthers.map((id) => ({ id, indent: indentOf(doc, id) + delta }));
+
+  if (delta === 0) {
+    // The pure move (the segment's indents stand): the pre-existing
+    // head-first composition (its per-step landing checks read the
+    // final predecessors, so a valid final state commits every step).
+    return moveSegmentInSequence(doc, containerId, scopeOffset + start, segmentLength, scopeOffset + t);
+  }
+
+  // The move plus the head's and the followers' indent updates — one
+  // transact (one undo step, one wire update). The steps' order keeps
+  // every intermediate state jump-rule-valid (the final state is valid
+  // by the seam rule, and the path exists in both directions):
+  // deepening (delta > 0) — the move first (the head's shallower old
+  // indent lands validly at the new predecessor), then the indents;
+  // shallowing (delta < 0) — the indents first (a shallower value at the
+  // block's own position is always valid), then the move. The follower
+  // updates ride the head's check (each follower stands one deeper than
+  // its predecessor, and the uniform delta keeps the difference).
+  const applyIndents = (): void => {
+    doc.updateBlock(draggedId, { indent: candidateIndent });
+    for (const follower of followers) doc.updateBlock(follower.id, { indent: follower.indent });
+  };
+  try {
+    doc.transact(() => {
+      if (delta < 0) applyIndents();
+      const blockIds = doc.getChildren(containerId).slice(scopeOffset + start, scopeOffset + start + segmentLength);
+      // Up: the segment's blocks (in order) land at t + i — each block's
+      // position is unaffected by the earlier steps (a remove-before +
+      // insert-before cancel), so the pre-move indices hold. Down: every
+      // block lands at the pre-move index t (the removal from the segment's
+      // start shifts the t slot left by one per step).
+      for (let i = 0; i < segmentLength; i += 1) {
+        const landing = target < start ? scopeOffset + t + i : scopeOffset + t;
+        doc.moveBlock(blockIds[i]!, containerId, landing);
+      }
+      if (delta > 0) applyIndents();
+      // The document root's tail guarantee (the move's one transact stands
+      // the stand): the segment's move stands a non-text last block (the
+      // database / image dragged to the end) — the empty paragraph stands
+      // after it (the paste / slash's trailing contract).
+      if (containerId === doc.meta.id) ensureTrailingParagraph(doc, doc.meta.id);
+    });
+  } catch (error) {
+    // The core's typed rejection (a corrupt or stale state the seam rule
+    // did not foresee — the move's position or an indent update's jump
+    // rule): the transact rolled back — the stale drop's posture.
+    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return false;
+    throw error;
+  }
+  return true;
+}
+
+export { commitFlatDrag };
