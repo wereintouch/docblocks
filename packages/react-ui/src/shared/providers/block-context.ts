@@ -2,6 +2,8 @@ import { createContext, useContext, useMemo } from "react";
 
 import type { BlockId, BlockType } from "docblocks-core";
 
+import { HookMisuseError } from "../errors";
+
 /**
  * Per-block structural context: the parent block id and the parent's
  * children in reading order.
@@ -43,7 +45,7 @@ function useBlockContextValue(parentId: BlockId, siblings: BlockId[], parentType
 /** Read the block context; throws outside a block context provider. */
 function useBlockContext(): BlockContextValue {
   const context = useContext(BlockContext);
-  if (context === null) throw new Error("useBlockContext must be used inside a block context provider.");
+  if (context === null) throw new HookMisuseError("useBlockContext must be used inside a block context provider.");
   return context;
 }
 

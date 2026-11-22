@@ -45,6 +45,7 @@ export {
   CanvasPasteError,
   DocBlocksUiError,
   EditorProviderError,
+  HookMisuseError,
   PdfFetchError,
   UnhandledValueError,
   UnknownSlashCommandError,

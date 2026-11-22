@@ -57,9 +57,9 @@ export default defineConfig({
   // - the e2e's consumer view covers the core's dist too (a broken dist
   //   stands the suite red, not only the react-ui's);
   // - a source alias for the react-ui base entry would give the
-  //   `EditorProvider` context a second, dist-side copy inside the `./motion`
-  //   entry, and a React context is only shared between modules compiled
-  //   from one file.
+  //   `EditorProvider` context a second, dist-side copy (the source's and
+  //   the dist's modules each compile their own context), and a React
+  //   context is only shared between modules compiled from one file.
   resolve: {
     alias: [],
   },

@@ -6,9 +6,8 @@
  * text-only change re-renders nothing here (the rows' props stand), so
  * the framer fibers and the rows' context consumers stand as well.
  *
- * The Editor's page view IS this row layer (the former `MotionEditor`'s
- * merge — the `./motion` subpath and the `MotionEditor` export stand
- * removed; framer-motion is a required peer). The page view renders the
+ * The Editor's page view IS this row layer (framer-motion — the required
+ * peer; the base entry's row layer). The page view renders the
  * FLAT page sequence: every page block is its own row (a framer
  * `Reorder.Item`), the nesting is the block's `indent` attr (the row's
  * left padding steps per level; a list item's marker is a rendered label

@@ -67,11 +67,21 @@ class UnhandledValueError extends DocBlocksUiError {
   }
 }
 
+/** A docblocks hook ran outside its provider (the editor context / the
+ * block context is absent — the consumer's mount shape is broken). */
+class HookMisuseError extends DocBlocksUiError {
+  constructor(message: string) {
+    super(message);
+    this.name = "HookMisuseError";
+  }
+}
+
 export {
   BlobNotFoundError,
   CanvasPasteError,
   DocBlocksUiError,
   EditorProviderError,
+  HookMisuseError,
   PdfFetchError,
   UnhandledValueError,
   UnknownSlashCommandError,
