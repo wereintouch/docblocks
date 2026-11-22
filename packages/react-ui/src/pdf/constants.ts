@@ -28,6 +28,8 @@ function isEmbeddablePdfUrl(url: string): boolean {
     const scheme = new URL(url).protocol;
     return scheme === "http:" || scheme === "https:" || scheme === "blob:";
   } catch {
+    // The unparseable URL stands the download-only fallback (the viewer's
+    // iframe never stands the untrusted scheme).
     return false;
   }
 }

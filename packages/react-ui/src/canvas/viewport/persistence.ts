@@ -24,6 +24,8 @@ function storage(): Storage | null {
   try {
     return window.localStorage ?? null;
   } catch {
+    // The storage's refusal (the private-mode's quota / the blocked API)
+    // stands no persistence — the viewport's stand keeps its live state.
     return null;
   }
 }

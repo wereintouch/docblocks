@@ -1,8 +1,9 @@
 // docblocks-react-ui/mermaid — the diagram renderer for code blocks.
 //
-// mermaid is an optional peer dependency and is imported only from this
-// subpath: the base entry (`docblocks-react-ui`) never imports it, so a
-// consumer without the package ships zero extra weight.
+// mermaid is a required peer dependency (like the base entry's framer-
+// motion) used ONLY over this subpath: the base entry (`docblocks-react-ui`)
+// never imports it, so the wiring is opt-in (the consumer imports the
+// subpath + the peer resolves from its own node_modules).
 //
 // A diagram is not a block type — it is the existing `code` block with
 // `language: "mermaid"` (zero schema change). Wire the renderer per

@@ -66,6 +66,8 @@ function parseSyncType(frame: Uint8Array): number | null {
     if (decoding.readVarUint(decoder) !== MESSAGE_SYNC) return null;
     return decoding.readVarUint(decoder);
   } catch {
+    // The truncated / malformed frame stands no sync type: the frame's
+    // drop is the lenient read (the y-protocols' frame is self-delimited).
     return null;
   }
 }
@@ -83,6 +85,8 @@ function extractUpdatePayload(frame: Uint8Array): Uint8Array | null {
     if (syncType !== sync.messageYjsSyncStep2 && syncType !== sync.messageYjsUpdate) return null;
     return decoding.readVarUint8Array(decoder);
   } catch {
+    // The malformed frame carries no payload: the drop stands the caller's
+    // frame-by-frame lenient parse (no raw-Yjs type leaks over the catch).
     return null;
   }
 }
