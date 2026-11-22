@@ -78,9 +78,9 @@ function setGeometry(ydoc: Y.Doc, id: BlockId, geometry: Partial<Geometry> | nul
 
 /**
  * Reorders a surface's canvas element (shape / connector / canvas-text /
- * group) by the z-order action and rewrites the dense `zIndex` (one
- * transaction — one undo step, one wire update). A step at the top / bottom
- * edge is a no-op.
+ * group / frame) by the z-order action and rewrites the dense `zIndex`
+ * (one transaction — one undo step, one wire update). A step at the top /
+ * bottom edge is a no-op.
  */
 function setZOrder(ydoc: Y.Doc, id: BlockId, action: ZOrderAction): void {
   setZOrderCommand(ydoc, id, action);
