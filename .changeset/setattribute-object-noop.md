@@ -1,5 +1,4 @@
--
-
+---
 "docblocks-core": patch
 ---
 

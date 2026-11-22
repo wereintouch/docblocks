@@ -50,6 +50,9 @@ typecheck-playground: ## tsc --noEmit: playground app
 deprecations: ## Deprecated API usage over the typecheck's tsconfigs (fails; inline deprecation-allow markers)
 	npm run check:deprecations
 
+changesets: ## Pending changesets' frontmatter parses (the real changesets parser; a broken fence fails here, not at publish)
+	npm run check:changesets
+
 ## Build and tests
 
 build: ## Build dist for both packages (core first)
@@ -105,7 +108,7 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 
 ## Gates
 
-check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
+check: lint typecheck deprecations changesets ## Quick gate: lint + typecheck + deprecations + changesets
 
 full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
 	PLAYWRIGHT_RETRIES=1 npm run check
