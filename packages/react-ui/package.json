@@ -12,6 +12,7 @@
   ],
   "sideEffects": [
     "**/*.css",
+    "dist/mermaid/index.mjs",
     "dist/pdf/index.mjs"
   ],
   "exports": {

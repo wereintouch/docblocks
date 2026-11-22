@@ -50,15 +50,20 @@ const boundariesPlugin = {
         const inside = (dir, base) => dir === base || dir.startsWith(base + path.sep);
 
         // Layer order (bottom -> top); a layer may only import lower layers.
+        // The core src's root (the public entry's barrel) stands the facade:
+        // it re-exports every layer, so its alias imports stand downward
+        // over all of them (the unknown / the deep-alias checks still apply).
         const layerIndex = { schema: 0, core: 1, sync: 2 };
         const layerOf = (dir) =>
-          inside(dir, schemaDir)
-            ? "schema"
-            : inside(dir, coreLayerDir)
-              ? "core"
-              : inside(dir, syncLayerDir)
-                ? "sync"
-                : null;
+          dir === coreSrcDir
+            ? "root"
+            : inside(dir, schemaDir)
+              ? "schema"
+              : inside(dir, coreLayerDir)
+                ? "core"
+                : inside(dir, syncLayerDir)
+                  ? "sync"
+                  : null;
         const LAYER_ALIAS = { schema: "@docblocks-core/schema", core: "@docblocks-core/core" };
 
         const check = (node, source) => {
@@ -79,7 +84,7 @@ const boundariesPlugin = {
                 node,
                 message: `Deep layer alias "${source}" is not allowed — import the layer's public interface (the barrel), not a file inside it.`,
               });
-            } else if (fileLayer && layerIndex[target] >= layerIndex[fileLayer]) {
+            } else if (fileLayer !== null && fileLayer !== "root" && layerIndex[target] >= layerIndex[fileLayer]) {
               context.report({
                 node,
                 message: `Alias import "${source}" is not a lower layer than "${fileLayer}" — a layer may only import lower layers.`,

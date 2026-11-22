@@ -81,6 +81,10 @@ const eslintConfig = tseslint.config(
           selector: "ExportDefaultDeclaration",
           message: "No default exports; list the module's exports in the export block at the bottom.",
         },
+        {
+          selector: "ExportAllDeclaration",
+          message: "No star re-exports; list the module's exports in the export block at the bottom.",
+        },
       ],
     },
   },
