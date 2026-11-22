@@ -113,6 +113,33 @@ describe("the no-op stand", () => {
     expect(changes).toEqual([{ blockIds: [], metaChanged: true }]);
     off();
   });
+
+  it("a set of the same object-form value stands no write (the no-op's stand over the mention / the typed forms)", () => {
+    const doc = freshDoc({ m1: { id: "u-9" }, t1: { type: "list", value: ["x"] } });
+    const changes: unknown[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    const stamp = doc.lastUpdatedAt;
+    const before = doc.encode().byteLength;
+
+    doc.setAttribute("m1", { id: "u-9" }); // the same mention reference
+    doc.setAttribute("t1", { type: "list", value: ["x"] }); // the same typed value
+
+    expect(changes).toEqual([]);
+    expect(doc.lastUpdatedAt).toBe(stamp);
+    // The redundant state's stand: the encode's size does not grow.
+    expect(doc.encode().byteLength).toBe(before);
+    off();
+  });
+
+  it("a set of a different object-form value stands the write (the reference's stand)", () => {
+    const doc = freshDoc({ m1: { id: "u-9" } });
+    const changes: unknown[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    doc.setAttribute("m1", { id: "u-10" });
+    expect(changes).toHaveLength(1);
+    expect(doc.meta.attributes?.m1).toEqual({ id: "u-10" });
+    off();
+  });
 });
 
 describe("the change accounting", () => {

@@ -115,15 +115,33 @@ function ensureAttributesRecord(ydoc: Y.Doc): Y.Map<unknown> {
   return fresh;
 }
 
-/** Whether the stored raw value (a scalar or a Y.Array) equals the given typed value. */
-function attributeValueEquals(stored: unknown, value: DocAttributeValue): boolean {
-  if (Array.isArray(value)) {
-    if (!(stored instanceof Y.Array)) return false;
-    const items = stored.toArray();
-    if (items.length !== value.length) return false;
-    return items.every((item, index) => item === value[index]);
+/** The plain-shape structural equality (the read path's stand): the stored
+ *  value over its plain snapshot, the input's plain shape (the JSON-like
+ *  forms: the scalars, the string arrays, the object forms). */
+function plainValueEquals(stored: unknown, value: unknown): boolean {
+  if (Array.isArray(stored) || Array.isArray(value)) {
+    if (!Array.isArray(stored) || !Array.isArray(value)) return false;
+    if (stored.length !== value.length) return false;
+    return stored.every((item, index) => plainValueEquals(item, value[index]!));
   }
-  return stored === value;
+  if (stored === null || value === null || typeof stored !== "object" || typeof value !== "object") {
+    return stored === value;
+  }
+  const storedEntries = Object.entries(stored);
+  const valueEntries = Object.entries(value);
+  if (storedEntries.length !== valueEntries.length) return false;
+  return valueEntries.every(
+    ([key, input]) => Object.hasOwn(stored, key) && plainValueEquals((stored as Record<string, unknown>)[key], input)
+  );
+}
+
+/** Whether the stored raw value (a scalar, a Y.Array / a plain array, a nested Y.Map) equals the given typed value. */
+function attributeValueEquals(stored: unknown, value: DocAttributeValue): boolean {
+  // The read path's stand: the stored raw value over its plain snapshot, the
+  // structural equality over the plain shapes — the reference's stand over
+  // the object forms would stand a real transaction over the same value
+  // (the no-op's stand's breach over the mention / the typed forms).
+  return plainValueEquals(readPlainValue(stored), value);
 }
 
 /**
