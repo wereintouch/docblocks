@@ -347,7 +347,7 @@ function App() {
   `options: { token?, webSocketImpl?, maxPendingBytes?, maxFrameBytes? }`
   (the client-side backpressure ceilings — the buffered local updates
   over the not-open socket, the one incoming frame; the defaults are
-  4 MiB each, the overflow's flag over the `getPendingStats`). Any object
+  4 MiB each, and the overflow flag is reported through `getPendingStats`). Any object
   implementing the core `SyncProvider` interface (connect / disconnect /
   sendUpdate / onUpdate / getLocalStateVector / setAwareness / onAwareness)
   works in its place.
