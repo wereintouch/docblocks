@@ -50,11 +50,13 @@ function validateMeta(doc: Record<string, unknown>, lenient: boolean, errors: Va
 }
 
 /**
- * The `DocMeta.attributes` record: a plain object of
- * `string | number | boolean | string[]` values. Strict posture: the key
- * form (non-empty, not a doc meta field, not an Object.prototype key) and
- * the value form stand the typed errors. Lenient posture: the values stand
- * preserved as-is (the cross-minor stand — the reader's contract).
+ * The `DocMeta.attributes` record: a plain object of `DocAttributeValue`
+ * values (a plain `string | number | boolean | string[]`, the id-only
+ * mention reference, or the typed value's `{ type, value }` wrapper).
+ * Strict posture: the key form (non-empty, not a doc meta field, not an
+ * Object.prototype key) and the value form stand the typed errors. Lenient
+ * posture: the values stand preserved as-is (the cross-minor stand — the
+ * reader's contract).
  */
 function validateDocAttributes(attributes: unknown, lenient: boolean, errors: ValidationError[]): void {
   if (!isPlainObject(attributes)) {

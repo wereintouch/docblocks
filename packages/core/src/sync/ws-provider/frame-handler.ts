@@ -67,7 +67,9 @@ function parseFrame(
           if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
         } else {
           // Unknown sync types stand malformed (the standard reader
-          // throws; the batch is dropped, the connection stands).
+          // throws). The control-flow's throw — caught over the outer
+          // catch (the batch is dropped, the connection stands; the typed
+          // errors stand the command's level, not the wire's parse).
           throw new Error(`unknown sync message type ${syncType}`);
         }
       } else if (type === MESSAGE_AWARENESS) {
