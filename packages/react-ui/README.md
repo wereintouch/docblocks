@@ -226,6 +226,87 @@ document data, never on the wire):
   its `doc` (the viewer's switcher stays off — the `accessLevel` stands no
   `mode` stand over the `viewer` level).
 
+### Document attributes
+
+The `DocMeta.attributes` record is consumer-owned document metadata (the
+markdown frontmatter's stand): arbitrary keys, typed values
+(`string | number | boolean | string[] | MentionRef` — the id-only
+`{ kind, id }` reference — `| { type, value }` over the
+`ATTRIBUTE_TYPES` enum), a display order (`attributesOrder` — an
+optional permutation of the keys; its absence stands the record's order),
+and the core's commands `setAttribute` / `removeAttribute` /
+`renameAttribute` / `reorderAttributes` (one transaction each). The panel
+renders over the page column as a collapsible section: the system rows
+(`id`, `created`, the live `last updated` — date-only, locale-formatted),
+the preset rows (`description`, `tags`, `createdBy`, `cover` — including
+the `coverMode` `tile`/`center` placement and the `coverTint` frame
+accent, `status`, `publishedAt`), and the custom rows (added at the
+list's tail over the type picker + the name's draft; a typed row's
+initial form stands over the picked type). The custom rows are
+drag-reorderable (the commit — one `reorderAttributes` command, one
+undo step). The read-only modes render the rows display-only.
+
+The panel is consumer-decoupled over the `EditorProvider` props:
+
+```tsx
+<EditorProvider
+  doc={doc}
+  // Hide the listed keys (the system rows or any custom key) from the
+  // panel over the read-only modes; the edit mode keeps every row.
+  hiddenAttributes={["cover"]}
+  // The tags' consumer contract (the document never stores tags).
+  docTags={{ tags: docTags, onTagAdd, onTagRemove, onTagClick }}
+  // The description's consumer contract (the document never stores it;
+  // without the prop the built-in stand reads `attributes.description`).
+  docDescription={{ value: description, onEdit: commitDescription }}
+  // The consumer's value-zone renderer over a key (null / absent = the
+  // built-in editors).
+  renderAttribute={({ key, value, onChange, onRemove, readOnly }) =>
+    key === "owner" ? <OwnerPicker value={value} onCommit={onChange} /> : null
+  }
+  // The consumer's type-picker UI over the add popover (absent = the
+  // built-in picker).
+  attributeTypePicker={({ value, onChange }) => <MyTypePicker value={value} onChange={onChange} />}
+  // The consumer's cover preset gallery (the file ids per placement mode;
+  // a pick commits the id without an upload; absent = no grid).
+  coverPresets={{ tile: ["cover-1", "cover-2"], center: ["cover-3"] }}
+></EditorProvider>
+```
+
+Every customization value is read per render into the provider context:
+pass a stable reference; a nested provider that supplies none inherits
+the enclosing one.
+
+### Document import
+
+`importDocument` fills a FRESH document (the empty root) from a markdown
+or HTML payload — the consumer's pre-attach write (the content stands in
+the first full-state bootstrap the sync attach sends, so the first wire
+sync persists it):
+
+```ts
+import { importDocument } from "docblocks-react-ui";
+
+import { attach, createDoc } from "docblocks-core";
+
+const doc = createDoc({ id: "new-doc-id" });
+importDocument(doc, rawMarkdown, "markdown"); // one transaction: one undo step, one wire update
+attach(doc, provider);
+```
+
+- `kind: "markdown" | "html"` — the paste parsers' shared materialization
+  (the same typed block / table / runs writes the paste pipeline uses);
+- an empty or whitespace-only payload is a no-op (no transaction);
+- a non-fresh document (the root has children) throws the typed
+  `ImportDocumentError` — the import fills the root, it never appends;
+- the markdown's YAML frontmatter (a leading `--- … ---` fence, a hand-
+  rolled subset) is stripped before the blocks' parse and mapped to the
+  meta over the fresh document: `title` → the doc's title, the known
+  keys → the attribute's presets (`author` / `created_by` →
+  `createdBy`, …), the unknown keys → the custom attribute keys; a
+  frontmatter without a body is a meta-only import. The reserved
+  `__proto__` key is dropped (the entries live in plain objects).
+
 ### Sync and presence
 
 The transport is a core concern: create the doc, build a provider, attach
@@ -450,7 +531,11 @@ package root: `BridgeError` (the structured error type) with
 (the client-issued `operationId` per op), `PROTOCOL_VERSION` /
 `BASELINE_CAPABILITIES` / `validateProtocolDescriptor` (the negotiation),
 `isDatabaseBridge`, and `useDatabaseTable(bridge, tableId, filter?)` — the
-grid controller for a consumer-owned grid over the bridge.
+grid controller for a consumer-owned grid over the bridge. The filter's
+utilities are exported as well: `emptyFilter`, `filterIsComplete`,
+`conditionMatches` (the filter's evaluation over a row), `parseCellValue` /
+`cellValueEqual` (the cell's typed comparison), and `columnAnnotation`
+(the column's type annotation over the filter's value editor).
 
 The grid's **Columns** control lists every column, restores hidden columns,
 and reorders them by dragging their grips or pressing ArrowUp/ArrowDown on a
@@ -606,18 +691,25 @@ catalog and returns `{ id, label }` entries:
 const mentionProvider = {
   searchUsers: async (query: string) => [{ id: "u1", label: "Ada Lovelace" }],
   searchDocs: async (query: string) => [{ id: "d1", label: "API Reference" }],
+  // The chip's live label over the target's id (the synchronous read —
+  // the consumer's cache over the catalog / the doc's meta); absent or
+  // null stand the insertion-time label.
+  resolveLabel: (kind, id) => labelFromCache(kind, id),
 };
 ```
 
 A pick replaces the `@query` phrase with the label and stands the `mention`
-mark (the `kind` `"user"` or `"doc"`, the `id`, and the `label` snapshot) in
-one transaction — one undo step. The mention renders as an atomic,
-non-editable chip: the kind's inline icon (the `user`'s person, the `doc`'s
-exit arrow) over the semibold, underlined label — an inline run of the text
-line, no pill of its own. The chip carries the target id
-(`data-mention-kind` + `data-mention-id`), so the consumer can stand a live
-label or a "removed" state by id (the `label` stays the stable display
-snapshot — a renamed / removed target does not change the document).
+mark (the `kind` `"user"` or `"doc"` and the stable `id` — the id-only
+stand; the legacy `label` snapshot is tolerated over the lenient read,
+never written) in one transaction — one undo step. The mention renders as
+an atomic, non-editable chip: the kind's inline icon (the `user`'s person,
+the `doc`'s exit arrow) over the semibold, underlined label — an inline
+run of the text line, no pill of its own. The chip carries the target id
+(`data-mention-kind` + `data-mention-id`), so the consumer can stand a
+"removed" state by id. The chip's text stands the consumer's
+`resolveLabel(kind, id)` live resolution where it resolves (the rename's
+live stand) and the insertion-time label (the run's text) otherwise — a
+renamed / removed target never changes the document.
 Copying a mention stands the `@label` plain text. Without the prop the `@`
 is plain text (no picker). The mark is non-exclusive (it composes with the
 other marks).
@@ -646,10 +738,11 @@ const mentionInteractions: MentionInteractions = {
 ```
 
 The target stands the document's `mention` mark (the core's `MentionMark`
-— the `kind`, the stable `id`, and the `label` snapshot): resolve the
-current data over the `id` (the catalog, the URL) and stand the live label
-or the removed state yourself — the `label` is the display snapshot. The
-value is read per render into the provider context: pass a stable reference.
+— the `kind` and the stable `id` — the id-only stand; the legacy `label`
+snapshot is tolerated over the lenient read): resolve the current data
+over the `id` (the catalog, the URL) and stand the removed state
+yourself — the document stores the identity only. The value is read per
+render into the provider context: pass a stable reference.
 A nested provider that supplies none inherits the enclosing one.
 
 ### Links
@@ -791,6 +884,57 @@ value actually changes (the store's reference-stability contract):
 | --------------- | ------------------------------------------------------------------------ |
 | `view`          | `"page"` (default) or `"canvas"` — the rendering the consumer switches   |
 | `formatPalette` | The format toolbar's color swatches (default `FORMAT_PALETTE`, exported) |
+
+### Render failure containment
+
+Two error boundaries keep a render failure contained:
+
+- the per-block `BlockErrorBoundary` (internal) — a failed block's render
+  stands its placeholder; the rest of the document keeps working;
+- the `EditorErrorBoundary` (exported) — the editor's content boundary for
+  a failure outside a block's renderer (the chrome, the row layer): the
+  failure note plus a retry, so the throw never unmounts the consumer's
+  application:
+
+```tsx
+import { EditorErrorBoundary } from "docblocks-react-ui";
+
+<EditorErrorBoundary
+  fallback={(error) => <MyErrorState error={error} />}
+  resetKey={retryKey} // change the key to force a clean remount
+>
+  <Editor view={view} />
+</EditorErrorBoundary>;
+```
+
+### Errors
+
+The package's typed errors mirror `docblocks-core`'s typed command
+errors: a failed prop contract, a failed blob-store lookup, or a failed
+fetch throws a named class (never a raw `Error`), so a consumer can catch
+by class and the error's identity survives the React boundary:
+
+| Class                      | Meaning                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `DocBlocksUiError`         | The base class for all docblocks-react-ui errors.                                                                 |
+| `EditorProviderError`      | The `EditorProvider`'s prop contract was violated (a mount-immutable prop changed, or a required prop is absent). |
+| `BlobNotFoundError`        | The blob store has no stored object for the file id.                                                              |
+| `PdfFetchError`            | The PDF bytes could not be fetched (a non-ok HTTP response).                                                      |
+| `CanvasPasteError`         | The canvas paste's internal invariant was violated.                                                               |
+| `UnknownSlashCommandError` | The slash command's block type is outside the known registry set.                                                 |
+| `UnhandledValueError`      | The exhaustiveness backstop: a value escaped a closed union's types.                                              |
+
+```ts
+import { BlobNotFoundError } from "docblocks-react-ui";
+
+try {
+  await store.get(fileId);
+} catch (error) {
+  if (error instanceof BlobNotFoundError) {
+    /* the file was deleted on the consumer's side */
+  }
+}
+```
 
 The page view renders the flat page sequence — every page block is its
 own row (the drag-reorder's pure framer `Reorder`, the insert/remove's
