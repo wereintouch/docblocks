@@ -645,10 +645,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       // The wire's JSON stand: a non-JSON value (function / symbol / BigInt)
       // would stand silently dropped over the JSON round-trip — it is
       // rejected, not stored (the receipt stands the full data).
-      if (
-        value !== null &&
-        (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint")
-      ) {
+      if (value !== null && (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint")) {
         fail("validation", `The column "${column.name}" holds a non-JSON value (the wire's JSON stand).`);
       }
       // The wire's JSON stand: a non-finite number stands the null over the
