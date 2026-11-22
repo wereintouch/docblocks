@@ -43,6 +43,11 @@ interface SyncSession {
  * the provider's delivery context; a failed apply may commit the decoded
  * prefix, and the consumer can resync through `getLocalStateVector`. Escaped
  * commits via `doc.raw` (non-guaranteed origin) are not synced.
+ *
+ * The no-throw contract over `provider.sendUpdate` (its docstring): the
+ * local-origin update event fires inside the originating transaction, so a
+ * provider's throw stands the transaction's failure — the committed batch
+ * rolls back and the caller's `transact` rejects.
  */
 function attach(doc: Doc, provider: SyncProvider): SyncSession {
   const ydoc = doc.raw;

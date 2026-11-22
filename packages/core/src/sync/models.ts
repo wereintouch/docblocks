@@ -68,7 +68,14 @@ interface SyncProvider {
   connect(): Promise<void>;
   /** Release the transport connection. Idempotent. */
   disconnect(): void;
-  /** Send a local document update to peers. */
+  /**
+   * Send a local document update to peers. Fire-and-forget — the callback
+   * runs synchronously inside the originating transaction, so it must not
+   * throw: a throw propagates as the transaction's failure and rolls back
+   * the committed batch. Buffer or retry the delivery inside the provider
+   * instead (the WsSyncProvider's stand — the pending buffer over the
+   * closed socket).
+   */
   sendUpdate(bytes: Uint8Array): void;
   /**
    * Subscribe to incoming remote document updates. The provider's
