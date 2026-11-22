@@ -227,7 +227,9 @@ function restorePatchesOf(
   return cleaned.flatMap(({ rowId, cells }) => {
     const oldCells = before.get(rowId);
     if (oldCells === undefined) return [];
-    const patch: Record<string, unknown> = {};
+    // The keys stand the bridge's column ids (the data's stand — the
+    // null-prototype's map keeps a hostile `__proto__` the inert own entry).
+    const patch = Object.create(null) as Record<string, unknown>;
     for (const key of Object.keys(cells)) {
       patch[key] = oldCells[key] === undefined ? null : oldCells[key];
     }

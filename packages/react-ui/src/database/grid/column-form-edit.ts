@@ -63,7 +63,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
       const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
       const keptRowIds = new Set<string>();
       const cellOf = (option: { rowId?: string; name: string; color: string | null }): Record<string, unknown> => {
-        const cells: Record<string, unknown> = {};
+        // The cell's keys stand the bridge's column ids (the data's
+        // stand — a hostile id stands the inert own entry, not the
+        // prototype's write): the null-prototype's map.
+        const cells = Object.create(null) as Record<string, unknown>;
         if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
         if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
         return cells;

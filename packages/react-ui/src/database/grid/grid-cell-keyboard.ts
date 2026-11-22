@@ -169,7 +169,9 @@ function handleGridCellKeyDown(event: ReactKeyboardEvent<HTMLDivElement>, ctx: G
   const byRow = new Map<string, Record<string, unknown>>();
   selectedCells.forEach((key) => {
     const [rowId, colId] = key.split("\u0000");
-    const cells = byRow.get(rowId!) ?? {};
+    // The column id is data (a hostile `__proto__` stands the inert own
+    // entry, not the prototype's write): the null-prototype's map.
+    const cells = byRow.get(rowId!) ?? Object.create(null);
     cells[colId!] = null;
     byRow.set(rowId!, cells);
   });

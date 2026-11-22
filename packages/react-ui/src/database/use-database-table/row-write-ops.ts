@@ -133,7 +133,10 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
               // each edited key, the absent-before key over the explicit
               // null (the merge's removal stand). The same-cell conflict
               // policy: the undo stands the newest write.
-              const restore: Record<string, unknown> = {};
+              // The keys stand the bridge's column ids (the data's
+              // stand — a hostile id stands the inert own entry, not the
+              // prototype's write): the null-prototype's map.
+              const restore = Object.create(null) as Record<string, unknown>;
               for (const key of Object.keys(cleaned)) {
                 restore[key] = oldCells[key] === undefined ? null : oldCells[key];
               }
@@ -164,7 +167,9 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
 /** The clean cells patch: the `undefined` values stand no write (the
  *  merge keeps the current cell). */
 function cleanCells(cells: Record<string, unknown>): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
+  // The keys stand the bridge's column ids (the data's stand — the
+  // null-prototype's map keeps a hostile `__proto__` the inert own entry).
+  const patch = Object.create(null) as Record<string, unknown>;
   for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
   return patch;
 }

@@ -52,7 +52,10 @@ function handleGridCellPaste(event: React.ClipboardEvent<HTMLDivElement>, ctx: G
   for (let i = 0; i < grid.length; i += 1) {
     const line = grid[i];
     if (line === undefined) continue;
-    const cells: Record<string, unknown> = {};
+    // The cell's keys stand the bridge's column ids (the data's
+    // stand — a hostile id stands the inert own entry, not the
+    // prototype's write): the null-prototype's map.
+    const cells = Object.create(null) as Record<string, unknown>;
     for (let j = 0; j < line.length; j += 1) {
       const column = columns[c0 + j];
       if (column === undefined) continue; // the grid's right edge: the overflow columns stand no stand
