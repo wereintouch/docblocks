@@ -10,5 +10,8 @@ CHANGELOG.md
 .scratch-probes
 .pi
 .playwright-mcp
+graphify-out
+.ruff_cache
+.vitest
 TODO.md
 CLAUDE.md
