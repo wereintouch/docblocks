@@ -23,9 +23,10 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     const state = store.getState();
     const patch: Partial<EditorState> = {};
 
-    // A touched block IN the entry sequence whose `indent` or `list` kind
-    // moved (the seqStamp's source — the derivation's structure inputs; a
-    // text/mark change stands nothing, the row's own subscription
+    // A touched block IN the entry sequence whose `type`, `indent`, or
+    // `list` kind moved (the seqStamp's source — the derivation's structure
+    // inputs; the type stands the pageChildren' surface-filter membership,
+    // a text/mark change stands nothing, the row's own subscription
     // re-renders it). An add/removal into or out of the sequence stands the
     // rootChildren change (the stamp's other source).
     let seqStructureAffected = false;
@@ -73,7 +74,11 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
             { indent?: unknown; list?: unknown } | undefined;
           const freshAttrs = ("attrs" in fresh ? fresh.attrs : undefined) as
             { indent?: unknown; list?: unknown } | undefined;
-          if (prevAttrs?.indent !== freshAttrs?.indent || prevAttrs?.list !== freshAttrs?.list) {
+          if (
+            prev.type !== fresh.type ||
+            prevAttrs?.indent !== freshAttrs?.indent ||
+            prevAttrs?.list !== freshAttrs?.list
+          ) {
             seqStructureAffected = true;
           }
         }
