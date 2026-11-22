@@ -1,5 +1,71 @@
 # docblocks-react-ui
 
+## 0.18.1
+
+### Patch Changes
+
+- 2d9c34a: The database grid's data-keyed cell writes now build their cell maps over
+  the null-prototype's map everywhere the keys stand the bridge's column ids
+  (the enum column form's option cells, the multi-cell paste, the keyboard's
+  clear, the write's inverse / clean / batch restore): a hostile column id
+  (`__proto__`) stands the inert own entry, not the prototype's write —
+  the cell keeps its value over the write instead of standing silently
+  dropped.
+- c71c306: The download-href gate stands the core's shared `normalizeHrefInput`
+  (the duplicated WHATWG normalization regexes stand removed — the link
+  href's parity). The data-keyed writes (the enum option's cell maps over
+  the bridge column ids, the persisted viewport's map over the doc id)
+  stand the null-prototype's maps (a hostile id stands the inert own entry,
+  not the prototype's write). The table stream's at-least-once dedup set
+  stands bounded (the stale check — the seq at or below the head's drop —
+  protects the pruned seqs; the long session's growth is bounded).
+- 28b8f34: The download-href gate over the consumer's `BlobStore` url now normalizes the
+  browser's WHATWG control handling (the mid-string U+0009/U+000A/U+000D strip +
+  the leading / trailing C0 / space trim) before the scheme check, in parity with
+  the link-href's classifier — a `downloadUrl` carrying a control-split
+  `javascript:` scheme no longer stands an anchor.
+- d32aeee: The slash Frame picker's ref-cached list now tracks the root's child blocks' refs alongside the frame blocks' refs: a frame added (or reordered) into an existing surface invalidates the cache — the list re-renders over the live change while the picker stands open.
+- 461e4fc: The provider hooks' misuse now throws the typed `HookMisuseError` (the
+  `DocBlocksUiError` family, exported over the entry point) instead of a
+  raw `Error`: an editor hook rendered outside the `EditorProvider`, or a
+  block hook outside its block context, is catchable by class. The
+  `./motion` subpath's references in the shipped comments stand replaced
+  over the current stand (the base entry's row layer — framer-motion the
+  required peer).
+- 46e525a: The imperative mention chip's renderer now falls back to the `doc`'s icon
+  geometry over an out-of-enum `mention` kind (the lenient reader keeps the
+  wire's value as-is; the kind's mark data is stored over the write's
+  validation, so a peer-written kind outside the enum stands the data). The
+  block no longer crashes to its error placeholder over such a run — the
+  chip renders with its label, the React's path's parity.
+- 89004ef: The `./mermaid` subpath's entry now stands in the package's `sideEffects`
+  list (as the `./pdf`'s entry does): the entry runs the module-scope
+  mermaid's configuration, and a tree-shaking bundler over the absent
+  entry could drop its side effects.
+- 6c49e41: The ref-table data provider (`useRefTables`) now coalesces its live
+  refreshes per entry: a bridge envelope that arrives over a running full
+  page-set load marks the entry pending instead of firing a parallel load,
+  and the pending re-run stands over the running load's write — a burst of
+  envelopes runs the running load plus one trailing load, and overlapping
+  loads never interleave their states.
+- d751449: The page sequence's structural stamp (`seqStamp`) now sources a block's
+  `type` change over the entry sequence: a `changeBlockType` of a root
+  block (the `surface`'s filter input over the page children's derivation)
+  stands the stamp's bump, so the sequence re-derives its membership
+  instead of standing the stale row set until the next structural change.
+- 691c46c: The `sideEffects` field now covers the base entry's top-level chunks
+  (`dist/*.mjs`): the module-scope initialization (the package's own i18next
+  instance + the legacy `<html lang>`'s runtime observer) stands declared
+  over the tree-shaking's bundlers instead of standing reachable only over
+  the subpath entries.
+- Updated dependencies [2cd7f10]
+- Updated dependencies [772a8a0]
+- Updated dependencies [1a77fa3]
+- Updated dependencies [a7610aa]
+- Updated dependencies [ebe7313]
+- Updated dependencies [f1f3679]
+  - docblocks-core@0.8.1
+
 ## 0.18.0
 
 ### Minor Changes

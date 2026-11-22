@@ -1,5 +1,40 @@
 # docblocks-core
 
+## 0.8.1
+
+### Patch Changes
+
+- 2cd7f10: The generic attr commands (`updateBlock` / `removeBlockAttr`) now keep the
+  strict validator's doc-level invariants over the touched block: a
+  `table-cell`'s `columnId` write / removal must stand the column at the cell's
+  position in the table's `columnOrder` (a full row's stand), and a `database`'s
+  `columns` / `tableId` removal must keep the strict invariants against the
+  existing rows — the typed rejection instead of a state the strict validator
+  rejects.
+- 772a8a0: The generic attr's path (`setDatabaseTable`) now builds its post-patch
+  check over the null-prototype's map (a hostile attrs key — `__proto__` —
+  stands the inert own entry, not the prototype's write). The WHATWG href
+  normalization (the mid-string U+0009/U+000A/U+000D strip + the C0 / space
+  trim) stands the shared `normalizeHrefInput` export (the link-href's
+  classifier's stand), so the consumer's download-href gate can stand the
+  same normalization stand. The table layout's common primitives stand
+  split over the sibling modules (the layout's accessors, the value's
+  checks / widths / colors, the subtree-copy's helpers).
+- 1a77fa3: The `removeBlockAttr`'s doc-level invariants now cover the flat page model's
+  indent jump rule: removing `indent` (the block's outdent to 0) is rejected
+  with a typed `InvalidOperationError` when the following block would be
+  stranded, the `updateBlock`'s outdent parity. A mid-transact removal (the
+  segment outdent's composition) stands the same in-batch escape.
+- a7610aa: The `SyncProvider.sendUpdate` contract now documents its no-throw's
+  posture: the callback runs synchronously inside the originating
+  transaction, so a provider's throw stands the transaction's failure —
+  the committed batch rolls back and the `transact`'s reject reaches the
+  caller (the behavior is pinned by a test). Providers stand the buffering
+  stand instead of throwing (the WsSyncProvider's pending buffer over the
+  closed socket).
+- ebe7313: The `setAttribute` no-op stand now holds over the object-form values (the id-only mention reference, the typed attribute value): the stored value is compared over its plain snapshot (the read path) structurally, so a set of the same value stands no write, no undo step, and no wire update.
+- f1f3679: The strict validator's dangling-child check now runs over the `blocks` record's own keys (`Object.hasOwn`) instead of the `in` operator: a dangling child id that collides with an `Object.prototype` key (`toString`, `constructor`, …) is reported instead of standing as a present block. The empty reply's payload behavior (the frame-type byte only) is documented.
+
 ## 0.8.0
 
 ### Minor Changes
