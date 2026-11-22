@@ -251,8 +251,8 @@ The panel is consumer-decoupled over the `EditorProvider` props:
 ```tsx
 <EditorProvider
   doc={doc}
-  // Hide the listed keys (the system rows or any custom key) from the
-  // panel over the read-only modes; the edit mode keeps every row.
+  // Hide the listed keys (the system, the preset or any custom key)
+  // from the panel over every mode (edit, view, and published).
   hiddenAttributes={["cover"]}
   // The tags' consumer contract (the document never stores tags).
   docTags={{ tags: docTags, onTagAdd, onTagRemove, onTagClick }}
@@ -344,9 +344,13 @@ function App() {
   unmount.
 - `WsSyncProvider` speaks standard y-protocols over WebSocket (the
   y-websocket wire, wire-compatible with a standard y-websocket server);
-  `options: { token?, webSocketImpl? }`. Any object implementing the core
-  `SyncProvider` interface (connect / disconnect / sendUpdate / onUpdate /
-  getLocalStateVector / setAwareness / onAwareness) works in its place.
+  `options: { token?, webSocketImpl?, maxPendingBytes?, maxFrameBytes? }`
+  (the client-side backpressure ceilings — the buffered local updates
+  over the not-open socket, the one incoming frame; the defaults are
+  4 MiB each, the overflow's flag over the `getPendingStats`). Any object
+  implementing the core `SyncProvider` interface (connect / disconnect /
+  sendUpdate / onUpdate / getLocalStateVector / setAwareness / onAwareness)
+  works in its place.
 - Presence rides the provider's awareness channel: the editor publishes its
   own selection automatically (debounced) and renders the remote peers'
   carets. `usePresence()` reads the per-peer state (peer id, selection,
@@ -900,7 +904,7 @@ Two error boundaries keep a render failure contained:
 import { EditorErrorBoundary } from "docblocks-react-ui";
 
 <EditorErrorBoundary
-  fallback={(error) => <MyErrorState error={error} />}
+  fallback={({ error, retry }) => <MyErrorState error={error} onRetry={retry} />}
   resetKey={retryKey} // change the key to force a clean remount
 >
   <Editor view={view} />

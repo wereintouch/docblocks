@@ -28,7 +28,14 @@ export {
   validateMarkSet,
 } from "./validate";
 export type { ValidationError } from "./validate";
-export { isDocAttributeValue, isHexColor, isSafeEmbedSrc, isSafeLinkHref, linkHrefKindOf, normalizeHrefInput } from "./validate/utils";
+export {
+  isDocAttributeValue,
+  isHexColor,
+  isSafeEmbedSrc,
+  isSafeLinkHref,
+  linkHrefKindOf,
+  normalizeHrefInput,
+} from "./validate/utils";
 export type { LinkHrefKind } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {

@@ -7,6 +7,7 @@ playwright-report
 .docs
 CHANGELOG.md
 .tmp
+.scratch-probes
 .pi
 .playwright-mcp
 TODO.md
