@@ -151,6 +151,32 @@ describe("the picker's stands (the search + the list + the empties)", () => {
     expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).not.toBeNull();
     expect(doc.getText(para)).toBe("/");
   });
+
+  it("re-renders the list over a frame's add into the existing surface (the live update's stand)", () => {
+    const { doc, surface } = openPicker();
+    let frameC = "";
+    act(() => {
+      frameC = doc.insertBlock("frame", { title: "Live" }, { parent: surface });
+    });
+    // The add changes the surface block (not the root's order — the root
+    // is not over the change's block ids): the child blocks' refs' stand
+    // invalidates the cache over it.
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/slash-frame-option"]'));
+    expect(options.map((option) => option.getAttribute("data-frame-id"))).toHaveLength(3);
+    expect(options.at(-1)?.getAttribute("data-frame-id")).toBe(frameC);
+    expect(options.at(-1)?.textContent?.trim()).toBe("Live");
+  });
+
+  it("re-renders the list over a frame's rename (the frame's ref's invalidation)", () => {
+    const { doc, frameB } = openPicker();
+    act(() => {
+      doc.updateBlock(frameB, { title: "Renamed" });
+    });
+    const names = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/slash-frame-option"]')).map(
+      (option) => option.textContent?.trim()
+    );
+    expect(names).toContain("Renamed");
+  });
 });
 
 describe("the pick's commit (one transact — the weak reference + the phrase's strip)", () => {

@@ -8,7 +8,8 @@
  * })` (the page-frame block's weak reference) in the caller's transact.
  * The frames stand live over the doc's changes (the ref-cached
  * subscription re-renders the list over the frame's add / remove / rename
- * — the unchanged frames' stand bails over the cached list). The cancel keeps the command list on the phrase (no
+ * and the z-order's reorder — the unchanged frames' stand bails over the
+ * cached list). The cancel keeps the command list on the phrase (no
  * write). The no-gate stand (unlike the database's bridge gate): the
  * frames are the doc's own canvas data — the picker stands always (the
  * empty stand is the "no frames yet" line).
@@ -56,11 +57,17 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
   const { t } = useTranslation("slash");
   const { store } = useEditorContext();
   // The frames' ref-cached stand (the PresenceCaretOverlay's pattern): the
-  // cached list stands while the root's order and the frame blocks' refs
-  // stand (the keystroke over an unframed block re-derives nothing — no
-  // walk, no stringify over the unchanged frames).
+  // cached list stands while the root's order and the root's child blocks'
+  // and the frame blocks' refs stand (the keystroke over an unframed block
+  // re-derives nothing — no walk, no stringify over the unchanged frames).
+  // The child blocks' refs are the walk's own input (the surfaces' refs
+  // change over a frame's add / remove / reorder into the surface, which
+  // the root's order's ref alone does not see — the root is not over the
+  // change's block ids). The frame's refs stand the frame's own change
+  // (the rename) over the unchanged surfaces.
   const framesCacheRef = useRef<{
     rootRef: readonly BlockId[];
+    childRefs: (Block | undefined)[];
     frames: CanvasFrameOption[];
     blockRefs: Block[];
   } | null>(null);
@@ -69,13 +76,22 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
     if (
       cached !== null &&
       cached.rootRef === state.rootChildren &&
-      cached.blockRefs.every((ref, i) => ref === state.blocks[cached.frames[i].id])
+      cached.childRefs.length === state.rootChildren.length &&
+      state.rootChildren.every((childId, i) => cached.childRefs[i] === state.blocks[childId]) &&
+      // The lists stand together (the cache's update builds both): the
+      // length's parity holds, the undefined's guard stands the type's
+      // stand only.
+      cached.blockRefs.every((ref, i) => {
+        const frame = cached.frames[i];
+        return frame !== undefined && ref === state.blocks[frame.id];
+      })
     ) {
       return cached.frames;
     }
     const next = canvasFrames(state.rootChildren, state.blocks);
     framesCacheRef.current = {
       rootRef: state.rootChildren,
+      childRefs: state.rootChildren.map((childId) => state.blocks[childId]),
       frames: next,
       blockRefs: next.map((frame) => state.blocks[frame.id]!),
     };
