@@ -108,7 +108,11 @@ function commitColumnFormCreate(ctx: ColumnFormCreateContext, draft: AddColumnFo
         ).result.id;
         for (const option of draft.enumOptions ?? []) {
           if (option.name.trim() === "") continue;
-          const cells: Record<string, unknown> = { [nameColumnId]: option.name.trim() };
+          // The cell's keys stand the bridge's column ids (the data's
+          // stand — a hostile id stands the inert own entry, not the
+          // prototype's write): the null-prototype's map.
+          const cells = Object.create(null) as Record<string, unknown>;
+          cells[nameColumnId] = option.name.trim();
           if (option.color !== null) cells[colorColumnId] = option.color;
           await bridge.batchRows(
             enumTableId,

@@ -30,20 +30,25 @@ function storage(): Storage | null {
   }
 }
 
-/** The storage's map (the missing / the corrupted entry stands empty). */
+/** The storage's map (the missing / the corrupted entry stands empty; the
+ * null-prototype's map — a hostile stored id (`__proto__`) stands the
+ * inert own entry, not the prototype's write). */
 function readMap(): Record<string, PersistedViewport> {
+  const empty = (): Record<string, PersistedViewport> => Object.create(null);
   const store = storage();
-  if (store === null) return {};
+  if (store === null) return empty();
   try {
     const raw = store.getItem(STORAGE_KEY);
-    if (raw === null) return {};
+    if (raw === null) return empty();
     const parsed: unknown = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed as Record<string, PersistedViewport>;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return empty();
+    const map = Object.create(null) as Record<string, PersistedViewport>;
+    for (const [key, value] of Object.entries(parsed)) map[key] = value;
+    return map;
   } catch {
     // A corrupted / unreadable entry: the map stands empty (the viewport
     // stands fresh over the fit's fallback — the live state is the source).
-    return {};
+    return empty();
   }
 }
 

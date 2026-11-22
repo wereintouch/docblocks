@@ -166,7 +166,10 @@ function setDatabaseTable(ydoc: Y.Doc, databaseId: string, tableId: string): voi
   });
   // The post-patch invariants (the external form: no columns, no rows).
   const snapshot = readBlock(ydoc, databaseId);
-  const merged: Record<string, unknown> = {};
+  // The merged attrs stand the snapshot's keys (the data's stand — a
+  // hostile `__proto__`'s key stands the inert own entry, not the
+  // prototype's write): the null-prototype's map.
+  const merged = Object.create(null) as Record<string, unknown>;
   if (snapshot !== null && "attrs" in snapshot && snapshot.attrs !== undefined) {
     for (const [key, value] of Object.entries(snapshot.attrs)) {
       if (key !== "columns") merged[key] = value;

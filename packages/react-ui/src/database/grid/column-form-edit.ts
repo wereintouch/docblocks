@@ -86,7 +86,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           keptRowIds.add(option.rowId);
           const before = current.find((entry) => entry.rowId === option.rowId);
           if (before === undefined) continue;
-          const cells: Record<string, unknown> = {};
+          // The cell's keys stand the bridge's column ids (the data's
+          // stand — a hostile id stands the inert own entry, not the
+          // prototype's write): the null-prototype's map.
+          const cells = Object.create(null) as Record<string, unknown>;
           if (before.name !== option.name.trim() && nameColumnId !== undefined)
             cells[nameColumnId] = option.name.trim();
           if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
@@ -120,7 +123,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           keptRowIds.add(option.rowId);
           const before = current.find((entry) => entry.rowId === option.rowId);
           if (before === undefined) continue;
-          const cells: Record<string, unknown> = {};
+          // The cell's keys stand the bridge's column ids (the data's
+          // stand — a hostile id stands the inert own entry, not the
+          // prototype's write): the null-prototype's map.
+          const cells = Object.create(null) as Record<string, unknown>;
           if (before.name !== option.name.trim() && nameColumnId !== undefined)
             cells[nameColumnId] = option.name.trim();
           if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
