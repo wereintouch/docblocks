@@ -41,6 +41,8 @@ function readMap(): Record<string, PersistedViewport> {
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     return parsed as Record<string, PersistedViewport>;
   } catch {
+    // A corrupted / unreadable entry: the map stands empty (the viewport
+    // stands fresh over the fit's fallback — the live state is the source).
     return {};
   }
 }
