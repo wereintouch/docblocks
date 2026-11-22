@@ -134,19 +134,21 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
         // catalog stands complete) + the schema stand the entry's data;
         // the color stands the named `color` column's id.
         const pageSet = await loadFullPages(bridge, tableId!);
-        if (pageSet === null) return;
         const rows = pageSet.rows;
         const rowIds = rows.map((row) => row.id);
         const rawDisplays = await bridge.resolveRowDisplay(tableId!, {
           rowIds,
           ...(displayColumn === "" || displayColumn === undefined ? {} : { displayColumn }),
         });
-        const displays: Record<string, string> = {};
+        // The row's ids stand the bridge's data (the `__proto__`'s id
+        // stands the inert own entry, not the prototype's write):
+        // the null-prototype's map.
+        const displays: Record<string, string> = Object.create(null);
         for (const [rowId, display] of Object.entries(rawDisplays)) {
           if (display !== null) displays[rowId] = display;
         }
         const colorColumnId = pageSet.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)?.id;
-        const colors: Record<string, string> = {};
+        const colors: Record<string, string> = Object.create(null);
         for (const row of rows) {
           const color = colorColumnId !== undefined ? row.cells[colorColumnId] : undefined;
           if (typeof color === "string" && color !== "") colors[row.id] = color;
