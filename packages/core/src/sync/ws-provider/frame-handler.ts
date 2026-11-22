@@ -53,12 +53,13 @@ function parseFrame(
         } else if (syncType === sync.messageYjsSyncStep1) {
           const reply = encoding.createEncoder();
           encoding.writeVarUint(reply, MESSAGE_SYNC);
-          // readSyncMessage reads the sync type itself: the sub-decoder
-          // stands right after the frame type (the shared decoder already
-          // consumed it).
-          const sub = decoding.createDecoder(frame);
-          sub.pos = syncMsgPos;
-          sync.readSyncMessage(sub, reply, doc, doc, swallowDecodeError);
+          // readSyncMessage reads the sync type itself: rewind the shared
+          // decoder to right after the frame type so it consumes the
+          // payload. Left unconsumed, the payload's bytes stand re-parsed
+          // as the next concatenated frame (the batch's silent drop, the
+          // built reply with it).
+          decoder.pos = syncMsgPos;
+          sync.readSyncMessage(decoder, reply, doc, doc, swallowDecodeError);
           if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
         } else {
           // Unknown sync types stand malformed (the standard reader

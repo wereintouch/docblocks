@@ -1,9 +1,15 @@
+import * as decoding from "lib0/decoding";
+import * as encoding from "lib0/encoding";
 import { describe, expect, it } from "vitest";
+import * as sync from "y-protocols/sync";
+import * as Y from "yjs";
 
 import { createDoc, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import { attach } from "../src/sync";
+import { MESSAGE_AWARENESS, MESSAGE_QUERY_AWARENESS, MESSAGE_SYNC, buildSyncStep1Frame } from "../src/sync/ws-frames";
 import { WsSyncProvider } from "../src/sync/ws-provider";
+import type { WsLike } from "../src/sync/ws-provider";
 import { WsRelay } from "./ws-relay";
 
 /**
@@ -194,5 +200,61 @@ describe("late attach", () => {
 
     expect(bDoc.getText(p)).toBe("missed while detached");
     expect(bDoc.toJSON()).toEqual(a.doc.toJSON());
+  });
+});
+
+describe("the step1's reply over a concatenated batch", () => {
+  it("a received step1 + the trailing query frame stand both replies (no batch drop)", async () => {
+    // A raw fake socket (no relay's server role): the open's handshake
+    // stands fired explicitly, the incoming frames stand crafted.
+    const sent: Uint8Array[] = [];
+    const socket: WsLike = {
+      send: (bytes) => {
+        sent.push(bytes);
+      },
+      close: () => undefined,
+      onopen: null,
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+    };
+    const provider = new WsSyncProvider(URL, { webSocketImpl: () => socket });
+    const doc = createDoc({ id: DOC_ID, createdAt: CREATED_AT });
+    attach(doc, provider);
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "the state before the join");
+    const attempt = provider.connect();
+    socket.onopen?.({});
+    await attempt;
+    const baseline = sent.length; // the open's handshake frames (step1 + the buffered state)
+
+    // One message: the peer's step1 (the fresh doc's empty state vector)
+    // + the trailing query frame. The provider must reply with BOTH the
+    // step2's diff and the awareness frame — a batch drop would send
+    // nothing (the step1's payload stands re-parsed as a frame, the throw
+    // drops the batch, the built reply with it).
+    const peer = new Y.Doc();
+    const step1 = buildSyncStep1Frame(peer);
+    const queryEnc = encoding.createEncoder();
+    encoding.writeVarUint(queryEnc, MESSAGE_QUERY_AWARENESS);
+    const query = encoding.toUint8Array(queryEnc);
+    const injected = new Uint8Array(step1.byteLength + query.byteLength);
+    injected.set(step1, 0);
+    injected.set(query, step1.byteLength);
+    socket.onmessage?.({ data: injected });
+
+    expect(sent.length).toBe(baseline + 1);
+    const reply = decoding.createDecoder(sent[baseline]!);
+    // The reply's first frame: the step2 with the peer's missing state.
+    expect(decoding.readVarUint(reply)).toBe(MESSAGE_SYNC);
+    expect(decoding.readVarUint(reply)).toBe(sync.messageYjsSyncStep2);
+    const diff = decoding.readVarUint8Array(reply);
+    expect(diff.byteLength).toBeGreaterThan(0);
+    // The trailing frame's reply: the awareness frame.
+    expect(decoding.readVarUint(reply)).toBe(MESSAGE_AWARENESS);
+    // The reply's diff converges the peer: its raw doc holds the block.
+    Y.applyUpdate(peer, diff);
+    expect(peer.getMap("blocks").has(p)).toBe(true);
+    provider.destroy();
   });
 });
