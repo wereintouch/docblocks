@@ -33,8 +33,21 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
+/** The non-JSON's placeholder's replacer (function / symbol / BigInt stand
+ * their string's form): the measurement's serializer must not stand its own
+ * throw (the typed validation's rejection stands over the value itself). */
+const NON_JSON_PLACEHOLDER = (_key: string, entry: unknown): unknown =>
+  typeof entry === "bigint" || typeof entry === "function" || typeof entry === "symbol" ? String(entry) : entry;
+
 function canonicalJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value));
+  return JSON.stringify(canonicalize(value), NON_JSON_PLACEHOLDER) ?? "";
+}
+
+/** The payload's size's measurement (the non-JSON's values stand their
+ * string's placeholder over the throw — the measurement must not crash;
+ * the bridge's validation stands the typed reject). */
+function jsonSizeOf(value: unknown): number {
+  return (JSON.stringify(value, NON_JSON_PLACEHOLDER) ?? "").length;
 }
 
 /** The physical order's comparator: the float order key, then the row id
@@ -59,4 +72,4 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-export { canonicalJson, deepEqual, physicalCompare, tableIdFor };
+export { canonicalJson, deepEqual, jsonSizeOf, physicalCompare, tableIdFor };
