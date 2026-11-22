@@ -17,17 +17,17 @@ import {
 } from "@docblocks-core/schema";
 import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
-import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
+import { InvalidAttrsError, UnknownBlockError, formatValidationErrors } from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabasePatch } from "./database";
 import {
+  assertNoOutdentStranding,
   blockTypeOf,
   childrenOf,
   findParent,
   getBlockMap,
   indentJumpViolation,
-  indentOfBlock,
   isPageSequence,
 } from "./structure";
 import { assertValidCellColumnBinding, columnOrderOf, writeColumnWidthsPatch } from "./table/common";
@@ -141,26 +141,9 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
         throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${violation}.`);
       }
       // The TO side: a lowered indent can dangle the next block (its
-      // predecessor just got shallower). Rejected like the moveBlock /
-      // insertBlock TO-side strandings — and like them the check stands
-      // only for a command that commits its own transaction: the UI's
-      // segment outdent composes the whole stretch in one transact, so a
-      // mid-transact dangle is a transient the composition resolves (the
-      // Yjs transaction's atomicity keeps it off the wire and off every
-      // listener). The next block's pair is checked against the NEW
-      // indent — the patch is not applied yet, so the doc still stands
-      // the old one.
-      const next = childIds[index + 1];
-      const oldIndent = indentOfBlock(ydoc, id);
-      if (next !== undefined && newIndent < oldIndent) {
-        const nextIndent = indentOfBlock(ydoc, next);
-        const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
-        if (!inBatch && nextIndent > newIndent + 1) {
-          throw new InvalidOperationError(
-            `Block "${id}" cannot be outdented to indent ${newIndent}: block "${next}" (indent ${nextIndent}) would be stranded. Outdent the whole derived segment in one transact.`
-          );
-        }
-      }
+      // predecessor just got shallower) — the moveBlock / insertBlock
+      // TO-side strandings' parity.
+      assertNoOutdentStranding(ydoc, id, childIds, index, newIndent);
     }
   }
 
@@ -192,7 +175,9 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
  * attrs the typed `InvalidAttrsError` (the `updateBlock`'s stand); the
  * post-removal attrs must keep the registry's invariants (a required
  * attr's removal would leave an invalid block — the `updateBlock`'s
- * writer's stand). The empty attrs' read stand is the omitted `attrs`
+ * writer's stand); the `indent` removal over a page sequence is
+ * rejected like the `updateBlock`'s outdent when the following block
+ * would be stranded. The empty attrs' read stand is the omitted `attrs`
  * field (the read path's rule — the empty map needs no cleanup).
  */
 function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
@@ -240,6 +225,19 @@ function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
   }
   if (type === "database" && (key === "columns" || key === "tableId")) {
     assertValidDatabasePatch(snapshot, merged, id);
+  }
+
+  // The flat page model: removing `indent` outdents the block to 0 — the
+  // same TO-side hazard as the `updateBlock`'s outdent (the next block's
+  // predecessor just got shallower). The FROM side (the block's own
+  // indent 0) never violates the jump rule, so only the TO side stands.
+  if (key === "indent") {
+    const parent = findParent(ydoc, id);
+    if (parent !== null && isPageSequence(ydoc, parent)) {
+      const seq = childrenOf(ydoc, parent);
+      const childIds = seq !== null ? seq.toArray() : [];
+      assertNoOutdentStranding(ydoc, id, childIds, childIds.indexOf(id), 0);
+    }
   }
 
   localTransact(ydoc, () => {

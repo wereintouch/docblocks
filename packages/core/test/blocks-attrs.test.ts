@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { InvalidAttrsError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
+import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
 import type { Doc } from "../src/core";
 import { validateDoc } from "../src/schema";
 
@@ -171,6 +171,25 @@ describe("the doc-level invariants over the generic attr's path", () => {
     const empty = doc.insertBlock("database", { columns: [{ id: "c1", name: "C1", type: "text" }] });
     expect(() => doc.removeBlockAttr(empty, "columns")).toThrow(InvalidAttrsError);
     // The rejections stand pre-write: the doc stays validator-valid.
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the indent removal stands the TO-side stranding (the updateBlock's outdent parity)", () => {
+    const doc = newDoc();
+    const a = doc.insertBlock("paragraph"); // indent 0
+    const b = doc.insertBlock("paragraph", { indent: 1 }, { after: a });
+    const c = doc.insertBlock("paragraph", { indent: 2 }, { after: b });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+
+    // Removing b's indent outdents it to 0: c (indent 2) would be stranded.
+    expect(() => doc.removeBlockAttr(b, "indent")).toThrow(InvalidOperationError);
+    // The rejection stands pre-write: the doc stays validator-valid.
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+
+    // The legal removal: c stands at indent 1 (no stranding).
+    doc.updateBlock(c, { indent: 1 });
+    expect(() => doc.removeBlockAttr(b, "indent")).not.toThrow();
+    expect(doc.getBlock(b)).toEqual({ type: "paragraph" });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 });
