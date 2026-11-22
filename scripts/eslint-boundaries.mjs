@@ -108,6 +108,28 @@ const boundariesPlugin = {
             return;
           }
 
+          // The core src's root (the public entry's barrel): a relative
+          // import into a layer stands the layer's public interface (the
+          // barrel, the directory's or the explicit index's form) only — a
+          // deep relative import would bypass the layer's contract (the
+          // alias's stand over the root's files).
+          if (fileDir === coreSrcDir) {
+            const rootLayerDirs = { schema: schemaDir, core: coreLayerDir, sync: syncLayerDir };
+            for (const [layer, dir] of Object.entries(rootLayerDirs)) {
+              if (!inside(resolved, dir)) continue;
+              const barrel = path.join(dir, "index.ts");
+              if (resolved !== dir && resolved !== barrel) {
+                context.report({
+                  node,
+                  message:
+                    `Relative import "${source}" from the public entry reaches inside the ${layer} layer. ` +
+                    "Import the layer's public interface (the barrel), not a file inside it.",
+                });
+              }
+              return;
+            }
+          }
+
           if (inside(file, schemaDir) && !inside(resolved, schemaDir)) {
             context.report({
               node,
