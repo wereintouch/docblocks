@@ -57,14 +57,16 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
   const { t } = useTranslation("slash");
   const { store } = useEditorContext();
   // The frames' ref-cached stand (the PresenceCaretOverlay's pattern): the
-  // cached list stands while the root's order and the root's child blocks'
-  // and the frame blocks' refs stand (the keystroke over an unframed block
-  // re-derives nothing — no walk, no stringify over the unchanged frames).
-  // The child blocks' refs are the walk's own input (the surfaces' refs
-  // change over a frame's add / remove / reorder into the surface, which
-  // the root's order's ref alone does not see — the root is not over the
-  // change's block ids). The frame's refs stand the frame's own change
-  // (the rename) over the unchanged surfaces.
+  // cached list stands while the root's order's ref, the refs of EVERY
+  // root child block, and the frame blocks' refs stand — a change over
+  // any top-level block's ref (a text edit, an attr's change) re-derives
+  // the list (the O(n) map-lookup's stand); the cached list stands the
+  // ref-unchanged render (the caret's move, the selection's change over
+  // the picker's open window). The child blocks' refs are the walk's own
+  // input (the surfaces' refs change over a frame's add / remove / reorder
+  // into the surface, which the root's order's ref alone does not see —
+  // the root is not over the change's block ids). The frame's refs stand
+  // the frame's own change (the rename) over the unchanged surfaces.
   const framesCacheRef = useRef<{
     rootRef: readonly BlockId[];
     childRefs: (Block | undefined)[];

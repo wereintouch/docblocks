@@ -53,12 +53,6 @@ interface ConnectorPath {
   mid: { x: number; y: number };
 }
 
-/** The orthogonal detour's offset beyond the endpoints' span (canvas px). */
-/** The obstacle detour's clearance from the obstacle's edge (canvas px —
- * the parity with the stub's offset). */
-/** The route-avoidance's boundary tolerance (canvas px — a route 0.5px
- * off a figure's edge stands clear of it). */
-
 /** A point of the computed route (the orthogonal's bend space). */
 interface RoutePoint {
   x: number;

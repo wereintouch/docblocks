@@ -2,13 +2,19 @@
  *  canonical form (the query fingerprint's input), and the physical-order
  *  comparison. */
 
-/** The table id derived from the name (deterministic across the instances). */
+/** The table id derived from the name (deterministic over the name — the
+ * ASCII's slug, the non-ASCII's empty slug stands the name's hash). */
 function tableIdFor(name: string): string {
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `table-${slug || Math.random().toString(36).slice(2, 8)}`;
+  if (slug !== "") return `table-${slug}`;
+  // The non-ASCII name's empty slug stands the djb2 hash's fallback (the
+  // deterministic stand over the instances — the random's stand removed).
+  let hash = 5381;
+  for (let i = 0; i < name.length; i += 1) hash = ((hash << 5) + hash + name.charCodeAt(i)) | 0;
+  return `table-${(hash >>> 0).toString(36)}`;
 }
 
 /** The canonical form: objects with sorted keys, undefined values dropped,
