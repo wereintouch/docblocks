@@ -3,7 +3,7 @@
 // stand, the picker's contract, the undo, and the multi-enum's toggle.
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, editorContext, openPane } from "./helpers";
+import { SETTLE, editorContext, expectStays, openPane } from "./helpers";
 
 /**
  * The pane's default-bridge demo table (the playground seeds it per page at
@@ -125,11 +125,18 @@ test("the enum's create form (the options' editor: the reorder / the color / the
     await a.mouse.down();
     await a.mouse.move(first.x + first.width / 2, first.y - 4, { steps: 24 });
     await a.mouse.up();
-    await a.waitForTimeout(400); // the back-out's settle (the sibling's parity)
-    const namesAfter = await form
-      .locator("[data-slot='docblocks/database-enum-option-name']")
-      .evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value));
-    expect(namesAfter).toEqual(["high", "low"]);
+    // The reorder commits over the release (the DOM's order is the state;
+    // the back-out's animation is visual only — the order's poll stands
+    // the back-out's settle).
+    await expect
+      .poll(
+        async () =>
+          form
+            .locator("[data-slot='docblocks/database-enum-option-name']")
+            .evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value)),
+        { timeout: 5_000 }
+      )
+      .toEqual(["high", "low"]);
     // The color's palette (the popover pick over the swatch — the palette's
     // red stands the first option's chip).
     await form.locator("[data-slot='docblocks/database-enum-option-color']").first().click();
@@ -215,8 +222,11 @@ test("the enum's create form (the options' editor: the reorder / the color / the
     expect(await chipA.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(247, 168, 168)");
     await cell.click();
     await a.keyboard.press("Control+Z");
-    await a.waitForTimeout(150);
-    expect(await cell.locator("[data-slot='docblocks/database-ref-chip']").count()).toBe(0);
+    // The undo's chip-removal stands over the window (a late re-add lands
+    // after a single sample).
+    await expectStays(async () => {
+      expect(await cell.locator("[data-slot='docblocks/database-ref-chip']").count()).toBe(0);
+    });
 
     // The multi-enum: the multi's editor over the empty cell (the check's
     // toggle stands the array; the chips' train over the picks).

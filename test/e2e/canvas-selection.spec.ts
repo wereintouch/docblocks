@@ -3,7 +3,7 @@
 // the shift-marquee's union.
 import { type Page, expect, test } from "@playwright/test";
 
-import { canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -84,7 +84,11 @@ test.describe("the canvas mouse selection", () => {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
       const { left, right } = await seedShapes(a, "a");
-      await b.waitForTimeout(500); // the other pane's sync settle
+      // The other pane's sync settle (the state-based stand: the seeded
+      // shapes stand in B over the wire).
+      await expect(
+        b.locator(`[data-testid="doc-b"] [data-slot="docblocks/canvas-item"][data-block-id="${left}"]`)
+      ).toHaveCount(1, SETTLE);
 
       // The plain click selects left alone.
       const cL = await itemCenter(a, "a", left);
@@ -155,6 +159,8 @@ test.describe("the canvas mouse selection", () => {
       // The 25% zoom (the page miniature stands small — the marquee's
       // start point stands off the card, the shapes stand near the center).
       for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      // The zoom's reflow settle (the marquee's geometry stands over the
+      // settled transform — the transient's stand, not state-based).
       await a.waitForTimeout(300);
 
       const cL = await itemCenter(a, "a", left);

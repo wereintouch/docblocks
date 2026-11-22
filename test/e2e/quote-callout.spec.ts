@@ -4,7 +4,7 @@
 // takes the caret).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, caretIn, editorContext, outCount } from "./helpers";
+import { RELAY, SETTLE, caretIn, editorContext, outCount, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -65,7 +65,7 @@ test("the callout shares the quote interactivity", async ({ browser }) => {
     doc.insertText(c, 0, "one");
     return c;
   });
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
+  await rowsSettled(a);
 
   const calloutInner = a.locator(`[data-block-id="${calloutId}"] [data-slot="docblocks/block-content"]`);
   const outBefore = await outCount(a, "a");

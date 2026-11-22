@@ -3,7 +3,7 @@
 // reseat's steal).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, editorContext } from "./helpers";
+import { RELAY, SETTLE, editorContext, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -70,7 +70,7 @@ function blockWrapper(page: Page, client: "a" | "b", id: string) {
 test("the caption types in A and stands in B; erase + blur drops the line in both", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-caption");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   await block.hover();
@@ -103,7 +103,7 @@ test("the caption's press over the code's live caret stands the input's focus (n
 }) => {
   const { a, close } = await openPanes(browser, "code-caption-caret");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   // The live caret over the code's inner (the user's editing state): the

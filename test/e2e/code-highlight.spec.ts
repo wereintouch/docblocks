@@ -3,7 +3,7 @@
 // alignment.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, editorContext } from "./helpers";
+import { RELAY, editorContext, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -66,7 +66,7 @@ function blockWrapper(page: Page, client: "a" | "b", id: string) {
 test("the highlight layer paints for a curated language and follows the edits (both panes)", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-highlight");
   const id = await seedCode(a, "a", "", { language: "python" });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const layer = blockWrapper(a, "a", id).locator('[data-slot="docblocks/code-highlight"]');
 
@@ -95,7 +95,7 @@ test("the highlight layer paints for a curated language and follows the edits (b
 test("a language pick through the header re-highlights the layer", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "code-highlight-lang");
   const id = await seedCode(a, "a", '{"x": 1}\n', { language: "python" });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   const layer = block.locator('[data-slot="docblocks/code-highlight"]');
@@ -123,7 +123,7 @@ test("the highlight layer aligns with the inner in the wrap-off horizontal scrol
     language: "javascript",
     wrap: false,
   });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   const layer = block.locator('[data-slot="docblocks/code-highlight"]');

@@ -3,7 +3,7 @@
 // quote is empty, then it resets to a paragraph).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, editorContext } from "./helpers";
+import { RELAY, SETTLE, editorContext, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -68,7 +68,7 @@ test("Backspace at the start of a non-empty quote never merges; the empty quote 
     doc.insertText(q, 0, "abc");
     return { prev, q };
   });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const quoteInner = a.locator(`[data-block-id="${ids.q}"] [data-slot="docblocks/block-content"]`);
   await quoteInner.click();

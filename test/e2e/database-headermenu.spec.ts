@@ -3,7 +3,7 @@
 // over the wire, the cursor's grab.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, editorContext, openPane } from "./helpers";
+import { SETTLE, editorContext, expectStays, openPane } from "./helpers";
 
 /**
  * Two panes in ONE browser context (the same origin): the persistent
@@ -73,9 +73,11 @@ test("the header's menu opens only over the Ellipsis (the name's press stands no
     const nameSpan = headerA.locator(":scope > span").first();
     const nameBox = (await nameSpan.boundingBox())!;
     await a.mouse.click(nameBox.x + nameBox.width / 2, nameBox.y + nameBox.height / 2);
-    await a.waitForTimeout(250);
-    // The menu's rename input (the column menu's content) stands absent.
-    expect(await a.locator("[data-slot='docblocks/database-rename-input']").count()).toBe(0);
+    // The menu's rename input (the column menu's content) stands absent —
+    // held over the window (a late menu-open lands after a single sample).
+    await expectStays(async () => {
+      expect(await a.locator("[data-slot='docblocks/database-rename-input']").count()).toBe(0);
+    });
 
     // The Ellipsis's press stands the menu (the rename's input + the items
     // — the existing's content's regression: the type's line stands).
@@ -112,6 +114,8 @@ test("the header's menu opens only over the Ellipsis (the name's press stands no
     await a.mouse.move(dragBox.x + 12, dragBox.y + dragBox.height / 2);
     await a.mouse.down();
     await a.mouse.move(lastColBox.x + lastColBox.width + 50, dragBox.y + dragBox.height / 2, { steps: 12 });
+    // The in-flight drag's preview (the gesture must stay held over the
+    // sample — the wall-clock's stand, not state-based).
     await a.waitForTimeout(250);
     await a.mouse.up();
 

@@ -7,7 +7,7 @@
 // the first line to the last.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, caretIn, editorContext, outCount } from "./helpers";
+import { RELAY, SETTLE, caretIn, editorContext, outCount, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -167,7 +167,7 @@ test("Enter: a non-empty line is a break; the empty last line exits; the empty m
     return q;
   });
   expect(quoteId).not.toBeNull();
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
+  await rowsSettled(a);
 
   const quoteInner = a.locator(`[data-block-id="${quoteId}"] [data-slot="docblocks/block-content"]`);
   await quoteInner.click();
@@ -230,7 +230,7 @@ test("Enter on a wholly empty quote converts it to a paragraph in place", async 
     return doc.insertBlock("quote");
   });
   expect(quoteId).not.toBeNull();
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const quoteInner = a.locator(`[data-block-id="${quoteId}"] [data-slot="docblocks/block-content"]`);
   await quoteInner.click();
@@ -252,7 +252,7 @@ test("the rule stands on the checkbox's axis, from the first line to the last", 
     doc.insertText(q, 0, "first line\nsecond line\nthird line");
     return { li, q };
   });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const checkbox = a.locator(`[data-block-id="${ids.li}"] [data-slot="docblocks/checkbox"]`);
   await expect(checkbox).toBeVisible();

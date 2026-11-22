@@ -3,7 +3,7 @@
 // reset to a paragraph.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, editorContext } from "./helpers";
+import { RELAY, SETTLE, editorContext, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -71,7 +71,7 @@ function innerOf(page: Page, client: "a" | "b", id: string) {
 test("Enter on a non-empty code line is a line break; the empty last line exits", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-enter");
   const id = await seedCode(a, "a", "line one");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const inner = innerOf(a, "a", id);
   await inner.click();
@@ -120,7 +120,7 @@ test("Enter on a non-empty code line is a line break; the empty last line exits"
 test("Enter on a wholly empty code converts it to a paragraph in place", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "code-empty-enter");
   const id = await seedCode(a, "a", "");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const inner = innerOf(a, "a", id);
   await inner.click();
@@ -144,7 +144,7 @@ test("Backspace at the start of a non-empty code never merges; the empty one res
     doc.insertText(code, 0, "abc");
     return { prev, code };
   });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const inner = innerOf(a, "a", ids.code);
   await inner.click();

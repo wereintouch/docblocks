@@ -11,6 +11,7 @@ import {
   grantClipboardPermissions,
   interceptClipboardWrites,
   readClipboardPayload,
+  rowsSettled,
 } from "./helpers";
 
 /**
@@ -78,7 +79,7 @@ function blockWrapper(page: Page, client: "a" | "b", id: string) {
 test("the header reveals on hover; typing keeps the strip and hides the controls", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "code-header");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   const header = block.locator('[data-slot="docblocks/code-header"]');
@@ -108,7 +109,7 @@ test("the header reveals on hover; typing keeps the strip and hides the controls
 test("the header's controls stand over the keyboard (the focus reveal + the language pick)", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-keyboard");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   const header = block.locator('[data-slot="docblocks/code-header"]');
@@ -148,7 +149,7 @@ test("the header's controls stand over the keyboard (the focus reveal + the lang
 test("a language pick in A writes the attr — the label stands in B over the wire", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-language");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   await block.hover();
@@ -170,7 +171,7 @@ test("copy writes the indented plain text to the clipboard with the circle-check
   const context = a.context();
   await grantClipboardPermissions(context);
   const id = await seedCode(a, "a", "if ok:\n\tgo()");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   await block.hover();
@@ -192,7 +193,7 @@ test("collapse toggles over the wire (the clamp stands in B); a short block's bu
   const { a, b, close } = await openPanes(browser, "code-collapse");
   const longId = await seedCode(a, "a", "one\ntwo\nthree\nfour\nfive\nsix\nseven");
   const shortId = await seedCode(a, "a", "one\ntwo");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const longBlock = blockWrapper(a, "a", longId);
   const shortBlock = blockWrapper(a, "a", shortId);
@@ -216,7 +217,7 @@ test("the more menu's toggles flip over the wire (defaults ON); off removes the 
 }) => {
   const { a, b, close } = await openPanes(browser, "code-more");
   const id = await seedCode(a, "a", "const x = 1;");
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   // The defaults read as ON for a fresh block (the absent attrs): the
@@ -251,7 +252,7 @@ test("line numbers stand per LOGICAL line: wrapped continuations carry none", as
   const { a, close } = await openPanes(browser, "code-numbers");
   const longLine = "x ".repeat(160).trim();
   const id = await seedCode(a, "a", `const first = 1;\nconst wrapped = "${longLine}";\nconst last = 3;`);
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const block = blockWrapper(a, "a", id);
   // Three logical lines → three numbers (the wrapped middle line carries
@@ -265,7 +266,7 @@ test("line numbers stand per LOGICAL line: wrapped continuations carry none", as
 test("picking mermaid through the language menu reveals the mode segment in both panes", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "code-mermaid-pick");
   const id = await seedCode(a, "a", "graph TD\n A-->B", { language: "mermaid" });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const segmentA = pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/mermaid-mode"]`);
   const segmentB = pane(b, "b").locator(`[data-block-id="${id}"] [data-slot="docblocks/mermaid-mode"]`);

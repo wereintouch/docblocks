@@ -5,7 +5,7 @@
 // parks the focus on the editor root (no visible ring) or restores the user's text seat.
 import { type Page, expect, test } from "@playwright/test";
 
-import { caretIn, insertBlockType, outCount, twoPanes } from "./helpers";
+import { caretIn, expectStays, insertBlockType, outCount, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -134,8 +134,9 @@ test("a drag back to the same position issues no command", async ({ browser }) =
   if (handleBox === null) throw new Error("the first wrapper's gutter has no box");
   await dragGutterTo(a, "a", 0, handleBox.x, handleBox.y + 4);
 
-  await a.waitForTimeout(500);
-  expect(await outCount(a, "a")).toBe(before);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(before);
+  });
   await expect(wrappers(a, "a").first()).toHaveAttribute("data-block-id", firstId);
 
   await close();
@@ -196,11 +197,12 @@ test("the drag's release restores the user's text seat and leaves no residual se
   const seatBox = await seatWrapper.boundingBox();
   if (handleBox === null || seatBox === null) throw new Error("the drag's boxes are absent");
   await dragGutterTo(a, "a", 2, handleBox.x, seatBox.y - 14);
-  await a.waitForTimeout(500);
-
   // The release's browser click is a drop, not a gutter click: no
-  // residual blocks selection (the row's highlight).
-  await expect(a.locator('[data-slot="docblocks/row"][data-selected="true"]')).toHaveCount(0);
+  // residual blocks selection (the row's highlight) — held over the window
+  // (a late selection write lands after a single sample).
+  await expectStays(async () => {
+    await expect(a.locator('[data-slot="docblocks/row"][data-selected="true"]')).toHaveCount(0);
+  });
 
   // The caret restored to the user's seat (the block's inner — not the
   // page container's edge, where the browser's release over the drag's

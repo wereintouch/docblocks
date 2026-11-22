@@ -103,6 +103,8 @@ test.describe("the canvas mouse selection", () => {
       // off the page miniature (the start point would stand on the card
       // otherwise).
       for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      // The zoom's reflow settle (the marquee's geometry stands over the
+      // settled transform — the transient's stand, not state-based).
       await a.waitForTimeout(300);
       const center = await canvasCenter(a, "a");
       await a.mouse.move(center.x + 120, center.y - 100);
@@ -126,7 +128,8 @@ test.describe("the canvas mouse selection", () => {
       // The 50% fill resolves to the srgb color space (the color-mix).
       expect(marquee!.background).toBe("color(srgb 0.223529 0.772549 0.811765 / 0.5)");
 
-      // The light flip (the base cyan): the token recomputes.
+      // The light flip (the base cyan): the token recomputes (the computed
+      // color's stand over the new token — the transient's settle).
       await a.evaluate(() => document.documentElement.classList.remove("dark"));
       await a.waitForTimeout(200);
       const lightToken = await a.evaluate(() => {

@@ -120,6 +120,8 @@ test("the mid-drag preview's card keeps the cell's boundary (the inset outline r
     await a.mouse.move(from.x, from.y);
     await a.mouse.down();
     await a.mouse.move(from.x + 80, from.y, { steps: 6 });
+    // The in-flight drag's preview (the gesture must stay held over the
+    // sample — the wall-clock's stand, not state-based).
     await a.waitForTimeout(300);
     const stands = await a.evaluate(() => {
       const cell = document.querySelector<HTMLTableCellElement>("td[data-block-id]");
