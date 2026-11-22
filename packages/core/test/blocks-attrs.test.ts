@@ -126,3 +126,51 @@ describe("callout color / icon (the preset + override)", () => {
     expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info" } });
   });
 });
+
+describe("the doc-level invariants over the generic attr's path", () => {
+  it("the table cell's columnId write stands the position's column (the strict validator's stand)", () => {
+    const doc = newDoc();
+    const table = doc.insertBlock("table", {}, {});
+    const row = doc.insertBlock("table-row", undefined, { parent: table });
+    const cell = doc.insertBlock("table-cell", undefined, { parent: row });
+    const tableBlock = doc.getBlock(table);
+    if (tableBlock?.type !== "table") throw new Error("unreachable");
+    const expected = tableBlock.columnOrder[0];
+    const cellBlock = doc.getBlock(cell);
+    expect(cellBlock).toMatchObject({ type: "table-cell", attrs: { columnId: expected } }); // the insert's auto-binding
+
+    expect(() => doc.updateBlock(cell, { columnId: "bogus" })).toThrow(InvalidAttrsError);
+    expect(() => doc.removeBlockAttr(cell, "columnId")).toThrow(InvalidAttrsError);
+    // The doc stands the strict validator's rules over the rejection.
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the short row's cell stands unbound (the race residue's validator parity)", () => {
+    const doc = newDoc();
+    const table = doc.insertBlock("table", { cols: 2 }, {});
+    const row = doc.insertBlock("table-row", undefined, { parent: table });
+    const cell = doc.insertBlock("table-cell", undefined, { parent: row });
+    // One cell of two columns: the short row's residue — the binding's
+    // check stands the validator's skip (the cells stand by id, not position).
+    doc.removeBlockAttr(cell, "columnId");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the database's columns removal over the populated form keeps the strict invariants", () => {
+    const doc = newDoc();
+    const db = doc.insertBlock("database", { columns: [{ id: "c1", name: "C1", type: "text" }] });
+    const rowId = doc.insertRow(db);
+    doc.setCell(db, rowId, "c1", "value");
+
+    // The populated form: the removal would orphan the row's values.
+    expect(() => doc.removeBlockAttr(db, "columns")).toThrow(InvalidAttrsError);
+    // The absent key stands the no-op's stand (the inline form carries no tableId).
+    expect(() => doc.removeBlockAttr(db, "tableId")).not.toThrow();
+    // The empty form: the removal leaves no inline form and no reference —
+    // the validator's required-field stand rejects it the same way.
+    const empty = doc.insertBlock("database", { columns: [{ id: "c1", name: "C1", type: "text" }] });
+    expect(() => doc.removeBlockAttr(empty, "columns")).toThrow(InvalidAttrsError);
+    // The rejections stand pre-write: the doc stays validator-valid.
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+});

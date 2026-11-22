@@ -30,7 +30,7 @@ import {
   indentOfBlock,
   isPageSequence,
 } from "./structure";
-import { columnOrderOf, writeColumnWidthsPatch } from "./table/common";
+import { assertValidCellColumnBinding, columnOrderOf, writeColumnWidthsPatch } from "./table/common";
 
 /** A plain array of numbers (the table's positional columnWidths). */
 const isNumberArray = (value: unknown): value is number[] =>
@@ -105,6 +105,14 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   // inline form's columns cannot stand next to the reference.
   if (type === "database" && (patch.columns !== undefined || patch.tableId !== undefined)) {
     assertValidDatabasePatch(snapshot, merged, id);
+  }
+
+  // The table cell's column binding is a doc-level invariant (the cell's
+  // columnId stands the column at its position in the table's columnOrder —
+  // the strict validator's rule): the generic attr's write keeps the live
+  // document valid over it, like the database's patch check above.
+  if (type === "table-cell" && patch.columnId !== undefined) {
+    assertValidCellColumnBinding(ydoc, id, merged.columnId);
   }
 
   // A canvas type's post-patch attrs must keep the block-level invariants
@@ -220,6 +228,18 @@ function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
     if (canvasErrors.length > 0) {
       throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(canvasErrors)}`);
     }
+  }
+
+  // The post-removal doc-level invariants (the `updateBlock`'s writer's
+  // stand): the table cell's `columnId` removal over a full row must keep
+  // the cell's column (the binding's stand); the database's `columns` /
+  // `tableId` removal must keep the strict invariants against the existing
+  // rows (the orphaned row values' stand).
+  if (type === "table-cell" && key === "columnId") {
+    assertValidCellColumnBinding(ydoc, id, undefined);
+  }
+  if (type === "database" && (key === "columns" || key === "tableId")) {
+    assertValidDatabasePatch(snapshot, merged, id);
   }
 
   localTransact(ydoc, () => {

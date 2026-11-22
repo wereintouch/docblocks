@@ -72,6 +72,42 @@ function cellsOf(row: Y.Map<unknown>, tableId: string, rowId: string): Y.Array<s
   return cells as Y.Array<string>;
 }
 
+/**
+ * The table cell's column binding (the strict validator's doc-level
+ * invariant, the `validateTableInvariants`'s stand): over a FULL row (cell
+ * count === the table's columnOrder count) the cell's `columnId` must stand
+ * the column at the cell's position in the columnOrder. The short / overfull
+ * rows and the corrupt parent chain / columnOrder stand the validator's
+ * skip-stands (those conditions are the validator's report, not the
+ * commands'). The generic attr's path (updateBlock / removeBlockAttr) keeps
+ * the live document valid over the binding — like the database's patch
+ * check against its rows.
+ */
+function assertValidCellColumnBinding(ydoc: Y.Doc, cellId: string, columnId: unknown): void {
+  const rowId = findParent(ydoc, cellId);
+  if (rowId === null || blockTypeOf(ydoc, rowId) !== "table-row") return;
+  const tableId = findParent(ydoc, rowId);
+  if (tableId === null || blockTypeOf(ydoc, tableId) !== "table") return;
+  const row = getBlockMap(ydoc, rowId);
+  const cells = row instanceof Y.Map ? row.get("children") : null;
+  if (!(cells instanceof Y.Array)) return;
+  const cellIds = cells.toArray();
+  const position = cellIds.indexOf(cellId);
+  if (position === -1) return; // detached from the row: the missing-parent's validator stand
+  const table = getBlockMap(ydoc, tableId);
+  const columnOrder = table instanceof Y.Map ? table.get("columnOrder") : null;
+  if (!(columnOrder instanceof Y.Array)) return; // the corrupt columnOrder stands the table's own error
+  const columnIds = columnOrder.toArray();
+  if (cellIds.length !== columnIds.length) return; // the short / overfull row's validator stand
+  const expected = columnIds[position];
+  if (typeof expected !== "string") return; // the corrupt columnOrder entry stands the table's own error
+  if (columnId !== expected) {
+    throw new InvalidAttrsError(
+      `Invalid attrs for block "${cellId}": the cell's columnId must stand ${JSON.stringify(expected)} (its position in the table's columnOrder); found ${JSON.stringify(columnId)}.`
+    );
+  }
+}
+
 /** The column index bounds check (inclusive start, exclusive end). */
 function assertIndex(index: number, cols: number, what: string): void {
   if (!Number.isInteger(index) || index < 0 || index >= cols) {
@@ -275,6 +311,7 @@ function writeSubtreeCopy(
 export {
   DEFAULT_TABLE_COLUMN_WIDTH,
   assertCellColor,
+  assertValidCellColumnBinding,
   assertIndex,
   assertInsertIndex,
   assertWidth,
