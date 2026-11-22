@@ -126,7 +126,12 @@ const linkHrefKindOf = (value: string): LinkHrefKind | null => {
 /** The public link-href contract (the validator's and the consumer
  *  renderer's gate): the normalized form is an http/https URL, a `mailto:`
  *  email, a `tel:` phone number, or a scheme-less (relative) path; any
- *  other scheme is rejected. */
+ *  other scheme is rejected. The parity with the browser's URL parser holds
+ *  over the raw string's write (the `setAttribute` / the DOM property's
+ *  stand — the markup is not re-parsed); a consumer that serializes the
+ *  href into HTML markup applies its own escaping (the single-pass
+ *  entity-decode could expose a scheme the raw stand did not see — the
+ *  markdown pipeline's post-decode re-gate models that hazard). */
 const isSafeLinkHref = (value: string): boolean => linkHrefKindOf(value) !== null;
 
 const isLinkHref = (value: string): boolean => isSafeLinkHref(value);

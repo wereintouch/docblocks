@@ -127,9 +127,12 @@ interface EditorProviderCustomizationProps {
   /**
    * Optional embed sandbox policy: the iframe's `sandbox` value for a given
    * embed src; `null` stands no sandbox (a fully trusted embed). Without it
-   * the safe default applies (`DEFAULT_EMBED_SANDBOX` — interactive but no
-   * `allow-same-origin`, so the embedded content cannot read the parent's DOM
-   * / state). Grant `allow-same-origin` only for trusted origins.
+   * the default applies (`DEFAULT_EMBED_SANDBOX` — interactive with
+   * `allow-same-origin`: a real app's own storage / cookies stand, so the
+   * app boots like in a plain tab). The posture consequence: a same-origin
+   * URL reaches the parent over `window.parent` — restrict the untrusted
+   * embeds over this policy (the opaque-origin stand — no
+   * `allow-same-origin`).
    *
    * Like `pdfPreview`, the value is read per render into the provider
    * context: pass a stable reference. A nested provider that supplies none
