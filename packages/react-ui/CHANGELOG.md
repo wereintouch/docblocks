@@ -1,5 +1,38 @@
 # docblocks-react-ui
 
+## 0.18.0
+
+### Minor Changes
+
+- d89891d: The editor stands a top-level render boundary: a throw of the editor's
+  chrome outside a block's renderer (the attributes panel, the canvas chrome,
+  the row list) is contained to the editor's content with a failure note and a
+  retry, so the consumer's application stays mounted. The boundary is exported
+  for the consumer's own wrappers (`fallback` and `resetKey` props); a block's
+  renderer keeps its narrower per-block boundary.
+
+### Patch Changes
+
+- dea90e3: The add-column form surfaces a failed commit's cause over its own error line:
+  the bridge's refusal (an in-use enum option's delete, a failed table or column
+  creation) no longer stands only in the console while the form shows nothing.
+- ab7a859: The database table's row and column writes drop their late tail after the
+  block's table changes: a rollback, an error note or a post-commit refetch of
+  the previous table no longer overwrites the relinked grid's rows or leaves it
+  loading.
+- 7e0e7c5: The markdown frontmatter drops a `__proto__` key: the entries live in plain
+  objects, where the assignment wrote the prototype chain instead of a value,
+  so a pasted or imported header could poison the parse's record. The key never
+  reaches the document's meta, and the rest of the header parses as usual.
+- 16b251a: The react-ui layer stands a typed error family (`DocBlocksUiError` base +
+  the `EditorProviderError`, `BlobNotFoundError`, `PdfFetchError`,
+  `CanvasPasteError`, `UnknownSlashCommandError`, `UnhandledValueError`
+  conditions, all exported from the base entry): the former raw `Error`
+  throws of the provider's prop contract, the blob store's missing-id
+  rejections, the PDF fetch's non-ok response, and the internal invariant
+  guards now throw the named class — the messages are unchanged, so a
+  consumer can catch by class.
+
 ## 0.17.0
 
 ### Minor Changes
