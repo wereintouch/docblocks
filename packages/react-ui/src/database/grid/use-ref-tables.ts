@@ -9,8 +9,10 @@
  * `refDisplayColumn`, else the bridge's default resolution). The data
  * refreshes on the ref table's live events (the subscription opens over
  * the snapshot's R — an envelope stands the refresh; a reset signal stands
- * the re-snapshot + the re-subscription). A broken ref table (the unknown
- * id) stands the empty data (the lenient read).
+ * the re-snapshot + the re-subscription) — per-entry coalesced: an event
+ * over a running load stands the pending re-run, not a parallel load. A
+ * broken ref table (the unknown id) stands the empty data (the lenient
+ * read).
  */
 import { useEffect, useState } from "react";
 
@@ -127,7 +129,14 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
     let live = true;
     const entryKeys = key.split("\u0001");
     const loaded = new Map<string, RefTableData>();
-    const refreshEntry = async (entryKey: string): Promise<void> => {
+    // The per-entry in-flight coalescing: a bridge event that arrives over
+    // the running load marks the entry pending instead of firing a second
+    // full load (a burst coalesces into the running load plus one trailing
+    // load), and the pending's re-run stands over the running load's
+    // write, so overlapping loads never interleave their states.
+    const inFlight = new Set<string>();
+    const pending = new Set<string>();
+    const runEntry = async (entryKey: string): Promise<void> => {
       const [tableId, displayColumn] = entryKey.split("\u0000");
       try {
         // The full page set (the cursor's continuation to the tail — the
@@ -164,10 +173,21 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
         if (live) setData(Object.fromEntries(loaded));
       }
     };
-    const refreshAll = async (): Promise<void> => {
-      for (const entryKey of entryKeys) await refreshEntry(entryKey);
+    const refreshEntry = (entryKey: string): void => {
+      if (inFlight.has(entryKey)) {
+        pending.add(entryKey);
+        return;
+      }
+      inFlight.add(entryKey);
+      void runEntry(entryKey).finally(() => {
+        inFlight.delete(entryKey);
+        if (pending.delete(entryKey)) refreshEntry(entryKey);
+      });
     };
-    void refreshAll();
+    const refreshAll = (): void => {
+      for (const entryKey of entryKeys) refreshEntry(entryKey);
+    };
+    refreshAll();
     // The live channel per entry: the snapshot's R stands the replay
     // cursor, any envelope stands the refresh, and a reset signal stands
     // the re-snapshot + the re-subscription.
@@ -186,7 +206,7 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
           { afterSeq: snapshot.page.asOfSeq },
           {
             ready: () => undefined,
-            event: () => void refreshEntry(entryKey),
+            event: () => refreshEntry(entryKey),
             status: () => undefined,
             error: () => undefined,
             reset: () => {
