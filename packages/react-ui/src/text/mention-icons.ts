@@ -33,7 +33,10 @@ function createMentionKindIcon(kind: MentionKind): SVGSVGElement {
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  for (const shape of ICON_SHAPES[kind]) {
+  // An out-of-enum kind (the lenient reader keeps the wire's data as-is)
+  // falls back to the `doc`'s icon over the throw (the React's path's
+  // parity — the chip stands, the block does not placeholder).
+  for (const shape of ICON_SHAPES[kind] ?? ICON_SHAPES.doc) {
     const el = document.createElementNS(SVG_NS, shape.tag);
     if (shape.tag === "path") el.setAttribute("d", shape.d);
     else {
