@@ -37,9 +37,13 @@ jobs:
       - name: Release
         uses: changesets/action@v1
         with:
-          # The publish step stands deferred (the releases are published
-          # manually over the dev → main merge flow — the `version`'s
-          # command stands the no-op without the pending changesets).
+          # The version step stands the no-op over the main without
+          # the pending changesets (the version bump stands committed
+          # before the merge to main).
           version: npx changeset version
+          # The publish stands manual (the make publish step over the
+          # release): the input's no-op keeps the job publish-free even
+          # when a version tag stands over the main's HEAD.
+          publish: 'echo "publish stands manual: make publish"'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
