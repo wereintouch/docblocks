@@ -6,9 +6,9 @@
  * stands open over the phrase while the picker stands;
  * the pick commits the phrase strip + the `insertBlock('frame', { frameId
  * })` (the page-frame block's weak reference) in the caller's transact.
- * The frames stand live over the doc's changes (the digest's subscription
- * re-renders the list — the frame's add / remove / rename stands the
- * list's own stand). The cancel keeps the command list on the phrase (no
+ * The frames stand live over the doc's changes (the ref-cached
+ * subscription re-renders the list over the frame's add / remove / rename
+ * — the unchanged frames' stand bails over the cached list). The cancel keeps the command list on the phrase (no
  * write). The no-gate stand (unlike the database's bridge gate): the
  * frames are the doc's own canvas data — the picker stands always (the
  * empty stand is the "no frames yet" line).
@@ -16,7 +16,7 @@
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
@@ -55,12 +55,32 @@ function canvasFrames(rootChildren: readonly BlockId[], blocks: Readonly<Record<
 function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) => void; onCancel: () => void }) {
   const { t } = useTranslation("slash");
   const { store } = useEditorContext();
-  // The frames' digest (the surfaces' frame children + their titles): the
-  // primitive's stand memoizes the walk — the list re-renders over the
-  // doc's changes (the frame's add / remove / rename) and bails while the
-  // data stands.
-  const digest = useStore(store, (state) => JSON.stringify(canvasFrames(state.rootChildren, state.blocks)));
-  const frames = useMemo(() => canvasFrames(store.getState().rootChildren, store.getState().blocks), [digest, store]);
+  // The frames' ref-cached stand (the PresenceCaretOverlay's pattern): the
+  // cached list stands while the root's order and the frame blocks' refs
+  // stand (the keystroke over an unframed block re-derives nothing — no
+  // walk, no stringify over the unchanged frames).
+  const framesCacheRef = useRef<{
+    rootRef: readonly BlockId[];
+    frames: CanvasFrameOption[];
+    blockRefs: Block[];
+  } | null>(null);
+  const frames = useStore(store, (state) => {
+    const cached = framesCacheRef.current;
+    if (
+      cached !== null &&
+      cached.rootRef === state.rootChildren &&
+      cached.blockRefs.every((ref, i) => ref === state.blocks[cached.frames[i].id])
+    ) {
+      return cached.frames;
+    }
+    const next = canvasFrames(state.rootChildren, state.blocks);
+    framesCacheRef.current = {
+      rootRef: state.rootChildren,
+      frames: next,
+      blockRefs: next.map((frame) => state.blocks[frame.id]!),
+    };
+    return next;
+  });
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
