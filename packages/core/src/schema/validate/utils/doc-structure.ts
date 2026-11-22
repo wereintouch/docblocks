@@ -28,7 +28,7 @@ function validateSurfaceZOrder(blocks: Record<string, unknown>, errors: Validati
     if (!Array.isArray(block.children)) continue; // a missing order is reported above
     const canvasChildren: string[] = [];
     for (const childId of block.children) {
-      if (typeof childId !== "string" || !(childId in blocks)) continue; // reported above
+      if (typeof childId !== "string" || !Object.hasOwn(blocks, childId)) continue; // reported above
       const child = blocks[childId];
       if (!isPlainObject(child) || typeof child.type !== "string") continue;
       if (CANVAS_ZORDER_TYPES.has(child.type as string)) canvasChildren.push(childId);
@@ -81,7 +81,7 @@ function validateSequences(blocks: Record<string, unknown>, errors: ValidationEr
     if (!Array.isArray(block.children)) continue; // a missing/non-array order is reported above
     let prev = -1; // virtual: before the first block
     block.children.forEach((childId, index) => {
-      if (typeof childId !== "string" || !(childId in blocks)) return; // reported above
+      if (typeof childId !== "string" || !Object.hasOwn(blocks, childId)) return; // reported above
       const child = blocks[childId];
       if (!isPlainObject(child)) return;
       const indent = indentOf(child);
@@ -169,7 +169,7 @@ function validateReachability(
     const block = blocks[id];
     if (!isPlainObject(block) || !Array.isArray(block.children)) continue;
     for (const childId of block.children) {
-      if (typeof childId === "string" && childId in blocks && !visited.has(childId)) {
+      if (typeof childId === "string" && Object.hasOwn(blocks, childId) && !visited.has(childId)) {
         visited.add(childId);
         queue.push(childId);
       }
@@ -215,7 +215,7 @@ function validateOpaqueStructure(
       if (childId === id) {
         errors.push({ path: childPath, message: `Block "${id}" cannot be its own child.` });
       }
-      if (!(childId in blocks)) {
+      if (!Object.hasOwn(blocks, childId)) {
         errors.push({ path: childPath, message: `Dangling child id "${childId}" (no such block).` });
         return;
       }

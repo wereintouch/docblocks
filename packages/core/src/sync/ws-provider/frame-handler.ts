@@ -60,6 +60,10 @@ function parseFrame(
           // built reply with it).
           decoder.pos = syncMsgPos;
           sync.readSyncMessage(decoder, reply, doc, doc, swallowDecodeError);
+          // The length 1 is the frame's type byte only (the readSyncMessage
+          // wrote no payload — the empty doc's state vector has no
+          // payload): an empty reply stands unsent (the peer's own
+          // vector stands over the next exchange).
           if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
         } else {
           // Unknown sync types stand malformed (the standard reader

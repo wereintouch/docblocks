@@ -182,4 +182,19 @@ describe("error reporting", () => {
       { path: "blocks.p.content[0].marks.bold", message: 'Toggle mark "bold" must be true (got false).' },
     ]);
   });
+
+  // The `blocks`' record over the plain object: the `in`'s inheritance stand
+  // would stand the Object.prototype key (the `toString`'s dangling id) as
+  // a present block — the strict check runs over the own keys only.
+  it("reports the dangling id over the Object.prototype key name (the own-key's stand)", () => {
+    const doc = {
+      ...makeDoc(),
+      blocks: {
+        r: { type: "root", children: ["toString"] },
+      },
+    };
+    expect(validateDoc(doc)).toEqual([
+      { path: "blocks.r.children[0]", message: 'Dangling child id "toString" (no such block).' },
+    ]);
+  });
 });

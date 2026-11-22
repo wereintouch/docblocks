@@ -152,7 +152,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
           if (childId === id) {
             errors.push({ path: childPath, message: `Block "${id}" cannot be its own child.` });
           }
-          if (!(childId in blocks)) {
+          if (!Object.hasOwn(blocks, childId)) {
             errors.push({ path: childPath, message: `Dangling child id "${childId}" (no such block).` });
             return;
           }
