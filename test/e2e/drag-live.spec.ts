@@ -4,7 +4,7 @@
 // mid-drag (the pane resyncs, no stuck drag session).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, outCount, twoPanes } from "./helpers";
+import { SETTLE, expectStays, insertBlockType, outCount, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -119,10 +119,12 @@ test("the drag's live preview stands the moving row at the seam's candidate (the
   }
   // Mid-drag: the row's padding stands at the seam's candidate (the target
   // row's padding), not its own — and no doc update left the pane (the
-  // preview is a pure visual).
+  // preview is a pure visual — the window's stand).
   expect(await paddingOf(p2!)).toBe(targetP1);
   expect(await paddingOf(p2!)).not.toBe(baseP2);
-  expect(await outCount(a, "a")).toBe(outBefore);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(outBefore);
+  });
 
   // The release commits the same value the preview stood: p2 stands at p1's
   // indent (the commit rides framer's rAF after the pointerup — the order

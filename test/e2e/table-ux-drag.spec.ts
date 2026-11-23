@@ -3,7 +3,7 @@
 // parting preview stands mid-drag with no doc write).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, outCount, twoPanes } from "./helpers";
+import { SETTLE, expectStays, outCount, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -209,14 +209,15 @@ test("the column drag moves the column with its width and color (B); a no-op dra
     expect(after?.rows[0]?.map((c) => c.text)).toEqual(["a2", "a3", "a1"]);
 
     // The no-op drag (a small move without a midpoint crossing) issues no
-    // command: the wire count stands, B's order stands.
+    // command: the wire count stands (the window's stand), B's order stands.
     const outBefore = await outCount(a, "a");
     await seedHover(a, 0, colChipSel(0));
     const handleBox2 = await colHandle(a, 0).boundingBox();
     if (handleBox2 === null) throw new Error("the column handle has no box");
     await dragNoop(a, handleBox2.x + handleBox2.width / 2, handleBox2.y + handleBox2.height / 2);
-    await a.waitForTimeout(300);
-    expect(await outCount(a, "a")).toBe(outBefore);
+    await expectStays(async () => {
+      expect(await outCount(a, "a")).toBe(outBefore);
+    });
     expect((await tableSnapshot(b, "b", tableId))?.widths).toEqual([140, 90, 120]);
   } finally {
     await close();
@@ -277,8 +278,10 @@ test("the row drag moves the row over the wire (B); the parting preview stands m
     });
     expect(midStands[0]).toMatch(/translate\(0px, \d+(\.\d+)?px\)/);
     expect(midStands[1]).toMatch(/translate\(0px, -\d+(\.\d+)?px\)/);
-    // No doc write mid-drag: the wire count stands.
-    expect(await outCount(a, "a")).toBe(outBefore);
+    // No doc write mid-drag: the wire count stands (the window's stand).
+    await expectStays(async () => {
+      expect(await outCount(a, "a")).toBe(outBefore);
+    });
     await a.mouse.move(startX, targetY, { steps: 4 });
     await a.mouse.up();
     await expect

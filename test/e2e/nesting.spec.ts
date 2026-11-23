@@ -8,7 +8,7 @@
 // typewriter Tab (a `\t` at the caret).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, outCount, twoPanes } from "./helpers";
+import { SETTLE, expectStays, insertBlockType, outCount, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -142,14 +142,18 @@ test("the Tab boundary rules: the first block and the jump of more than one leve
   const firstId = (await rootIds(a, "a"))[0]!;
   await innerOf(a, "a", firstId).click();
   await a.keyboard.press("Tab");
-  expect(await outCount(a, "a")).toBe(outBefore);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(outBefore);
+  });
   expect(await indentOf(a, "a", firstId)).toBeUndefined();
 
   // Tab on Z: the jump would exceed the preceding block's indent by more
   // than one (the markdown jump rule) — a no-op.
   await innerOf(a, "a", seeded.z).click();
   await a.keyboard.press("Tab");
-  expect(await outCount(a, "a")).toBe(outBefore);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(outBefore);
+  });
   expect(await indentOf(a, "a", seeded.z)).toBe(1);
   // The doc stands: the other pane is unchanged too.
   expect(await rootIds(b, "b")).toEqual(await rootIds(a, "a"));
@@ -168,8 +172,11 @@ test("Shift+Tab at the top level is a no-op", async ({ browser }) => {
   await innerOf(a, "a", firstId).click();
   await a.keyboard.press("Shift+Tab");
 
-  // The top level has no outdent target: no attr, no wire update.
-  expect(await outCount(a, "a")).toBe(outBefore);
+  // The top level has no outdent target: no attr, no wire update (the
+  // window's stand — the late commit's false green's guard).
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(outBefore);
+  });
   expect(await indentOf(a, "a", firstId)).toBeUndefined();
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual([firstId]);
 

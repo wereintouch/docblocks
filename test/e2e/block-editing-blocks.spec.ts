@@ -3,7 +3,7 @@
 // the hover grip's reveal stand over the typing session.
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, twoPanes } from "./helpers";
+import { SETTLE, expectStays, insertBlockType, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -172,9 +172,11 @@ test("a no-op Tab keeps the caret in the text (the focus does not escape)", asyn
 
   const outBefore = await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count();
   await a.keyboard.press("Tab");
-  // The gesture is a no-op: no doc command, no wire update.
-  await a.waitForTimeout(300);
-  expect(await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count()).toBe(outBefore);
+  // The gesture is a no-op: no doc command, no wire update (the window's
+  // stand — the late commit's false green's guard).
+  await expectStays(async () => {
+    expect(await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count()).toBe(outBefore);
+  });
   // The browser's default Tab (focus to the next focusable element) is
   // suppressed: the focus stays in the page's single editable (the shared
   // page container — the caret's block is not the focused element in the

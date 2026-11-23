@@ -5,7 +5,7 @@
 // non-list block.
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, outCount, rowsSettled, twoPanes } from "./helpers";
+import { SETTLE, expectStays, outCount, rowsSettled, twoPanes } from "./helpers";
 
 /** One block's snapshot (the pane's live doc). */
 async function blockOf(page: Page, client: "a" | "b", id: string) {
@@ -63,7 +63,9 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   // update (the wire log stands).
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
   await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
-  expect(await outCount(a, "a")).toBe(wireA);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(wireA);
+  });
   // The data stands: the child keeps its indent in the doc.
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
@@ -153,7 +155,9 @@ test("the collapse triangle: a paragraph's derived segment and the fill/visibili
   await expect(triangle).toHaveCSS("rotate", "90deg");
   expect(await triangle.evaluate((el) => getComputedStyle(el).fill)).not.toBe("none");
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
-  expect(await outCount(a, "a")).toBe(wireA);
+  await expectStays(async () => {
+    expect(await outCount(a, "a")).toBe(wireA);
+  });
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   // Expand re-mounts the segment.

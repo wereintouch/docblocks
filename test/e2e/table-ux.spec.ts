@@ -5,7 +5,7 @@
 // grips, no placeholder — the page rows around them do).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, outCount, twoPanes } from "./helpers";
+import { SETTLE, expectStays, outCount, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -162,12 +162,14 @@ test("the cell activation: the first input materializes the paragraph (synced); 
     ]);
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
-    // The empty layer's Backspace issues nothing (no wire, no block in B).
+    // The empty layer's Backspace issues nothing (no wire, no block in B —
+    // the window's stand).
     const outBefore = await outCount(a, "a");
     await a.locator("td").first().click();
     await a.keyboard.press("Backspace");
-    await a.waitForTimeout(300);
-    expect(await outCount(a, "a")).toBe(outBefore);
+    await expectStays(async () => {
+      expect(await outCount(a, "a")).toBe(outBefore);
+    });
 
     // The first input materializes the paragraph (one block, the text) —
     // the activation layer is swapped for the real content; B sees it.
