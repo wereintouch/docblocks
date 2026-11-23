@@ -43,4 +43,15 @@ describe("subpath split (built artifacts)", () => {
   it("ships the mermaid entry importing mermaid", () => {
     expect(readFileSync(join(DIST, "mermaid/index.mjs"), "utf8")).toContain('from "mermaid"');
   });
+
+  it("keeps pdfjs-dist out of the base entry", () => {
+    expect(readFileSync(join(DIST, "index.mjs"), "utf8")).not.toContain("pdfjs-dist");
+    expect(readFileSync(join(DIST, "index.d.mts"), "utf8")).not.toContain("pdfjs-dist");
+  });
+
+  it("keeps the pdf subpath the only pdfjs-dist consumer in dist", () => {
+    const withPdfjs = filesOf(DIST).filter((file) => readFileSync(file, "utf8").includes('from "pdfjs-dist"'));
+    // The shared chunk and every type file stay pdfjs-free as well.
+    expect(withPdfjs).toEqual([join(DIST, "pdf/index.mjs")]);
+  });
 });
