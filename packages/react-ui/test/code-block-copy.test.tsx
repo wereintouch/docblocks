@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
+import { codeBlockHtmlOf } from "../src/blocks/code/code-clipboard";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-14T00:00:00.000Z";
@@ -81,5 +82,22 @@ describe("the code block header", () => {
     } finally {
       globalRef.ClipboardItem = previous;
     }
+  });
+});
+
+describe("the clipboard html's payload (the attribute context's stand)", () => {
+  it("escapes the quote in the language's class attribute (the raw write's stand)", () => {
+    // The `language` is a free data string (a raw `Y.Doc` write / a fence's
+    // info can carry a quote): the `"` must not open a new attribute over
+    // the third-party paste target.
+    expect(codeBlockHtmlOf("body", 'x"onmouseover=alert(1)')).toBe(
+      '<pre><code class="language-x&quot;onmouseover=alert(1)">body</code></pre>'
+    );
+  });
+
+  it("escapes the quote in the code's body", () => {
+    expect(codeBlockHtmlOf('say "hi"', "python")).toBe(
+      '<pre><code class="language-python">say &quot;hi&quot;</code></pre>'
+    );
   });
 });

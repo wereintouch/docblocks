@@ -145,3 +145,35 @@ test("the paste into the code block keeps the plain payload's stand (the `plainW
     await close();
   }
 });
+
+test("the copy's payload over a hostile language (the attribute context's stand — the quote's escape, no attribute's injection)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "code-copy-hostile-language", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  try {
+    // The seed: the code block over the hostile language (the free data
+    // string — the raw write's stand; no highlight's layer over it, the
+    // plain's render's stand).
+    await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane's doc is not mounted");
+      const block = doc.insertBlock("code", { language: 'x"onmouseover=alert(1)' });
+      doc.insertText(block, 0, "body");
+    });
+    const codeBlock = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block"][data-block-type="code"]').first();
+    await expect(codeBlock).toBeVisible(SETTLE);
+    // The copy's button (the header's hover's reveal's stand).
+    await codeBlock.hover();
+    await codeBlock.locator('[data-slot="docblocks/code-copy"]').click();
+    await expect(codeBlock.locator('[data-slot="docblocks/code-copy"][data-copied="true"]')).toBeVisible();
+    // The payload's stand: the `"` in the language stands escaped (the
+    // third-party paste target's stand — no new attribute over the `code`'s
+    // element).
+    const payload = await readClipboardPayload(a);
+    expect(payload.html).toBe('<pre><code class="language-x&quot;onmouseover=alert(1)">body</code></pre>');
+  } finally {
+    await close();
+  }
+});
