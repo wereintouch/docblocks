@@ -65,6 +65,38 @@ async function zoomIn3(page: Page, client: "a" | "b"): Promise<void> {
   }
 }
 
+/** The debounced viewport write's landed stand (the state-based guard
+ *  over the fixed wait): the persisted entry (the doc's id's map's value)
+ *  stands the live's zoom (the transform's scale, the persistence's
+ *  4-decimal clamp's parity) — the change's commit is durable, not
+ *  merely waited out. */
+async function viewportWriteLanded(page: Page, client: "a" | "b"): Promise<boolean> {
+  const docId = await page.evaluate((c) => {
+    const doc = window.__paneDocs?.[c] ?? null;
+    return doc === null ? null : doc.meta.id;
+  }, client);
+  if (docId === null) return false;
+  return page.evaluate((id: string) => {
+    const raw = window.localStorage.getItem("docblocks.canvas-viewport.v1");
+    if (raw === null) return false;
+    let map: Record<string, { zoom?: unknown }>;
+    try {
+      map = JSON.parse(raw);
+    } catch {
+      return false;
+    }
+    const stored = map[id];
+    if (stored === undefined || typeof stored.zoom !== "number") return false;
+    const world = document.querySelector('[data-slot="docblocks/canvas-world"]') as HTMLElement | null;
+    if (world === null) return false;
+    const match = /scale\(([^)]+)\)/.exec(world.style.transform);
+    if (match === null) return false;
+    const live = Number(match[1]);
+    if (!Number.isFinite(live)) return false;
+    return stored.zoom === Number(live.toFixed(4));
+  }, docId);
+}
+
 test.describe("the canvas viewport's persistence (the localStorage's map)", () => {
   test("the first entry stands the fit (the fit's math; the clean storage's default)", async ({ browser }) => {
     const context = await editorContext(browser);
@@ -110,8 +142,9 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
       const changed = await worldTransform(page, "a");
       expect(changed).not.toBe(fit);
 
-      // The debounce's write stands committed before the reload.
-      await page.waitForTimeout(500);
+      // The debounce's write stands committed before the reload (the state-based
+      // guard over the fixed wait — the persisted entry over the live's zoom).
+      await expect.poll(() => viewportWriteLanded(page, "a")).toBe(true);
 
       await page.reload();
       await expect(page.getByTestId("status-a")).toHaveText("connected");
@@ -137,7 +170,7 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
       await zoomIn3(page, "a");
       const changed = await worldTransform(page, "a");
       expect(changed).not.toBe(fit);
-      await page.waitForTimeout(500);
+      await expect.poll(() => viewportWriteLanded(page, "a")).toBe(true);
 
       // The new tab (the same origin's storage): the restore stands the
       // changed stand (not the fit).
@@ -165,7 +198,7 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
       await zoomIn3(page, "a");
       const changed = await worldTransform(page, "a");
       expect(changed).not.toBe(fit);
-      await page.waitForTimeout(500);
+      await expect.poll(() => viewportWriteLanded(page, "a")).toBe(true);
 
       // The page switch (the canvas view's unmount) + the canvas's return
       // (the restore stands the changed stand).

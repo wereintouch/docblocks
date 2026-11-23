@@ -76,8 +76,17 @@ test("the bridge's state survives the tab's reload (the harness's persistent bri
         annId: peopleRows.result.rows[0]!.id,
       };
     });
-    // The snapshot's save (the debounce's window + the re-read's pass).
-    await a.waitForTimeout(750);
+    // The snapshot's save stands landed (the state-based guard — the
+    // stored snapshot carries the created row, not the fixed debounce's
+    // wait).
+    await expect
+      .poll(async () =>
+        a.evaluate(
+          (first) => window.localStorage.getItem("docblocks-playground-bridge-v2")?.includes(first) ?? false,
+          rowIds[0]!
+        )
+      )
+      .toBe(true);
     await a.reload();
     await expect(a.getByTestId("status-a")).toHaveText("connected");
 

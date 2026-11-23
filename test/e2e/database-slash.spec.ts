@@ -160,7 +160,14 @@ test("the slash Database picker's create-new: the auto-focused form, the Enter c
     // reload: the pane's bridge's save stands the snapshot's table, the
     // reload's restore re-creates it over the stable id, and the pane's
     // re-fetched doc stands the block's reference resolved.
-    await a.waitForTimeout(750);
+    // The pane's bridge's save stands the snapshot's table (the state-based
+    // guard — the stored snapshot carries the created table's name, not the
+    // fixed debounce's wait).
+    await expect
+      .poll(async () =>
+        a.evaluate(() => window.localStorage.getItem("docblocks-playground-bridge-v2")?.includes("My Board") ?? false)
+      )
+      .toBe(true);
     await b.reload();
     await expect(b.getByTestId("status-b")).toHaveText("connected", SETTLE);
     await expect(wrapperB.locator("[data-slot='docblocks/database-name']")).toHaveText("My Board", SETTLE);
