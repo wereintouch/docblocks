@@ -82,6 +82,9 @@ interface UseDatabaseTable {
     beforeRowId: string | null;
   }): Promise<string[]>;
   removeRow(rowId: string): Promise<void>;
+  /** Moves the row before `beforeRowId` (null = the table's tail). An
+   *  unknown `rowId` (a peer's removed row, a stale page) is a no-op:
+   *  the seat resolves against the page, and no matching row exists. */
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
   /** Creates the column over the bridge → the bridge-assigned column id
    *  (the view state the caller appends to the block's `columnOrder`). */
