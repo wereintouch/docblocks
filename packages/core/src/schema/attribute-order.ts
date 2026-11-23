@@ -6,8 +6,8 @@
  * rebuilds the order against the record: the stale entries are dropped,
  * the duplicates stand first-occurrence, and the record's keys missing
  * from the order append in the record's key order. A non-array stand is
- * dropped (the validator's strict posture flags it; the lenient load
- * keeps the record's key order's fallback).
+ * left as-is (the lenient reader's fallback — the record's key order);
+ * the validator flags it in both postures (the strict shape stand).
  *
  * Pure JSON → JSON (no CRDT); idempotent and byte-stable on a normalized
  * input. Unchanged input shares its object with the caller.

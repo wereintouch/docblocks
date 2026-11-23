@@ -37,9 +37,11 @@ function assertAttributeKey(key: string): void {
 }
 
 /**
- * The document-attribute value: `string | number | boolean |
- * string[] | MentionRef` (the `author` snapshot's form). Throws the typed
- * `InvalidAttributeError`.
+ * The document-attribute value: `string | number | boolean | string[] |
+ * MentionRef (the id-only reference; the legacy `{ id, label }` snapshot
+ * is tolerated) | TypedAttributeValue` (the `{ type, value }` over the
+ * `ATTRIBUTE_TYPES` enum — the declared value type is the data). Throws
+ * the typed `InvalidAttributeError`.
  */
 function assertAttributeValue(key: string, value: unknown): asserts value is DocAttributeValue {
   if (!isDocAttributeValue(value)) {
