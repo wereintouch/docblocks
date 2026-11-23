@@ -111,6 +111,11 @@ function loadGrammar(grammar: string): Promise<void> {
 /** The highlight grammar id of a block language, or null (plain text). */
 function grammarOf(language: string | undefined): string | null {
   if (language === undefined || language === "") return null;
+  // Own-key lookup only: the language is plain data (a peer or a doc fence
+  // may set it to a prototype key such as "constructor"), and the inherited
+  // Object.prototype value is a function — it would crash the downstream
+  // grammar resolution, so it must stand as plain text like any unknown id.
+  if (!Object.hasOwn(HIGHLIGHT_GRAMMARS, language)) return null;
   return HIGHLIGHT_GRAMMARS[language] ?? null;
 }
 

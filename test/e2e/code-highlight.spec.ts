@@ -143,3 +143,22 @@ test("the highlight layer aligns with the inner in the wrap-off horizontal scrol
   expect(Math.abs(innerBox.height - layerBox.height)).toBeLessThan(1);
   await close();
 });
+
+test("a prototype-key language stands plain over both panes (the own-key lookup)", async ({ browser }) => {
+  const { a, b, close } = await openPanes(browser, "code-highlight-plain");
+  // The language attr is plain data — a doc fence or a peer may set a
+  // prototype key. The own-key lookup stands it plain (no layer, no crash).
+  const id = await seedCode(a, "a", "const x = 1;", { language: "constructor" });
+  await rowsSettled(a);
+
+  const blockA = blockWrapper(a, "a", id);
+  await expect(innerOf(a, "a", id)).toContainText("const x = 1;");
+  expect(await blockA.locator('[data-slot="docblocks/code-highlight"]').count()).toBe(0);
+  await expect(a.locator('[data-slot="docblocks/render-error"]')).toHaveCount(0);
+
+  // The remote pane (the wire vector — the doc carries the language) stands
+  // the same plain stand.
+  await expect(innerOf(b, "b", id)).toContainText("const x = 1;");
+  await expect(b.locator('[data-slot="docblocks/render-error"]')).toHaveCount(0);
+  await close();
+});
