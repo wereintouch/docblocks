@@ -9,7 +9,7 @@
  */
 import { toBridgeError } from "../bridge";
 import type { RowOpsContext, UseDatabaseTable } from "./models";
-import { newMutationContext } from "./utils";
+import { newMutationContext, rowOf } from "./utils";
 
 interface RowStructureOps {
   removeRow: UseDatabaseTable["removeRow"];
@@ -17,12 +17,15 @@ interface RowStructureOps {
 }
 
 function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
-  const { bridge, tableId, rowsRef, capabilitiesRef, setRows, setPendingRow } = ctx;
+  const { bridge, tableId, rowsRef, pendingRowRef, capabilitiesRef, setRows, setPendingRow } = ctx;
   const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const removeRow = async (rowId: string): Promise<void> => {
     const snapshot = rowsRef.current;
-    const row = snapshot.find((entry) => entry.rowId === rowId);
+    // The effective stand (the committed page row, else the pending row):
+    // the pending row's removal is undoable over the rowRestore gate —
+    // the inverse's undelete stands the row the page holds no reference to.
+    const row = rowOf(rowsRef, pendingRowRef, rowId);
     setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
     try {
       await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId, ...casOf(rowId) }] }, newMutationContext());

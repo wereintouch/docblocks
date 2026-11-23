@@ -7,7 +7,7 @@
  */
 import { BridgeError, toBridgeError } from "../bridge";
 import type { RowOpsContext, UseDatabaseTable } from "./models";
-import { cellValueEqual, newMutationContext } from "./utils";
+import { cellValueEqual, newMutationContext, rowOf } from "./utils";
 
 interface RowWriteOps {
   insertRow: UseDatabaseTable["insertRow"];
@@ -82,7 +82,10 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
   const updateRow = async (rowId: string, cells: Record<string, unknown>, expectedRevision?: string): Promise<void> => {
     const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
     const pendingSnapshot = pendingRowRef.current;
-    const current = rowsRef.current.find((row) => row.rowId === rowId);
+    // The effective stand (the committed page row, else the pending row):
+    // the filtered-out row stands no entry over rowsRef, and the no-op
+    // guard / the undo entry must not strand over its absent entry.
+    const current = rowOf(rowsRef, pendingRowRef, rowId);
     const cleaned = cleanCells(cells);
     // The unchanged patch stands no write (no bridge call, no refetch,
     // no no-op undo entry): the guard stands before the optimistic apply
