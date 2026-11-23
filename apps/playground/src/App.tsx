@@ -1,6 +1,7 @@
 import { DsPanel } from "./DsPanel";
 import { SyncPane } from "./SyncPane";
 import { TablesSection } from "./TablesSection";
+import { LONGDOC_DEFAULT_COUNT, parseLongdocCount } from "./longdoc-seed";
 
 /** The in-process dev relay (see vite.config.ts). */
 const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
@@ -10,6 +11,10 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
 
 /** The heavy canvas's room (the synthetic grid's stand — the room's isolation stands the relay's own room per demo). */
 const HEAVY_SYNC_URL = "ws://localhost:5199/heavy-demo";
+
+/** The long document's room (the windowing baseline's stand — the default
+ *  room's starter paragraph must not mix with the seed). */
+const LONGDOC_SYNC_URL = "ws://localhost:5199/longdoc-demo";
 
 /**
  * Playground page: one sync pane per tab. `?client=a|b` picks the pane's
@@ -21,7 +26,10 @@ const HEAVY_SYNC_URL = "ws://localhost:5199/heavy-demo";
  * shapes, a canvas text, and a connector — see canvas-seed.ts) and starts
  * in the canvas view; `?heavy=1` seeds the heavy canvas (the synthetic
  * grid — the 5000 figures + the 1500 connectors, heavy-seed.ts) over its
- * own room and starts in the canvas view; `?role=viewer` stands the pane's viewer's access
+ * own room and starts in the canvas view; `?longdoc=1` (`?longdoc=<n>`)
+ * seeds the long page — 200 (`n`) image blocks over their own room
+ * (longdoc-seed.ts, the windowing baseline's stand); `?role=viewer` stands
+ * the pane's viewer's access
  * level (the security stand — the pane holds no live document and no
  * relay: the pane renders the room's published snapshot stand read-only,
  * the publish.ts's stand; the absent stand stands the not-published's
@@ -46,8 +54,12 @@ function App() {
   const client = params.get("client") === "b" ? "b" : "a";
   const canvas = params.get("canvas") === "1";
   const heavy = params.get("heavy") === "1";
+  const longdoc = params.get("longdoc") === null ? null : parseLongdocCount(params.get("longdoc"));
+  const longdocCount = longdoc ?? LONGDOC_DEFAULT_COUNT;
   const role = params.get("role") === "viewer" ? "viewer" : "editor";
-  const syncUrl = params.get("syncUrl") ?? (heavy ? HEAVY_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
+  const syncUrl =
+    params.get("syncUrl") ??
+    (heavy ? HEAVY_SYNC_URL : longdoc !== null ? LONGDOC_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
   const blobEager = params.get("blobEager") === "1";
   const cycle = params.get("cycle") === "1";
@@ -63,6 +75,7 @@ function App() {
       catalog={catalog}
       canvas={canvas}
       heavy={heavy}
+      longdoc={longdocCount}
       cycle={cycle}
       role={role}
       attrDemo={attrDemo}

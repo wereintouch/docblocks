@@ -31,6 +31,7 @@ import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
 import { PresenceShareControl } from "./inspect/PresenceShareControl";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
+import { createLongDoc } from "./longdoc-seed";
 import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
 import type { MasterRuntime } from "./master";
 import { MentionClickBanner, mentionInteractions } from "./mention-card";
@@ -149,6 +150,7 @@ function SyncPane({
   role,
   attrDemo,
   blobEager,
+  longdoc,
 }: {
   client: "a" | "b";
   syncUrl: string;
@@ -159,6 +161,8 @@ function SyncPane({
   role: "editor" | "viewer";
   attrDemo: boolean;
   blobEager: boolean;
+  /** The long-document seed's image count (0 when the mode stands off). */
+  longdoc: number;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -251,11 +255,14 @@ function SyncPane({
     }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
-    const doc = heavy
-      ? createHeavyDoc(client === "a")
-      : canvas
-        ? createCanvasDoc(client === "a")
-        : seedPaneDoc(catalog);
+    const doc =
+      longdoc > 0
+        ? createLongDoc(client === "a", longdoc)
+        : heavy
+          ? createHeavyDoc(client === "a")
+          : canvas
+            ? createCanvasDoc(client === "a")
+            : seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
     // The pane's master (the sync-embed target): pane a seeds it, pane b
@@ -307,7 +314,7 @@ function SyncPane({
       }
     };
     let unsubscribeSettle: (() => void) | null = null;
-    if (client === "a" && !catalog && !canvas && !heavy) {
+    if (client === "a" && !catalog && !canvas && !heavy && longdoc === 0) {
       unsubscribeSettle = provider.onUpdate(finishStarter);
       settleTimer = window.setTimeout(finishStarter, 1000);
     }
@@ -380,7 +387,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, heavy, cycle, masterDocId, client, role]);
+  }, [syncUrl, catalog, canvas, heavy, longdoc, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
