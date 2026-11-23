@@ -62,7 +62,7 @@ try {
   // unreviewed.
   console.log("checking the tarball composition …");
   const coreFiles = list(coreTgz);
-  for (const f of ["package.json", "README.md", "LICENSE", "dist/index.mjs", "dist/index.d.mts"]) {
+  for (const f of ["package.json", "README.md", "CHANGELOG.md", "LICENSE", "dist/index.mjs", "dist/index.d.mts"]) {
     assert(coreFiles.includes(f), `the core archive carries ${f}`);
   }
   const coreAllowed = (f) =>
@@ -78,6 +78,7 @@ try {
   for (const f of [
     "package.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "dist/index.mjs",
     "dist/index.d.mts",
