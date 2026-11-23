@@ -28,7 +28,7 @@ function CoverEditor({
   onClear: () => void;
 }) {
   const { t } = useTranslation("editor");
-  const file = useBlobFile(fileId ?? "", COVER_RENDERS_BYTES);
+  const { state: file } = useBlobFile(fileId ?? "", COVER_RENDERS_BYTES, { eager: true });
   const [open, setOpen] = useState(false);
   // The modal's anchor zone (the editor width's measurement's source + the
   // focus's return's stand) and the modal's open's stand.

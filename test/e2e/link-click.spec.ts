@@ -9,7 +9,7 @@
 // plain stand) stays inert.
 import { type Page, expect, test } from "@playwright/test";
 
-import { twoPanes } from "./helpers";
+import { expectStays, twoPanes } from "./helpers";
 
 const HREF = "https://example.org/page";
 const TEXT = "go to world now";
@@ -87,8 +87,9 @@ test("the edit's mode: the press-drag over the link stands no open (the selectio
     await a.mouse.down();
     await a.mouse.move(box.x + box.width + 60, box.y + box.height / 2, { steps: 5 });
     await a.mouse.up();
-    await a.waitForTimeout(300);
-    expect(a.context().pages()).toHaveLength(1);
+    await expectStays(async () => {
+      expect(a.context().pages()).toHaveLength(1);
+    });
     // The gesture's selection's stand (the caret's no-seat's parity over
     // the drag — the selection's range stands over the link's text).
     expect(await a.evaluate(() => window.getSelection()?.toString().length)).toBeGreaterThan(0);
@@ -140,8 +141,9 @@ test("the crafted unsafe scheme stands the plain text (the inert's stand — no 
     await expect(linkAnchor(a, "a")).toHaveCount(0);
     const inner = firstInner(a, "a");
     await inner.click();
-    await a.waitForTimeout(300);
-    expect(a.context().pages()).toHaveLength(1);
+    await expectStays(async () => {
+      expect(a.context().pages()).toHaveLength(1);
+    });
   } finally {
     await close();
   }

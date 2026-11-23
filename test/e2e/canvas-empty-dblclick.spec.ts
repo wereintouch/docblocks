@@ -20,6 +20,7 @@ import {
   canvasCenter,
   canvasView,
   editorContext,
+  expectStays,
   openPane,
   outCount,
   screenAtZoom,
@@ -114,11 +115,14 @@ test.describe("the canvas empty-area double-click (the ghost text block's entry)
 
       // Nothing is written (the ghost is view state): the doc's JSON stands
       // (no new block), no selection stands, no wire update stands — and
-      // pane B's JSON stands over the wire.
-      expect(await docJson(a, "a")).toEqual(jsonBefore);
-      expect(await selectionStand(a, "a")).toEqual({ items: 0, handles: 0 });
-      expect(await outCount(a, "a")).toBe(outBefore);
-      expect(await docJson(b, "b")).toEqual(jsonBefore);
+      // pane B's JSON stands over the wire (the window's stand — the late
+      // commit's false green's guard).
+      await expectStays(async () => {
+        expect(await docJson(a, "a")).toEqual(jsonBefore);
+        expect(await selectionStand(a, "a")).toEqual({ items: 0, handles: 0 });
+        expect(await outCount(a, "a")).toBe(outBefore);
+        expect(await docJson(b, "b")).toEqual(jsonBefore);
+      });
     } finally {
       await close();
     }
@@ -199,12 +203,15 @@ test.describe("the canvas empty-area double-click (the ghost text block's entry)
       expect(await ghostStand(a).then((g) => g.count)).toBe(1);
 
       // The Escape cancels: the ghost closes, nothing is written (the doc
-      // stands, no wire update stands, pane B's JSON stands).
+      // stands, no wire update stands, pane B's JSON stands — the window's
+      // stand).
       await a.keyboard.press("Escape");
       expect(await ghostStand(a).then((g) => g.count)).toBe(0);
-      expect(await docJson(a, "a")).toEqual(jsonBefore);
-      expect(await outCount(a, "a")).toBe(outBefore);
-      expect(await docJson(b, "b")).toEqual(jsonBefore);
+      await expectStays(async () => {
+        expect(await docJson(a, "a")).toEqual(jsonBefore);
+        expect(await outCount(a, "a")).toBe(outBefore);
+        expect(await docJson(b, "b")).toEqual(jsonBefore);
+      });
     } finally {
       await close();
     }

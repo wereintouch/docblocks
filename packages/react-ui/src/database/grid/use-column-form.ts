@@ -34,6 +34,9 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
   const [addingColumn, setAddingColumn] = useState(false);
   const [columnFormOpen, setColumnFormOpen] = useState(false);
   const [columnForm, setColumnForm] = useState<AddColumnFormDraft | null>(null);
+  // The commit's failure (the form stands open with the cause over its
+  // error line; a fresh open / the next commit clears it).
+  const [columnFormError, setColumnFormError] = useState<string | null>(null);
   // The form's type-specific block stand (the catalog's flag — the number's
   // display attributes / the ref table's pick over the name).
   const columnFormNumber = columnForm?.numberKind !== undefined;
@@ -47,6 +50,7 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
   const close = useCallback(() => {
     setColumnFormOpen(false);
     setColumnForm(null);
+    setColumnFormError(null);
   }, []);
 
   /** The form's create commit (the button's press only): the edit stands
@@ -55,11 +59,15 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
   const commitColumnForm = () => {
     const draft = columnForm;
     if (draft === null || draft.name.trim() === "") return;
+    setColumnFormError(null);
     if (draft.editColumnId !== undefined) {
-      commitColumnFormEdit({ bridge, data, bumpCatalogRefresh, close }, draft);
+      commitColumnFormEdit({ bridge, data, bumpCatalogRefresh, close, onError: setColumnFormError }, draft);
       return;
     }
-    commitColumnFormCreate({ bridge, tableId, data, readColumnOrder, onViewChange, bumpCatalogRefresh, close }, draft);
+    commitColumnFormCreate(
+      { bridge, tableId, data, readColumnOrder, onViewChange, bumpCatalogRefresh, close, onError: setColumnFormError },
+      draft
+    );
   };
 
   /** The create form's entry press (the menu's pick): every entry stands
@@ -68,6 +76,7 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
   const openCreateForm = (entry: AddColumnTypeEntry) => {
     setColumnForm(emptyColumnForm(entry));
     setAddingColumn(false);
+    setColumnFormError(null);
     setColumnFormOpen(true);
   };
 
@@ -96,8 +105,13 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
       refPick: column.refTableId,
       newTableName: "",
       enumOptions: options,
+      // The seen's set (the form's open's snapshot): the commit's delete
+      // set never touches an option added concurrently over the open
+      // form (the user never saw it — the silent-loss's stand).
+      enumSeenRowIds: options.map((option) => option.rowId),
       editColumnId: column.id,
     });
+    setColumnFormError(null);
     setColumnFormOpen(true);
   };
 
@@ -105,7 +119,10 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
    *  drops the draft — the next open stands a fresh one. */
   const onColumnFormOpenChange = (open: boolean) => {
     setColumnFormOpen(open);
-    if (!open) setColumnForm(null);
+    if (!open) {
+      setColumnForm(null);
+      setColumnFormError(null);
+    }
   };
 
   /** The form's field updaters (each patches its own key; the draft's
@@ -136,6 +153,7 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
     setAddingColumn,
     columnFormOpen,
     columnForm,
+    columnFormError,
     columnFormNumber,
     columnFormRef,
     bridgeTables,

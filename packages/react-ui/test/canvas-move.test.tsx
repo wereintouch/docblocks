@@ -3,16 +3,12 @@
 // page miniature): the screen delta math (the threshold, the zoom
 // division) and the hook's commit (one transact for the whole group —
 // one undo step; the no-op drag and the Escape cancel write nothing).
-import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
-import { Editor } from "../src/Editor";
-import { screenDeltaToCanvas } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
-import { EditorProvider } from "../src/editor-provider";
-import { pressPointOf } from "./canvas-press";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
@@ -20,11 +16,6 @@ afterEach(cleanup);
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 type TestDoc = ReturnType<typeof createDoc>;
-
-/** The nested geometry Y.Map's write shape (the raw legacy seed below). */
-interface RawGeometryMap {
-  set(key: string, value: unknown): void;
-}
 
 function newDoc(): TestDoc {
   return createDoc({ id: "move-doc", createdAt: CREATED_AT });
@@ -39,19 +30,6 @@ function seededDoc(): { doc: TestDoc; surface: string; a: string; b: string } {
   doc.setGeometry(b, { x: -40, y: 30, w: 80, h: 60 });
   return { doc, surface, a, b };
 }
-
-describe("screenDeltaToCanvas", () => {
-  it("returns null below the 3px screen threshold", () => {
-    expect(screenDeltaToCanvas(2, 0, 1)).toBeNull();
-    expect(screenDeltaToCanvas(0, 2, 1)).toBeNull();
-    expect(screenDeltaToCanvas(2, 2, 1)).toBeNull(); // hypot(2,2) < 3
-  });
-
-  it("divides the delta by the zoom (the pan cancels out)", () => {
-    expect(screenDeltaToCanvas(40, -20, 2)).toEqual({ x: 20, y: -10 });
-    expect(screenDeltaToCanvas(9, 12, 0.5)).toEqual({ x: 18, y: 24 });
-  });
-});
 
 describe("the move session", () => {
   it("moves a single item by the delta in one transact (one undo step)", () => {
@@ -235,158 +213,5 @@ describe("the move session", () => {
     expect(doc.getBlock(b)?.geometry).toEqual({ x: -25, y: 20, w: 80, h: 60 });
     // The connector stands untouched: no phantom geometry is written.
     expect(doc.getBlock(connector)?.geometry).toBeUndefined();
-  });
-});
-
-describe("the resize session", () => {
-  it("resizes one item in one transact (one undo step)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    act(() => {
-      result.current.beginResize(a, "e", 0, 0);
-      result.current.resizeDrag(40, 0, false); // 40px canvas on the e edge
-      result.current.endResize();
-    });
-
-    // The e edge moved +40: the width grew, the center shifted by half.
-    expect(doc.getBlock(a)?.geometry).toEqual({ x: 30, y: 20, w: 140, h: 50 });
-    doc.undo();
-    expect(doc.toJSON()).toEqual(before);
-  });
-
-  it("writes nothing on a no-op release (below the threshold)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    act(() => {
-      result.current.beginResize(a, "se", 0, 0);
-      result.current.resizeDrag(2, 1, false);
-      result.current.endResize();
-    });
-
-    expect(doc.toJSON()).toEqual(before);
-  });
-
-  it("writes nothing on the cancel (the preview is dropped)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    act(() => {
-      result.current.beginResize(a, "nw", 0, 0);
-      result.current.resizeDrag(-30, -20, false);
-      result.current.cancelResize();
-    });
-
-    expect(doc.toJSON()).toEqual(before);
-    expect(result.current.resizePreview).toBeNull();
-  });
-
-  it("stands the session's open state (the press window the preview does not reach)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    expect(result.current.resizeSession).toBe(false);
-
-    // The press stands the session (the pre-threshold window — the preview
-    // is still null).
-    act(() => {
-      result.current.beginResize(a, "e", 0, 0);
-    });
-    expect(result.current.resizeSession).toBe(true);
-    expect(result.current.resizePreview).toBeNull();
-
-    // The drag stands the preview; the session stands.
-    act(() => {
-      result.current.resizeDrag(40, 0, false);
-    });
-    expect(result.current.resizeSession).toBe(true);
-    expect(result.current.resizePreview).not.toBeNull();
-
-    // The release / the cancel clear it.
-    act(() => {
-      result.current.endResize();
-    });
-    expect(result.current.resizeSession).toBe(false);
-
-    act(() => {
-      result.current.beginResize(a, "e", 0, 0);
-      result.current.resizeDrag(40, 0, false);
-      result.current.cancelResize();
-    });
-    expect(result.current.resizeSession).toBe(false);
-  });
-
-  it("resizes the geometry-less root with the default page box", () => {
-    const doc = newDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-
-    act(() => {
-      result.current.beginResize(doc.meta.id, "e", 0, 0);
-      result.current.resizeDrag(100, 0, false);
-      result.current.endResize();
-    });
-
-    // The default page width (720) grew by 100 around the center.
-    expect(doc.getBlock(doc.meta.id)?.geometry).toEqual({ x: 50, y: 0, w: 820, h: 960 });
-  });
-
-  it("ignores the connector (it carries no own geometry)", () => {
-    const { doc, surface, a, b } = seededDoc();
-    const connector = doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
-    const { result } = renderHook(() => useCanvasViewport(doc));
-
-    act(() => {
-      result.current.beginResize(connector, "e", 0, 0);
-      result.current.resizeDrag(40, 0, false);
-      result.current.endResize();
-    });
-
-    expect(doc.toJSON().v).toBe(1); // the doc stands untouched
-    expect(doc.getBlock(connector)?.geometry).toBeUndefined();
-  });
-});
-
-describe("the move preview on a legacy-rotated item", () => {
-  it("stands the offset in the canvas axes (the stored rotation stands off the render)", () => {
-    const doc = newDoc();
-    const surface = doc.insertBlock("surface");
-    const id = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-    doc.setGeometry(id, { x: 0, y: 0, w: 100, h: 50 });
-    // The legacy stored rotation (the strict schema no longer writes the
-    // field): the raw CRDT write stands the data the lenient read keeps
-    // and the render ignores.
-    doc.raw.transact(() => {
-      const entry = doc.raw.getMap("blocks").get(id) as { get(key: string): unknown };
-      (entry.get("geometry") as RawGeometryMap).set("rotation", 90);
-    });
-
-    const { container } = render(
-      <EditorProvider doc={doc}>
-        <Editor view="canvas" />
-      </EditorProvider>
-    );
-    const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
-    const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-    if (view === null || wrapper === null) throw new Error("the canvas view / the item is missing");
-
-    // The stored rotation stands no transform term (the render ignores
-    // it): the resting transform is the centering translate only.
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
-
-    // The in-flight drag (the press over the block's own zone, the moves
-    // on the view — the pointer is captured on the view): the preview
-    // stands the canvas-axis offset.
-    const p = pressPointOf(doc, id);
-    fireEvent.pointerDown(view, { clientX: p.x, clientY: p.y });
-    fireEvent.pointerMove(view, { clientX: p.x + 40, clientY: p.y + 20, buttons: 1 });
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px)");
-
-    // The release commits the canvas-axis delta (the commit writes
-    // x/y/w/h only; the stored rotation survives the core's merge).
-    fireEvent.pointerUp(view);
-    expect(doc.getBlock(id)?.geometry).toEqual({ x: 40, y: 20, w: 100, h: 50, rotation: 90 });
   });
 });

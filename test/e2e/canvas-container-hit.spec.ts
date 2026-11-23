@@ -6,7 +6,7 @@
 import { expect, test } from "@playwright/test";
 
 import { docBlocks, groupMembers, seedScene } from "./canvas-container-scene";
-import { SETTLE, canvasCenter, canvasView, outCount, screenAt, toCanvas, twoPanes } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, expectStays, outCount, screenAt, toCanvas, twoPanes } from "./helpers";
 
 test.describe("the canvas container: the hit", () => {
   test("the border's press selects the container; the figure's press stands the figure", async ({ browser }) => {
@@ -187,7 +187,9 @@ test.describe("the canvas container: the hit", () => {
       // container's own stands the clear — still no write).
       await a.keyboard.press("Escape");
       expect(await groupItem.getAttribute("data-selected")).toBeNull();
-      expect(await outCount(a, "a")).toBe(outs);
+      await expectStays(async () => {
+        expect(await outCount(a, "a")).toBe(outs);
+      });
     } finally {
       await close();
     }

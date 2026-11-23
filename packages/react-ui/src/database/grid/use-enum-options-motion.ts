@@ -1,8 +1,7 @@
 /** The enum's options editor's motion's slot: the framer-wired editor
- * (the `./motion`'s Reorder's rows) provides the motion's variant here;
- * the base's renderer stands the plain editor (the slot stands the null's
- * stand). The base stands the context only — the framer's import stands
- * the motion's subpath (the subpath's boundary's contract). */
+ * (the Reorder's rows) provides the motion's variant here; the renderer
+ * without the slot stands the plain editor. framer-motion stands the
+ * required peer (the base entry's row layer — the import is the base's). */
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 

@@ -12,6 +12,7 @@ import type { AccessLevel, EditorMode } from "./modes";
 import type { CoverPresetSets, DocDescription, DocTags } from "./panels";
 import type { PdfPreview } from "./pdf";
 import type { PresenceConfig } from "./presence";
+import type { BlobLoading } from "./props-base";
 import type { SelectionRef } from "./selection";
 import type { EmbedSandboxPolicy, SyncEmbedResolver } from "./sync-embed";
 
@@ -25,6 +26,9 @@ interface EditorContextValue {
   /** The effective blob bridge (the consumer's store, the legacy resolver
    *  wrapped, or the shared default in-memory store) — always present. */
   blobStore: BlobStore;
+  /** The effective blob loading policy (the own prop, else the enclosing
+   *  one, else "lazy"). */
+  blobLoading: BlobLoading;
   /** The effective database bridge (the consumer's implementation);
    *  undefined when none was supplied — the external-form database blocks
    *  render the disconnected placeholder. */

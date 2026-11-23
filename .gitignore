@@ -26,3 +26,7 @@ graphify-out/
 
 # agent scratch space
 .tmp/
+
+# tooling caches
+.ruff_cache/
+.vitest/

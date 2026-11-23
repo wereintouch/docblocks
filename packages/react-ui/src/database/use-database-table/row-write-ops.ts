@@ -7,7 +7,7 @@
  */
 import { BridgeError, toBridgeError } from "../bridge";
 import type { RowOpsContext, UseDatabaseTable } from "./models";
-import { cellValueEqual, newMutationContext } from "./utils";
+import { cellValueEqual, newMutationContext, rowOf } from "./utils";
 
 interface RowWriteOps {
   insertRow: UseDatabaseTable["insertRow"];
@@ -16,7 +16,7 @@ interface RowWriteOps {
 
 function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
   const { bridge, tableId, rowsRef, pendingRowRef, revisionsRef, setRows, setPendingRow } = ctx;
-  const { pushUndo, refresh, noteError, casOf } = ctx;
+  const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const insertRow = async (cells: Record<string, unknown> = {}): Promise<string> => {
     // The row id is bridge-assigned (the `c-` / `r-` allocation), so the
@@ -43,9 +43,12 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
       createdRevision = created.revision;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
     } catch (operationError) {
-      noteError(operationError);
+      // The relink's drop: the failure belongs to the previous table —
+      // its note + rollback would land over the fresh one's grid.
+      if (sameIdentity()) noteError(operationError);
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
+    if (!sameIdentity()) return liveRowId; // the relink's drop: no entry, no refetch over the fresh table
     pushUndo(
       {
         label: `insert row ${liveRowId}`,
@@ -79,7 +82,10 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
   const updateRow = async (rowId: string, cells: Record<string, unknown>, expectedRevision?: string): Promise<void> => {
     const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
     const pendingSnapshot = pendingRowRef.current;
-    const current = rowsRef.current.find((row) => row.rowId === rowId);
+    // The effective stand (the committed page row, else the pending row):
+    // the filtered-out row stands no entry over rowsRef, and the no-op
+    // guard / the undo entry must not strand over its absent entry.
+    const current = rowOf(rowsRef, pendingRowRef, rowId);
     const cleaned = cleanCells(cells);
     // The unchanged patch stands no write (no bridge call, no refetch,
     // no no-op undo entry): the guard stands before the optimistic apply
@@ -111,6 +117,9 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
         },
         newMutationContext()
       );
+      // The relink's drop: the commit landed on the previous table — the
+      // revision map, the entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       if (current !== undefined) {
         const oldCells = { ...current.cells };
@@ -127,7 +136,10 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
               // each edited key, the absent-before key over the explicit
               // null (the merge's removal stand). The same-cell conflict
               // policy: the undo stands the newest write.
-              const restore: Record<string, unknown> = {};
+              // The keys stand the bridge's column ids (the data's
+              // stand — a hostile id stands the inert own entry, not the
+              // prototype's write): the null-prototype's map.
+              const restore = Object.create(null) as Record<string, unknown>;
               for (const key of Object.keys(cleaned)) {
                 restore[key] = oldCells[key] === undefined ? null : oldCells[key];
               }
@@ -140,10 +152,14 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
       }
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      setPendingRow(pendingSnapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        setPendingRow(pendingSnapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
@@ -154,7 +170,9 @@ function createRowWriteOps(ctx: RowOpsContext): RowWriteOps {
 /** The clean cells patch: the `undefined` values stand no write (the
  *  merge keeps the current cell). */
 function cleanCells(cells: Record<string, unknown>): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
+  // The keys stand the bridge's column ids (the data's stand — the
+  // null-prototype's map keeps a hostile `__proto__` the inert own entry).
+  const patch = Object.create(null) as Record<string, unknown>;
   for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
   return patch;
 }

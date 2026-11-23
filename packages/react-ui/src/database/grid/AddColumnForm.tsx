@@ -32,6 +32,8 @@ interface AddColumnFormProps {
   form: AddColumnFormDraft | null;
   formNumber: boolean;
   formRef: boolean;
+  /** The commit's failure (the form stays open with the cause over its error line). */
+  error: string | null;
   bridgeTables: TableRef[];
   OptionsEditor: ComponentType<{ options: EnumOptionDraft[]; onChange: (next: EnumOptionDraft[]) => void }>;
   onCommit: () => void;
@@ -52,6 +54,7 @@ function AddColumnForm({
   form,
   formNumber,
   formRef,
+  error,
   bridgeTables,
   OptionsEditor,
   onCommit,
@@ -219,6 +222,11 @@ function AddColumnForm({
                 </Label>
               )}
             </>
+          )}
+          {error !== null && (
+            <div data-slot="docblocks/database-add-column-error" className="text-xs text-destructive">
+              {error}
+            </div>
           )}
           <Button
             data-slot="docblocks/database-add-column-create"

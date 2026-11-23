@@ -2,13 +2,19 @@
  *  canonical form (the query fingerprint's input), and the physical-order
  *  comparison. */
 
-/** The table id derived from the name (deterministic across the instances). */
+/** The table id derived from the name (deterministic over the name — the
+ * ASCII's slug, the non-ASCII's empty slug stands the name's hash). */
 function tableIdFor(name: string): string {
   const slug = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `table-${slug || Math.random().toString(36).slice(2, 8)}`;
+  if (slug !== "") return `table-${slug}`;
+  // The non-ASCII name's empty slug stands the djb2 hash's fallback (the
+  // deterministic stand over the instances — the random's stand removed).
+  let hash = 5381;
+  for (let i = 0; i < name.length; i += 1) hash = ((hash << 5) + hash + name.charCodeAt(i)) | 0;
+  return `table-${(hash >>> 0).toString(36)}`;
 }
 
 /** The canonical form: objects with sorted keys, undefined values dropped,
@@ -27,8 +33,21 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
+/** The non-JSON's placeholder's replacer (function / symbol / BigInt stand
+ * their string's form): the measurement's serializer must not stand its own
+ * throw (the typed validation's rejection stands over the value itself). */
+const NON_JSON_PLACEHOLDER = (_key: string, entry: unknown): unknown =>
+  typeof entry === "bigint" || typeof entry === "function" || typeof entry === "symbol" ? String(entry) : entry;
+
 function canonicalJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value));
+  return JSON.stringify(canonicalize(value), NON_JSON_PLACEHOLDER) ?? "";
+}
+
+/** The payload's size's measurement (the non-JSON's values stand their
+ * string's placeholder over the throw — the measurement must not crash;
+ * the bridge's validation stands the typed reject). */
+function jsonSizeOf(value: unknown): number {
+  return (JSON.stringify(value, NON_JSON_PLACEHOLDER) ?? "").length;
 }
 
 /** The physical order's comparator: the float order key, then the row id
@@ -53,4 +72,4 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-export { canonicalJson, deepEqual, physicalCompare, tableIdFor };
+export { canonicalJson, deepEqual, jsonSizeOf, physicalCompare, tableIdFor };

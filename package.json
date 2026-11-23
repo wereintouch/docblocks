@@ -18,6 +18,7 @@
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p test/e2e/tsconfig.json && tsc -p tsconfig.json",
     "check:deprecations": "node scripts/check-deprecations.mjs",
+    "check:changesets": "node scripts/check-changesets.mjs",
     "test": "npm run test --workspaces --if-present",
     "test:packaging": "node test/packaging/packaging.test.mjs",
     "test:e2e": "playwright test --project=chromium --reporter=dot",
@@ -25,11 +26,12 @@
     "test:e2e:webkit": "playwright test --project=webkit --reporter=dot",
     "test:e2e:all": "playwright test --reporter=dot",
     "build": "npm run build -w packages/core && npm run build -w packages/react-ui",
-    "check": "npm run lint && npm run format:check && npm run build && npm run typecheck && npm run check:deprecations && npm run test && npm run test:packaging && npm run test:e2e",
+    "check": "npm run lint && npm run format:check && npm run build && npm run typecheck && npm run check:deprecations && npm run check:changesets && npm run test && npm run test:packaging && npm run test:e2e",
     "changeset": "changeset"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
+    "@changesets/parse": "^1.0.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.0",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",

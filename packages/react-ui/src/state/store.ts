@@ -23,9 +23,10 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     const state = store.getState();
     const patch: Partial<EditorState> = {};
 
-    // A touched block IN the entry sequence whose `indent` or `list` kind
-    // moved (the seqStamp's source — the derivation's structure inputs; a
-    // text/mark change stands nothing, the row's own subscription
+    // A touched block IN the entry sequence whose `type`, `indent`, or
+    // `list` kind moved (the seqStamp's source — the derivation's structure
+    // inputs; the type stands the pageChildren' surface-filter membership,
+    // a text/mark change stands nothing, the row's own subscription
     // re-renders it). An add/removal into or out of the sequence stands the
     // rootChildren change (the stamp's other source).
     let seqStructureAffected = false;
@@ -39,6 +40,9 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
       let blocks = state.blocks;
       let blocksChanged = false;
       const removed = new Set<BlockId>();
+      // The entry sequence's membership over the O(1) set (the per-id
+      // `includes` over the array stands the O(N·M) scan).
+      const rootChildIds = new Set(state.rootChildren);
       for (const id of new Set(change.blockIds)) {
         const fresh = doc.getBlock(id);
         const prev = blocks[id];
@@ -68,12 +72,16 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
             if (!deepEqual(prevRest, freshRest)) chromeChanged = true;
           }
         }
-        if (prev !== undefined && fresh !== null && state.rootChildren.includes(id)) {
+        if (prev !== undefined && fresh !== null && rootChildIds.has(id)) {
           const prevAttrs = ("attrs" in prev ? prev.attrs : undefined) as
             { indent?: unknown; list?: unknown } | undefined;
           const freshAttrs = ("attrs" in fresh ? fresh.attrs : undefined) as
             { indent?: unknown; list?: unknown } | undefined;
-          if (prevAttrs?.indent !== freshAttrs?.indent || prevAttrs?.list !== freshAttrs?.list) {
+          if (
+            prev.type !== fresh.type ||
+            prevAttrs?.indent !== freshAttrs?.indent ||
+            prevAttrs?.list !== freshAttrs?.list
+          ) {
             seqStructureAffected = true;
           }
         }

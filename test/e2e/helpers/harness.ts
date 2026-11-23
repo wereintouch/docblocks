@@ -55,7 +55,9 @@ const pane = (page: Page, client: "a" | "b") => page.locator(`[data-testid="doc-
  * spec); `light` clears the harness's default dark class (the light seed
  * pins); `first` targets the first status node (the page-level panes render
  * two); `role` stands the pane's access level (the `?role=viewer`'s
- * flag — the published's forced stand over the package's contract).
+ * flag — the published's forced stand over the package's contract);
+ * `blobEager` stands the provider's eager blob loading policy (the
+ * `?blobEager=1`'s flag).
  */
 async function openPane(
   page: Page,
@@ -69,6 +71,7 @@ async function openPane(
     first?: boolean;
     role?: "editor" | "viewer";
     attrDemo?: boolean;
+    blobEager?: boolean;
   } = {}
 ): Promise<void> {
   // The Home/End stand installs over the page when the context's init
@@ -85,7 +88,7 @@ async function openPane(
   }
   const url =
     options.url ??
-    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}${options.attrDemo ? "&attrDemo=1" : ""}`;
+    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}${options.attrDemo ? "&attrDemo=1" : ""}${options.blobEager ? "&blobEager=1" : ""}`;
   await page.goto(url);
   const status = options.first ? page.getByTestId(`status-${client}`).first() : page.getByTestId(`status-${client}`);
   await connectedStatus(page, client, status, options.settle?.timeout ?? 15_000);

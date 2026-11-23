@@ -43,12 +43,14 @@ function darkStore(): StoreApi<DarkThemeState> {
 
 /** The document's dark theme's stand (the shape's figure / text's
  * render-time's transform's trigger). */
-export function useDarkTheme(): boolean {
+function useDarkTheme(): boolean {
   return useStore(darkStore(), (state) => state.dark);
 }
 
 /** The dark's stand's read (the no-hook's stand — the test's / the
  * imperative's path). */
-export function isDarkTheme(): boolean {
+function isDarkTheme(): boolean {
   return darkStore().getState().dark;
 }
+
+export { isDarkTheme, useDarkTheme };

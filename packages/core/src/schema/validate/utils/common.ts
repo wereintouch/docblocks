@@ -80,6 +80,14 @@ const CONTROL_TRIM = /^[\u0000-\u0020]+|[\u0000-\u0020]+$/g;
 // eslint-disable-next-line no-control-regex -- the mid-string strip is the check's subject.
 const MID_STRING_CONTROLS = /[\u0009\u000A\u000D]/g;
 
+/** The WHATWG URL parser's normalization over an href's input: the ASCII
+ * tab / LF / CR (U+0009–U+000D) removal over ANY position + the leading /
+ * trailing C0 controls and spaces (U+0000–U+0020) trim, applied before the
+ * scheme detection. A scheme check over the unnormalized input stands the
+ * `"java\tscript:…"` bypass (the raw string carries no scheme per the
+ * `^[a-z][a-z0-9+.-]*:` test, the browser's does). */
+const normalizeHrefInput = (value: string): string => value.replace(MID_STRING_CONTROLS, "").replace(CONTROL_TRIM, "");
+
 /** The `mailto:` payload (the email's stand): the `local@domain` form — a
  *  non-empty local part without whitespace / `@`, a domain carrying a dot.
  *  The gate is the shape's check (the safety's stand), not the registry's
@@ -114,7 +122,7 @@ type LinkHrefKind = "web" | "mailto" | "tel" | "relative";
  *  `mailto:`'s email, the `tel:`'s phone, the scheme-less (relative) path —
  *  or `null` over any other scheme (the rejection's stand). */
 const linkHrefKindOf = (value: string): LinkHrefKind | null => {
-  const trimmed = value.replace(MID_STRING_CONTROLS, "").replace(CONTROL_TRIM, "");
+  const trimmed = normalizeHrefInput(value);
   if (trimmed.length === 0) return null;
   if (WEB_URL.test(trimmed) || PROTOCOL_RELATIVE.test(trimmed)) return "web";
   if (MAILTO_RE.test(trimmed)) return "mailto";
@@ -126,7 +134,12 @@ const linkHrefKindOf = (value: string): LinkHrefKind | null => {
 /** The public link-href contract (the validator's and the consumer
  *  renderer's gate): the normalized form is an http/https URL, a `mailto:`
  *  email, a `tel:` phone number, or a scheme-less (relative) path; any
- *  other scheme is rejected. */
+ *  other scheme is rejected. The parity with the browser's URL parser holds
+ *  over the raw string's write (the `setAttribute` / the DOM property's
+ *  stand — the markup is not re-parsed); a consumer that serializes the
+ *  href into HTML markup applies its own escaping (the single-pass
+ *  entity-decode could expose a scheme the raw stand did not see — the
+ *  markdown pipeline's post-decode re-gate models that hazard). */
 const isSafeLinkHref = (value: string): boolean => linkHrefKindOf(value) !== null;
 
 const isLinkHref = (value: string): boolean => isSafeLinkHref(value);
@@ -164,6 +177,7 @@ export {
   isSafeLinkHref,
   isPlainObject,
   linkHrefKindOf,
+  normalizeHrefInput,
   show,
 };
 export type { LinkHrefKind };

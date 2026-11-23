@@ -29,8 +29,7 @@
  * the block (and its nested content) re-renders only through its own store
  * subscription — a change to a sibling's text never re-renders it.
  */
-import { BLOCK_REGISTRY } from "docblocks-core";
-import type { Block, BlockId, BlockType, Doc, ListItemAttrs, OpaqueBlock } from "docblocks-core";
+import type { Block, BlockId, ListItemAttrs, OpaqueBlock } from "docblocks-core";
 
 type ListKind = ListItemAttrs["list"];
 
@@ -75,77 +74,6 @@ function indentOf(block: Block | undefined): number {
   if (block === undefined || !("attrs" in block)) return 0;
   const indent = (block.attrs as { indent?: unknown } | undefined)?.indent;
   return typeof indent === "number" && Number.isInteger(indent) && indent >= 0 ? indent : 0;
-}
-
-/**
- * The sequence container of a provider's entry root, from a plain blocks
- * map (the store's projection — no doc snapshot): the entry root's own id
- * when it is a page-sequence container (the document root, a table cell,
- * a frame — its children are the entry sequence), otherwise the id of the
- * page-sequence container whose children hold the entry root. A page
- * block's nesting is the sequence's `indent` attr — the block is
- * structurally childless, so a command's `parent` must be the sequence's
- * container, not the block. A dangling entry root, or one under a
- * structural container (a table row, a surface — where the indent is not
- * the nesting), stands alone.
- */
-function sequenceContainerOf(blocks: Record<BlockId, Block | OpaqueBlock>, entryRootId: BlockId): BlockId {
-  const entry = blocks[entryRootId];
-  if (
-    entry !== undefined &&
-    Object.hasOwn(BLOCK_REGISTRY, entry.type) &&
-    BLOCK_REGISTRY[entry.type as BlockType]?.sequence
-  )
-    return entryRootId;
-  for (const [parentId, candidate] of Object.entries(blocks)) {
-    const children = "children" in candidate ? candidate.children : undefined;
-    if (children !== undefined && children.includes(entryRootId)) {
-      // The own-property stand: a prototype-key type name is an unknown
-      // type (the inherited member is not a registry spec).
-      const spec = Object.hasOwn(BLOCK_REGISTRY, candidate.type)
-        ? BLOCK_REGISTRY[candidate.type as BlockType]
-        : undefined;
-      return spec !== undefined && spec.sequence ? parentId : entryRootId;
-    }
-  }
-  return entryRootId;
-}
-
-/**
- * The command parent of a provider's entry root (the entry list's gesture
- * context): the entry root's sequence container (the document scan — the
- * entry root resolves once per provider render and the drag commit;
- * v1 documents are small).
- */
-function entrySequenceParent(doc: Doc, entryRootId: BlockId): BlockId {
-  if (entryRootId === doc.meta.id) return entryRootId;
-  return sequenceContainerOf(doc.toJSON().blocks, entryRootId);
-}
-
-/**
- * The derived subtree (entry list) of a subtree entry's root, from a plain
- * blocks map (no doc snapshot): the contiguous stretch of the entry root's
- * page sequence (the container's children) from the block to the first
- * following block with `indent` <= its own (the block inclusive). A
- * container entry root (or a standalone one — a structural parent, a
- * dangling root) stands alone.
- */
-function subtreeSegmentOf(blocks: Record<BlockId, Block>, containerId: BlockId, entryRootId: BlockId): BlockId[] {
-  if (containerId === entryRootId) return [entryRootId];
-  const container = blocks[containerId];
-  const sequence = container !== undefined && "children" in container ? container.children : undefined;
-  if (sequence === undefined) return [entryRootId];
-  const index = sequence.indexOf(entryRootId);
-  if (index === -1) return [entryRootId];
-  const own = indentOf(blocks[entryRootId]);
-  const out: BlockId[] = [entryRootId];
-  for (let i = index + 1; i < sequence.length; i += 1) {
-    const other = sequence[i];
-    if (other === undefined) break;
-    if (indentOf(blocks[other]) <= own) break;
-    out.push(other);
-  }
-  return out;
 }
 
 /**
@@ -269,17 +197,6 @@ function deriveFlat(ids: BlockId[], blocks: Record<BlockId, Block>, prev?: Map<B
 }
 
 /**
- * The marker's cycle index (1|2|3) from the indent: the nesting depth is
- * unbounded and CSS cannot modulo it, so the renderer cycles it. The
- * marker style per cycle: disc / circle / square (bullet), decimal /
- * lower-alpha / lower-roman (number); the task list has no marker (the
- * checkbox stands in for it).
- */
-function markerCycle(indent: number): number {
-  return (indent % 3) + 1;
-}
-
-/**
  * The VISIBLE rows of a sequence: the sequence with every collapsed
  * block's derived segment unmounted (the collapse is a view state — the
  * rows stand in the data; the motion view's row list and its local drag
@@ -303,90 +220,8 @@ function visibleRows(ids: BlockId[], byId: Map<BlockId, FlatNode>, collapsedIds:
   return out;
 }
 
-/** The displayed label of a `number` item's marker (the motion view renders it as text; the base view numbers the `ol` natively). */
-function numberMarkerLabel(number: number, cycle: number): string {
-  if (cycle === 2) return `${String.fromCharCode(96 + number)}.`; // lower-alpha
-  if (cycle === 3) return `${toRoman(number)}.`; // lower-roman
-  return `${number}.`; // decimal
-}
-
-/** 1 -> i, 2 -> ii, … (the lower-roman label). */
-function toRoman(n: number): string {
-  const TABLE: [number, string][] = [
-    [1000, "m"],
-    [900, "cm"],
-    [500, "d"],
-    [400, "cd"],
-    [100, "c"],
-    [90, "xc"],
-    [50, "l"],
-    [40, "xl"],
-    [10, "x"],
-    [9, "ix"],
-    [5, "v"],
-    [4, "iv"],
-    [1, "i"],
-  ];
-  let rest = n;
-  let out = "";
-  for (const [value, glyph] of TABLE) {
-    while (rest >= value) {
-      out += glyph;
-      rest -= value;
-    }
-  }
-  return out;
-}
-
-/**
- * The read-only stand's empty text chain's collapse (the view / published's
- * modes' render filter — the data stands untouched): two or more
- * CONSECUTIVE nodes of one indent, each a text type with no derived
- * children and the empty's text, stand rendered as one (the chain's first
- * block stands the chain; the rest stand no stand). A non-empty node, a
- * node with children, or an indent's change breaks the chain.
- */
-/** The text types over the empty chain's collapse (the empty's stand: the
- *  zero text's length + no children). */
-const EMPTY_CHAIN_TYPES = new Set(["paragraph", "heading", "quote", "callout", "list-item", "code"]);
-
-/** The block's empty's stand (a text type with the zero text's length). */
-function isEmptyChainText(block: unknown): boolean {
-  if (block === null || block === undefined) return false;
-  const candidate = block as { type: string; content?: readonly { text: string }[] };
-  return EMPTY_CHAIN_TYPES.has(candidate.type) && (candidate.content ?? []).every((run) => run.text === "");
-}
-
-function collapseEmptyTextChains(nodes: FlatNode[], isEmptyText: (id: BlockId) => boolean): FlatNode[] {
-  const result: FlatNode[] = [];
-  let chainIndent = -1;
-  for (const node of nodes) {
-    const empty = node.children.length === 0 && isEmptyText(node.id);
-    if (empty) {
-      // The chain's start stands; the continuation's stand is dropped
-      // (the same indent's parity — a deeper node is a new chain).
-      if (node.indent === chainIndent) continue;
-      chainIndent = node.indent;
-      result.push(node);
-      continue;
-    }
-    chainIndent = -1;
-    result.push(node);
-  }
-  return result;
-}
-
-export {
-  collapseEmptyTextChains,
-  deriveFlat,
-  entrySequenceParent,
-  flatStructureKey,
-  indentOf,
-  isEmptyChainText,
-  markerCycle,
-  numberMarkerLabel,
-  sequenceContainerOf,
-  subtreeSegmentOf,
-  visibleRows,
-};
+export { deriveFlat, flatStructureKey, indentOf, visibleRows };
+export { collapseEmptyTextChains, isEmptyChainText } from "./flat-empty-chains";
+export { entrySequenceParent, sequenceContainerOf, subtreeSegmentOf } from "./flat-segments";
+export { markerCycle, numberMarkerLabel } from "./flat-markers";
 export type { FlatDerivation, FlatNode, ListKind };

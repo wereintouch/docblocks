@@ -14,6 +14,7 @@ export {
   isSafeLinkHref,
   isPlainObject,
   linkHrefKindOf,
+  normalizeHrefInput,
   show,
 } from "./common";
 export type { LinkHrefKind } from "./common";

@@ -1,44 +1,36 @@
 /**
- * The attribute/title/avatar write commands: updateBlock, setTitle,
- * setAvatar, and the document-attribute commands (setAttribute /
- * removeAttribute). A command validates first (typed errors,
- * no silent no-ops) and then mutates in one transaction with the local
- * origin.
+ * The block attribute/title/avatar write commands: updateBlock,
+ * removeBlockAttr, setTitle, setAvatar. A command validates first (typed
+ * errors, no silent no-ops) and then mutates in one transaction with the
+ * local origin. The document-attribute commands (the setAttribute /
+ * removeAttribute family) live in attrs-attributes and are re-exported
+ * from this entry.
  */
 import * as Y from "yjs";
 
 import {
   BLOCK_REGISTRY,
-  RESERVED_DOC_ATTRIBUTE_KEYS,
-  isDocAttributeValue,
-  isReservedId,
   isSafeEmbedSrc,
   setOwn,
   validateBlockAttrs,
   validateCanvasBlock,
 } from "@docblocks-core/schema";
-import type { BlockAttrsPatch, DocAttributeValue, ValidationError } from "@docblocks-core/schema";
+import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
-import {
-  InvalidAttributeError,
-  InvalidAttrsError,
-  InvalidOperationError,
-  UnknownBlockError,
-  formatValidationErrors,
-} from "../errors";
+import { InvalidAttrsError, UnknownBlockError, formatValidationErrors } from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
-import { readBlock, readPlainValue } from "../read";
+import { readBlock } from "../read";
 import { assertValidDatabasePatch } from "./database";
 import {
+  assertNoOutdentStranding,
   blockTypeOf,
   childrenOf,
   findParent,
   getBlockMap,
   indentJumpViolation,
-  indentOfBlock,
   isPageSequence,
 } from "./structure";
-import { columnOrderOf, writeColumnWidthsPatch } from "./table/common";
+import { assertValidCellColumnBinding, columnOrderOf, writeColumnWidthsPatch } from "./table/common";
 
 /** A plain array of numbers (the table's positional columnWidths). */
 const isNumberArray = (value: unknown): value is number[] =>
@@ -115,6 +107,14 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     assertValidDatabasePatch(snapshot, merged, id);
   }
 
+  // The table cell's column binding is a doc-level invariant (the cell's
+  // columnId stands the column at its position in the table's columnOrder —
+  // the strict validator's rule): the generic attr's write keeps the live
+  // document valid over it, like the database's patch check above.
+  if (type === "table-cell" && patch.columnId !== undefined) {
+    assertValidCellColumnBinding(ydoc, id, merged.columnId);
+  }
+
   // A canvas type's post-patch attrs must keep the block-level invariants
   // (the points tuples, the connector refs) — like the database's patch
   // check against its existing rows.
@@ -141,26 +141,9 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
         throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${violation}.`);
       }
       // The TO side: a lowered indent can dangle the next block (its
-      // predecessor just got shallower). Rejected like the moveBlock /
-      // insertBlock TO-side strandings — and like them the check stands
-      // only for a command that commits its own transaction: the UI's
-      // segment outdent composes the whole stretch in one transact, so a
-      // mid-transact dangle is a transient the composition resolves (the
-      // Yjs transaction's atomicity keeps it off the wire and off every
-      // listener). The next block's pair is checked against the NEW
-      // indent — the patch is not applied yet, so the doc still stands
-      // the old one.
-      const next = childIds[index + 1];
-      const oldIndent = indentOfBlock(ydoc, id);
-      if (next !== undefined && newIndent < oldIndent) {
-        const nextIndent = indentOfBlock(ydoc, next);
-        const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
-        if (!inBatch && nextIndent > newIndent + 1) {
-          throw new InvalidOperationError(
-            `Block "${id}" cannot be outdented to indent ${newIndent}: block "${next}" (indent ${nextIndent}) would be stranded. Outdent the whole derived segment in one transact.`
-          );
-        }
-      }
+      // predecessor just got shallower) — the moveBlock / insertBlock
+      // TO-side strandings' parity.
+      assertNoOutdentStranding(ydoc, id, childIds, index, newIndent);
     }
   }
 
@@ -192,7 +175,9 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
  * attrs the typed `InvalidAttrsError` (the `updateBlock`'s stand); the
  * post-removal attrs must keep the registry's invariants (a required
  * attr's removal would leave an invalid block — the `updateBlock`'s
- * writer's stand). The empty attrs' read stand is the omitted `attrs`
+ * writer's stand); the `indent` removal over a page sequence is
+ * rejected like the `updateBlock`'s outdent when the following block
+ * would be stranded. The empty attrs' read stand is the omitted `attrs`
  * field (the read path's rule — the empty map needs no cleanup).
  */
 function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
@@ -227,6 +212,31 @@ function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
     validateCanvasBlock(type, { type, attrs: merged }, `blocks.${id}`, canvasErrors);
     if (canvasErrors.length > 0) {
       throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(canvasErrors)}`);
+    }
+  }
+
+  // The post-removal doc-level invariants (the `updateBlock`'s writer's
+  // stand): the table cell's `columnId` removal over a full row must keep
+  // the cell's column (the binding's stand); the database's `columns` /
+  // `tableId` removal must keep the strict invariants against the existing
+  // rows (the orphaned row values' stand).
+  if (type === "table-cell" && key === "columnId") {
+    assertValidCellColumnBinding(ydoc, id, undefined);
+  }
+  if (type === "database" && (key === "columns" || key === "tableId")) {
+    assertValidDatabasePatch(snapshot, merged, id);
+  }
+
+  // The flat page model: removing `indent` outdents the block to 0 — the
+  // same TO-side hazard as the `updateBlock`'s outdent (the next block's
+  // predecessor just got shallower). The FROM side (the block's own
+  // indent 0) never violates the jump rule, so only the TO side stands.
+  if (key === "indent") {
+    const parent = findParent(ydoc, id);
+    if (parent !== null && isPageSequence(ydoc, parent)) {
+      const seq = childrenOf(ydoc, parent);
+      const childIds = seq !== null ? seq.toArray() : [];
+      assertNoOutdentStranding(ydoc, id, childIds, childIds.indexOf(id), 0);
     }
   }
 
@@ -269,257 +279,12 @@ function setAvatar(ydoc: Y.Doc, avatar: string | null): void {
   });
 }
 
-/**
- * The document-attribute key: a non-empty string that is not
- * reserved (a doc meta field or an Object.prototype key — such a key would
- * be silently lost on the JSON round-trip). Throws the typed
- * `InvalidAttributeError`.
- */
-function assertAttributeKey(key: string): void {
-  if (typeof key !== "string" || key === "") {
-    throw new InvalidAttributeError(`The attribute key must be a non-empty string.`);
-  }
-  if (RESERVED_DOC_ATTRIBUTE_KEYS.has(key)) {
-    throw new InvalidAttributeError(
-      `The attribute key "${key}" is reserved (a document meta field) and cannot be used.`
-    );
-  }
-  if (isReservedId(key)) {
-    throw new InvalidAttributeError(
-      `The attribute key "${key}" is reserved (it collides with Object.prototype) and cannot be used.`
-    );
-  }
-}
-
-/**
- * The document-attribute value: `string | number | boolean |
- * string[] | MentionRef` (the `author` snapshot's form). Throws the typed
- * `InvalidAttributeError`.
- */
-function assertAttributeValue(key: string, value: unknown): asserts value is DocAttributeValue {
-  if (!isDocAttributeValue(value)) {
-    throw new InvalidAttributeError(
-      `The attribute value for "${key}" must be a string, a number, a boolean, an array of strings, a mention reference, or a typed value.`
-    );
-  }
-}
-
-/** The live attributes record (absent = the field stands off). */
-function attributesRecordOf(ydoc: Y.Doc): Y.Map<unknown> | undefined {
-  const record = ydoc.getMap("meta").get("attributes");
-  return record instanceof Y.Map ? record : undefined;
-}
-
-/** The stored attributes' display order (the `meta.attributesOrder` Y.Array's
- *  strings); null when the field stands off (the reader's fallback is the
- *  record's key order). */
-function attributeOrderOf(ydoc: Y.Doc): string[] | null {
-  const order = ydoc.getMap("meta").get("attributesOrder");
-  if (!(order instanceof Y.Array)) return null;
-  const keys = order.toArray().filter((key): key is string => typeof key === "string");
-  return keys.length > 0 ? keys : null;
-}
-
-/**
- * Write the attributes' display order (the whole-array LWW — the
- * whole-record LWW's parity over the record): an empty / null stand
- * deletes the field (the writer's parity: an absent field is never
- * written as an empty array). Runs inside the caller's transaction.
- */
-function writeAttributeOrder(ydoc: Y.Doc, order: string[] | null): void {
-  const meta = ydoc.getMap("meta");
-  if (order === null || order.length === 0) {
-    meta.delete("attributesOrder");
-    return;
-  }
-  const array = new Y.Array<string>();
-  array.push(order);
-  meta.set("attributesOrder", array);
-}
-
-/**
- * The record's keys over the stored order (the order's stand over the
- * record's keys — the stale entries are dropped, the missing keys append
- * in the record's key order): the writer's order rebuild after a
- * concurrent record change.
- */
-function attributeOrderAgainstRecord(ydoc: Y.Doc, record: Y.Map<unknown>): string[] {
-  const recordKeys = [...record.keys()];
-  const stored = attributeOrderOf(ydoc);
-  if (stored === null) return recordKeys;
-  const seen = new Set<string>();
-  const order: string[] = [];
-  for (const key of stored) {
-    if (record.has(key) && !seen.has(key)) {
-      seen.add(key);
-      order.push(key);
-    }
-  }
-  for (const key of recordKeys) {
-    if (!seen.has(key)) order.push(key);
-  }
-  return order;
-}
-
-/** The live attributes record, created lazily (the first write's stand). */
-function ensureAttributesRecord(ydoc: Y.Doc): Y.Map<unknown> {
-  const record = attributesRecordOf(ydoc);
-  if (record !== undefined) return record;
-  const fresh = new Y.Map<unknown>();
-  ydoc.getMap("meta").set("attributes", fresh);
-  return fresh;
-}
-
-/** Whether the stored raw value (a scalar or a Y.Array) equals the given typed value. */
-function attributeValueEquals(stored: unknown, value: DocAttributeValue): boolean {
-  if (Array.isArray(value)) {
-    if (!(stored instanceof Y.Array)) return false;
-    const items = stored.toArray();
-    if (items.length !== value.length) return false;
-    return items.every((item, index) => item === value[index]);
-  }
-  return stored === value;
-}
-
-/**
- * Sets one document attribute (one transaction — one undo step, one wire
- * update; the attributes record is created lazily on the first write). A
- * set of the current value is the no-op stand (no write, no undo step, no
- * wire update). A reserved key or an unsupported value throws the typed
- * `InvalidAttributeError`.
- */
-function setAttribute(ydoc: Y.Doc, key: string, value: DocAttributeValue): void {
-  assertAttributeKey(key);
-  assertAttributeValue(key, value);
-  const record = attributesRecordOf(ydoc);
-  const isNewKey = record === undefined || !record.has(key);
-  const current = record?.get(key);
-  if (attributeValueEquals(current, value)) return; // no-op
-  localTransact(ydoc, () => {
-    writeAttrValue(ensureAttributesRecord(ydoc), key, value);
-    // The new key appends to the display order (the last-added's stand):
-    // the order's rebuild over the record keeps the stand valid over a
-    // concurrent record change (the stale entries' drop, the missing'
-    // append).
-    if (isNewKey) {
-      const ordered = attributeOrderAgainstRecord(ydoc, ensureAttributesRecord(ydoc));
-      if (!ordered.includes(key)) ordered.push(key);
-      writeAttributeOrder(ydoc, ordered);
-    }
-  });
-}
-
-/**
- * Removes a document attribute (one transaction — one undo step, one wire
- * update). An absent key is the no-op stand (no write, no undo step, no
- * wire update). A reserved key throws the typed `InvalidAttributeError`.
- */
-function removeAttribute(ydoc: Y.Doc, key: string): void {
-  assertAttributeKey(key);
-  const record = attributesRecordOf(ydoc);
-  if (record === undefined || !record.has(key)) return; // no-op
-  localTransact(ydoc, () => {
-    record.delete(key);
-    // The key's removal over the display order (the empty order's field
-    // stands deleted — the writer's parity).
-    const stored = attributeOrderOf(ydoc);
-    if (stored !== null)
-      writeAttributeOrder(
-        ydoc,
-        stored.filter((k) => k !== key)
-      );
-  });
-}
-
-/**
- * Renames a document attribute (one transaction — one undo step, one wire
- * update): the value's form (the plain / the typed wrapper) moves as-is
- * under the new key. The display order keeps the key's position (the
- * entry's replacement — the record's tail stand dropped). An absent
- * source key and a rename of the same key are the no-op stands (no
- * write, no undo step, no wire update — the `removeAttribute`'s parity).
- * The target key runs the full key validation (the reserved's / the
- * prototype's rejection over the typed `InvalidAttributeError`); a rename
- * onto an existing key throws the typed `InvalidAttributeError` (the
- * record is key-addressed — the rename would clobber the target's value).
- */
-function renameAttribute(ydoc: Y.Doc, fromKey: string, toKey: string): void {
-  const record = attributesRecordOf(ydoc);
-  if (record === undefined || !record.has(fromKey)) return; // no-op
-  if (fromKey === toKey) return; // no-op
-  assertAttributeKey(toKey);
-  if (record.has(toKey)) {
-    throw new InvalidAttributeError(`The attribute key "${toKey}" already exists.`);
-  }
-  localTransact(ydoc, () => {
-    // The value's form moves as-is over the read → write path (the Yjs's
-    // type move is not a supported stand — the nested type's re-parenting
-    // breaks its integration; the plain round-trip keeps the form).
-    const value = readPlainValue(record.get(fromKey));
-    record.delete(fromKey);
-    writeAttrValue(record, toKey, value);
-    // The order's entry's replacement (the position's keep): the stored
-    // order's stand only — over the field's absence the read's key order
-    // is the display's stand and the rename changes nothing over it.
-    const stored = attributeOrderOf(ydoc);
-    if (stored !== null) {
-      writeAttributeOrder(
-        ydoc,
-        stored.map((k) => (k === fromKey ? toKey : k))
-      );
-    }
-  });
-}
-
-/**
- * Reorders the document's attributes (the custom attribute's drag-reorder's
- * persistence): the `order` must stand a permutation of the record's keys
- * (the strict permutation's validation — the missing / the extra / the
- * duplicated key throws the typed `InvalidAttributeError`). One
- * transaction — one undo step, one wire update. An order equal to the
- * current stand is the no-op (the stored order, or the record's key order
- * over the field's absence).
- */
-function reorderAttributes(ydoc: Y.Doc, order: string[]): void {
-  if (!Array.isArray(order) || !order.every((key) => typeof key === "string")) {
-    throw new InvalidAttributeError("The attributes order must be an array of strings.");
-  }
-  const record = attributesRecordOf(ydoc);
-  if (record === undefined || record.size === 0) {
-    throw new InvalidAttributeError("The document has no attributes to reorder.");
-  }
-  const recordKeys = [...record.keys()];
-  if (order.length !== recordKeys.length) {
-    throw new InvalidAttributeError(
-      `The attributes order must hold exactly ${recordKeys.length} key(s) (one per attribute); found ${order.length}.`
-    );
-  }
-  const seen = new Set<string>();
-  for (const key of order) {
-    if (seen.has(key)) {
-      throw new InvalidAttributeError(`The attributes order entry "${key}" is duplicated.`);
-    }
-    seen.add(key);
-    if (!recordKeys.includes(key)) {
-      throw new InvalidAttributeError(`The attributes order entry "${key}" is not an attribute key.`);
-    }
-  }
-  const current = attributeOrderOf(ydoc) ?? recordKeys;
-  if (current.every((key, index) => key === order[index])) return; // no-op
-  localTransact(ydoc, () => {
-    writeAttributeOrder(ydoc, order);
-  });
-}
-
 export {
   assertAttributeKey,
   assertAttributeValue,
   removeAttribute,
-  removeBlockAttr,
   renameAttribute,
   reorderAttributes,
   setAttribute,
-  setAvatar,
-  setTitle,
-  updateBlock,
-};
+} from "./attrs-attributes";
+export { removeBlockAttr, setAvatar, setTitle, updateBlock };

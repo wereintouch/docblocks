@@ -10,6 +10,10 @@ import type { BlockRendererMap } from "../../blocks";
 import type { DatabaseBridge } from "../../database";
 import type { PdfPreview } from "./pdf";
 
+/** The blob loading policy: the viewport-gated lazy stand (the default) or
+ *  the eager stand (every block resolves at mount). */
+type BlobLoading = "eager" | "lazy";
+
 interface EditorProviderBaseProps {
   /**
    * The headless document to render and edit; must not change after mount.
@@ -39,6 +43,17 @@ interface EditorProviderBaseProps {
    * page reload. Pass a stable reference; nested providers inherit it.
    */
   blobStore?: BlobStore;
+  /**
+   * The blob loading policy. "lazy" (the default) resolves a block's bytes
+   * only when the block enters the viewport's preload band — the blocks
+   * standing above the fold on mount and the cover resolve eagerly; "eager"
+   * resolves every block at mount (the pre-lazy behavior). The metadata's
+   * lookup (the store's `getMeta`) always runs at mount: it is the cheap
+   * head stand the placeholder's aspect-ratio reservation reads.
+   *
+   * A nested provider that supplies none inherits the enclosing policy.
+   */
+  blobLoading?: BlobLoading;
   /**
    * Optional database bridge: the consumer's implementation of the table
    * operations behind the external-form database blocks (the document
@@ -79,4 +94,4 @@ interface EditorProviderBaseProps {
   children: ReactNode;
 }
 
-export type { EditorProviderBaseProps };
+export type { BlobLoading, EditorProviderBaseProps };

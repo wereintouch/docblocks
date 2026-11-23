@@ -9,8 +9,10 @@
  * `refDisplayColumn`, else the bridge's default resolution). The data
  * refreshes on the ref table's live events (the subscription opens over
  * the snapshot's R — an envelope stands the refresh; a reset signal stands
- * the re-snapshot + the re-subscription). A broken ref table (the unknown
- * id) stands the empty data (the lenient read).
+ * the re-snapshot + the re-subscription) — per-entry coalesced: an event
+ * over a running load stands the pending re-run, not a parallel load. A
+ * broken ref table (the unknown id) stands the empty data (the lenient
+ * read).
  */
 import { useEffect, useState } from "react";
 
@@ -29,14 +31,22 @@ const REF_PAGE_SIZE = 200;
  *  read). */
 const REF_LOAD_ATTEMPTS = 3;
 
+/** One page set of a ref table (the rows of every page + the schema's
+ *  first snapshot + the last page's `R`). */
+interface FullPages {
+  rows: RowWire[];
+  asOfSeq: number;
+  columns: Column[];
+}
+
 /** Loads one page set over the cursor's continuation (the full page set
  *  — the loop runs to the tail; the `cursor_expired` over the concurrent
- *  commit stands the fresh snapshot's retry). The schema stands the first
- *  snapshot's (the page set's stand — the color column's id lookup). */
-async function loadFullPages(
-  bridge: DatabaseBridge,
-  tableId: string
-): Promise<{ rows: RowWire[]; asOfSeq: number; columns: Column[] } | null> {
+ *  commit stands the fresh snapshot's retry, and the churn over the last
+ *  attempt stands the partial set — the lenient read). The schema stands
+ *  the first snapshot's (the page set's stand — the color column's id
+ *  lookup). */
+async function loadFullPages(bridge: DatabaseBridge, tableId: string): Promise<FullPages> {
+  let partial: FullPages = { rows: [], asOfSeq: 0, columns: [] };
   for (let attempt = 0; attempt < REF_LOAD_ATTEMPTS; attempt += 1) {
     const snapshot = await bridge.snapshotTable(tableId, { limit: REF_PAGE_SIZE });
     const rows = [...snapshot.page.rows];
@@ -64,13 +74,12 @@ async function loadFullPages(
         throw pageError;
       }
     }
-    if (cursor === null) return { rows, asOfSeq, columns };
-    // The cursor expired over the last attempt: the partial page set
-    // stands the lenient read (the refresh's next event stands the next
-    // load).
-    if (attempt === REF_LOAD_ATTEMPTS - 1) return { rows, asOfSeq, columns };
+    partial = { rows, asOfSeq, columns };
+    if (cursor === null) return partial;
   }
-  return null;
+  // The cursor expired over every attempt: the partial page set stands the
+  // lenient read (the refresh's next event stands the next load).
+  return partial;
 }
 
 /** The loaded ref-table data: the row ids in the row order + the row
@@ -120,26 +129,35 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
     let live = true;
     const entryKeys = key.split("\u0001");
     const loaded = new Map<string, RefTableData>();
-    const refreshEntry = async (entryKey: string): Promise<void> => {
+    // The per-entry in-flight coalescing: a bridge event that arrives over
+    // the running load marks the entry pending instead of firing a second
+    // full load (a burst coalesces into the running load plus one trailing
+    // load), and the pending's re-run stands over the running load's
+    // write, so overlapping loads never interleave their states.
+    const inFlight = new Set<string>();
+    const pending = new Set<string>();
+    const runEntry = async (entryKey: string): Promise<void> => {
       const [tableId, displayColumn] = entryKey.split("\u0000");
       try {
         // The full page set (the cursor's continuation to the tail — the
         // catalog stands complete) + the schema stand the entry's data;
         // the color stands the named `color` column's id.
         const pageSet = await loadFullPages(bridge, tableId!);
-        if (pageSet === null) return;
         const rows = pageSet.rows;
         const rowIds = rows.map((row) => row.id);
         const rawDisplays = await bridge.resolveRowDisplay(tableId!, {
           rowIds,
           ...(displayColumn === "" || displayColumn === undefined ? {} : { displayColumn }),
         });
-        const displays: Record<string, string> = {};
+        // The row's ids stand the bridge's data (the `__proto__`'s id
+        // stands the inert own entry, not the prototype's write):
+        // the null-prototype's map.
+        const displays: Record<string, string> = Object.create(null);
         for (const [rowId, display] of Object.entries(rawDisplays)) {
           if (display !== null) displays[rowId] = display;
         }
         const colorColumnId = pageSet.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)?.id;
-        const colors: Record<string, string> = {};
+        const colors: Record<string, string> = Object.create(null);
         for (const row of rows) {
           const color = colorColumnId !== undefined ? row.cells[colorColumnId] : undefined;
           if (typeof color === "string" && color !== "") colors[row.id] = color;
@@ -155,10 +173,21 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
         if (live) setData(Object.fromEntries(loaded));
       }
     };
-    const refreshAll = async (): Promise<void> => {
-      for (const entryKey of entryKeys) await refreshEntry(entryKey);
+    const refreshEntry = (entryKey: string): void => {
+      if (inFlight.has(entryKey)) {
+        pending.add(entryKey);
+        return;
+      }
+      inFlight.add(entryKey);
+      void runEntry(entryKey).finally(() => {
+        inFlight.delete(entryKey);
+        if (pending.delete(entryKey)) refreshEntry(entryKey);
+      });
     };
-    void refreshAll();
+    const refreshAll = (): void => {
+      for (const entryKey of entryKeys) refreshEntry(entryKey);
+    };
+    refreshAll();
     // The live channel per entry: the snapshot's R stands the replay
     // cursor, any envelope stands the refresh, and a reset signal stands
     // the re-snapshot + the re-subscription.
@@ -177,7 +206,7 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
           { afterSeq: snapshot.page.asOfSeq },
           {
             ready: () => undefined,
-            event: () => void refreshEntry(entryKey),
+            event: () => refreshEntry(entryKey),
             status: () => undefined,
             error: () => undefined,
             reset: () => {
@@ -207,5 +236,5 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
   return data;
 }
 
-export { REF_PAGE_SIZE, loadFullPages, refEntryKey, useRefTables };
+export { loadFullPages, refEntryKey, useRefTables };
 export type { RefTableData, RefTableDataMap, RefTableEntry };

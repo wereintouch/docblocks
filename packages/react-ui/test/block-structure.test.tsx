@@ -1,101 +1,16 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// The block's structure's keyboard stand: the list's nesting's Tab /
+// Shift+Tab (the flat's indent's update, the segment's outdent, the
+// attach's rule) and the block's selection (the gutter's click, the
+// Delete's cascade, the shift's range, the arrow's move, the Escape's
+// clear).
+import { act } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import { createDoc, validateDoc } from "docblocks-core";
-import type { BlockId, Selection } from "docblocks-core";
+import { validateDoc } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
-import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/editor-provider";
-import type { EditorContextValue } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-type TestDoc = ReturnType<typeof createDoc>;
-
-// Captures the context at render time (the store handle for the selection
-// slice assertions).
-let context: EditorContextValue | null = null;
-function ContextCapture() {
-  context = useEditorContext();
-  return null;
-}
-
-function renderDoc(prepare: (doc: TestDoc) => void): TestDoc {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  prepare(doc);
-  render(
-    <EditorProvider doc={doc}>
-      <Editor />
-      <ContextCapture />
-    </EditorProvider>
-  );
-  return doc;
-}
-
-/** The wrapper element of the block. */
-function wrapperOf(id: BlockId): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
-  expect(el, `the block ${id} should be rendered`).not.toBeNull();
-  return el!;
-}
-
-/** The inner editable of the block's wrapper. */
-function innerOf(id: BlockId): HTMLElement {
-  const inner = wrapperOf(id).querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
-  expect(inner, "the wrapper should carry the inner editable").not.toBeNull();
-  return inner!;
-}
-
-/**
- * Dispatch a keydown on the wrapper; false when the handler suppressed the
- * event (dispatchEvent returns false after preventDefault).
- */
-function key(wrapper: HTMLElement, name: string, init: KeyboardEventInit = {}): boolean {
-  let result = true;
-  act(() => {
-    result = wrapper.dispatchEvent(
-      new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init })
-    );
-  });
-  return result;
-}
-
-/** The local selection slice of the store. */
-function storeSelection(): Selection {
-  expect(context).not.toBeNull();
-  return context!.store.getState().selection;
-}
-
-/**
- * Place the DOM caret at the flat character offset in the block's inner
- * editable (walking the text nodes across the run inlines).
- */
-function caretAtFlat(id: BlockId, offset: number): void {
-  const inner = innerOf(id);
-  const nodes: { node: Text; start: number; end: number }[] = [];
-  let pos = 0;
-  for (const child of Array.from(inner.childNodes)) {
-    if (child.nodeType === Node.TEXT_NODE) {
-      const length = child.nodeValue?.length ?? 0;
-      nodes.push({ node: child as Text, start: pos, end: pos + length });
-      pos += length;
-    }
-  }
-  const at = nodes.find((n) => offset >= n.start && offset <= n.end);
-  expect(at, `a text node should cover offset ${offset}`).toBeDefined();
-  const range = document.createRange();
-  range.setStart(at!.node, offset - at!.start);
-  range.collapse(true);
-  const selection = window.getSelection()!;
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
-afterEach(() => {
-  cleanup();
-  context = null;
-  window.getSelection()?.removeAllRanges();
-});
+import { caretAtFlat, key, renderDoc, storeSelection, wrapperOf } from "./block-structure.helpers";
 
 describe("Tab: list nesting", () => {
   it("nests the second item under the first (an indent attr update); Shift+Tab undoes it", () => {
@@ -302,82 +217,5 @@ describe("blocks selection (gutter)", () => {
     key(wrapperOf(p1), "Escape");
     expect(storeSelection()).toEqual({ kind: "none" });
     expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
-  });
-});
-
-describe("per-level list markers (the rendered row marker's cycle)", () => {
-  /** The cycle index of every flat list row's marker, in DOM order. */
-  function listDepths(): string[] {
-    return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/row-marker']")).map(
-      (el) => el.getAttribute("data-cycle") ?? ""
-    );
-  }
-
-  /** A chain of `levels` nested list items of one kind (deepest last; the flat model: the level IS the indent). */
-  function seedChain(d: TestDoc, list: "bullet" | "number", levels: number): void {
-    for (let level = 0; level < levels; level++) {
-      const id = d.insertBlock("list-item", { list, indent: level });
-      d.insertText(id, 0, `level ${level + 1}`);
-    }
-  }
-
-  it("a 3-level nested bullet carries the cycle indices 1, 2, 3", () => {
-    renderDoc((d) => seedChain(d, "bullet", 3));
-    expect(listDepths()).toEqual(["1", "2", "3"]);
-  });
-
-  it("a 4-level nested bullet cycles back to 1", () => {
-    renderDoc((d) => seedChain(d, "bullet", 4));
-    expect(listDepths()).toEqual(["1", "2", "3", "1"]);
-  });
-
-  it("a 2-level nested number list carries the cycle indices 1, 2", () => {
-    renderDoc((d) => seedChain(d, "number", 2));
-    expect(listDepths()).toEqual(["1", "2"]);
-    // The flat stand: the number's markers stand the kind (no list
-    // element — the row's marker label renders the number).
-    const kinds = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/row-marker']")).map((el) =>
-      el.getAttribute("data-kind")
-    );
-    expect(kinds).toEqual(["number", "number"]);
-  });
-
-  it("a top-level list inside a table cell starts a fresh depth-1 context", () => {
-    // A list item is not cell-eligible (the cell holds the leaf set), so the
-    // list arrives as the embedded doc's top level inside the cell.
-    const master = createDoc({ id: "master-1", createdAt: CREATED_AT });
-    const item = master.insertBlock("list-item", { list: "bullet" });
-    master.insertText(item, 0, "in the cell");
-    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-    const table = doc.insertBlock("table", { cols: 1 });
-    const row = doc.insertBlock("table-row", undefined, { parent: table });
-    const cell = doc.insertBlock("table-cell", undefined, { parent: row });
-    doc.insertBlock("sync-embed", { ref: { docId: "master-1" } }, { parent: cell });
-    render(
-      <EditorProvider doc={doc} syncEmbedResolver={(ref) => (ref.docId === "master-1" ? master : null)}>
-        <Editor />
-      </EditorProvider>
-    );
-    const cellEl = document.querySelector<HTMLElement>("[data-slot='docblocks/table-cell']");
-    expect(cellEl, "the cell should be rendered").not.toBeNull();
-    // The embedded editor's flat stand: the list item's row marker stands
-    // inside the cell (the fresh depth-1 context).
-    const marker = cellEl!.querySelector("[data-slot='docblocks/row-marker']");
-    expect(marker, "the embedded list's marker should stand inside the cell").not.toBeNull();
-    expect(marker!.getAttribute("data-cycle")).toBe("1");
-  });
-
-  it("the task list is untouched (the checkbox owns the marker slot)", () => {
-    renderDoc((d) => {
-      const id = d.insertBlock("list-item", { list: "task" });
-      d.insertText(id, 0, "a task");
-    });
-    const wrapper = document.querySelector<HTMLElement>("[data-slot='docblocks/list-item']");
-    expect(wrapper).not.toBeNull();
-    expect(wrapper!.getAttribute("data-list")).toBe("task");
-    expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).not.toBeNull();
-    // The checkbox owns the marker slot: no rendered marker over a task
-    // row.
-    expect(wrapper!.querySelector('[data-slot="docblocks/row-marker"]')).toBeNull();
   });
 });

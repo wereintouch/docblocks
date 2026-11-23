@@ -25,7 +25,7 @@ function isCanvasSubType(type: BlockType): boolean {
  * `edgePointOf` lookups from a live reference.
  */
 function isKnownPort(value: unknown): value is CanvasPort {
-  return typeof value === "string" && value in PORT_NORMAL;
+  return typeof value === "string" && Object.hasOwn(PORT_NORMAL, value);
 }
 
 /**

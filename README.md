@@ -74,8 +74,12 @@ Query flags (combined freely):
 | `?syncUrl=…`   | The relay room url (default `ws://localhost:5199/doc-1`)                                                                                       |
 | `?catalog=1`   | Seed the deterministic v1 catalog document (the visual-regression fixture)                                                                     |
 | `?canvas=1`    | Seed the canvas demo (a page + a surface with shapes, a canvas text, a connector) in its own room (`canvas-demo`) and start in the canvas view |
+| `?heavy=1`     | Seed the heavy canvas (the synthetic grid — 5000 figures + 1500 connectors) in its own room (`heavy-demo`) and start in the canvas view        |
 | `?cycle=1`     | Seed the pane's master doc with a sync-embed referencing the outer doc                                                                         |
+| `?role=viewer` | Stand the pane's viewer's access level (the read-only published snapshot — the pane holds no live document and no relay)                       |
 | `?ds=1`        | Render the design-system preview panel instead of a pane                                                                                       |
+| `?tables=1`    | Render the standalone database tables section instead of a pane (the `useTableList` + `DatabaseTable` over the harness's shared bridge)        |
+| `?attrDemo=1`  | Wire the consumer's attributes customization over the editor provider (the `renderAttribute` / `createdBy` / `attributeTypePicker`'s demo)     |
 
 `docblocks-react-ui` is consumed by the playground from its built `dist/`
 (consumer view): rebuild the packages first after a source change, or the
@@ -83,21 +87,22 @@ playground runs the stale build.
 
 ## Commands (run from the repo root)
 
-| Command                           | Purpose                                                                                      |
-| --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `npm install`                     | Install all workspaces                                                                       |
-| `npm run build`                   | tsdown builds for both packages (core first)                                                 |
-| `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project                                          |
-| `npm run check:deprecations`      | The deprecation gate (the `@deprecated` usages the editor surfaces over the typecheck's set) |
-| `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)                                  |
-| `npm run test:packaging`          | The packaging gate (the tarball composition + the clean-install minimal consumer)            |
-| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)                                     |
-| `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)                                            |
-| `npm run format` / `format:check` | Prettier                                                                                     |
-| `npm run check`                   | Full local gate: lint → format → build → typecheck → deprecations → test → packaging → e2e   |
+| Command                           | Purpose                                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm install`                     | Install all workspaces                                                                                  |
+| `npm run build`                   | tsdown builds for both packages (core first)                                                            |
+| `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project                                                     |
+| `npm run check:deprecations`      | The deprecation gate (the `@deprecated` usages the editor surfaces over the typecheck's set)            |
+| `npm run check:changesets`        | The changeset's frontmatter's parse gate (a broken changeset stands the gate's failure)                 |
+| `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)                                             |
+| `npm run test:packaging`          | The packaging gate (the tarball composition + the clean-install minimal consumer)                       |
+| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)                                                |
+| `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)                                                       |
+| `npm run format` / `format:check` | Prettier                                                                                                |
+| `npm run check`                   | Full local gate: lint → format → build → typecheck → deprecations → changesets → test → packaging → e2e |
 
 The `Makefile` wraps the npm scripts for the daily loop: `make dev` (the
-playground), `make check` (lint + typecheck + deprecations), `make full`
+playground), `make check` (lint + typecheck + deprecations + changesets), `make full`
 (the full gate), `make unit` / `make unit-f F=<test file>` (all unit tests /
 a single file), `make e2e-file F=<spec>` (a single e2e spec).
 
@@ -113,8 +118,7 @@ pull requests: the static, unit and packaging gates over the supported Node
 versions (the `engines` floor of each major plus the current major), the E2E
 step over the Node 22 job (the browser tests stand the product, not the
 runner's Node). Releases are a separate job: a changesets Version PR on
-`main`, publishing behind the protected `npm` environment with minimal
-permissions.
+`main`; the publish itself is a manual step (`make publish`).
 
 ## Boundaries (enforced by ESLint)
 

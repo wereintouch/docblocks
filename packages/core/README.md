@@ -31,7 +31,7 @@ const para = doc.insertBlock("paragraph");
 doc.insertText(para, 0, "hello world");
 doc.setMark(para, 0, 5, { type: "bold" });
 
-const json = doc.toJSON(); // { v, id, title, avatar?, createdAt, blocks }
+const json = doc.toJSON(); // { v, id, title, avatar?, createdAt, attributes?, attributesOrder?, blocks }
 // …persist or send `json` …
 const restored = fromJSON(json); // a fresh Doc over the same data
 ```
@@ -63,7 +63,7 @@ editable paragraph). The other entry points:
 - `fromJSON(json)` — build a `Doc` from a JSON snapshot.
 - `loadDoc(bytes)` — build a `Doc` from an encoded full state (a base
   snapshot; apply diffs with `applyUpdate`).
-- `doc.toJSON()` — the JSON snapshot (`{ v, id, title, avatar?, createdAt, blocks }`).
+- `doc.toJSON()` — the JSON snapshot (`{ v, id, title, avatar?, createdAt, attributes?, attributesOrder?, blocks }`).
 - `doc.encode()` / `doc.encodeUpdate(stateVector?)` — the encoded full
   state / the incremental update.
 - `doc.applyUpdate(bytes)` — apply an encoded update (the remote-apply path).
@@ -81,6 +81,9 @@ The commands translate into `Y.Doc` mutations inside a transaction:
 - **Text** — `insertText`, `deleteText`, `setMark`, `unsetMark`, and the
   range forms (`deleteTextRange`, `setMarkRange`).
 - **Document meta** — `setTitle`, `setAvatar`, `setGeometry`, `setZOrder`.
+- **Document attributes** — `setAttribute`, `removeAttribute`,
+  `renameAttribute`, `reorderAttributes` (the `meta.attributes` record);
+  a block's own attrs over `removeBlockAttr`.
 - **Database rows** — the row commands (`insertRow`, `setCell`,
   `removeRow`, `moveRow`, …).
 - **Table rows / columns** — `insertTableRow`, `removeTableRow`,
@@ -88,8 +91,8 @@ The commands translate into `Y.Doc` mutations inside a transaction:
   width commands, and `setTableRowColor`.
 
 Reads: `getBlock(id)`, `getChildren(id)`, `getRuns(id)`, `getText(id)`,
-`getTextLength(id)`. History: `undo()` / `redo()` (with `canUndo()` /
-`canRedo()`) — one `transact` is one undo step, and a command batched
+`getTextLength(id)`. History: `undo()` / `redo()` (with the `canUndo` /
+`canRedo` getters) — one `transact` is one undo step, and a command batched
 into a `transact` is one step across the batch.
 
 ## Sync
@@ -129,7 +132,11 @@ projects a selection into the presence payload shape.
 ## Data format
 
 The JSON format is `v: 1`: the document fields (`id`, `title`, the
-optional `avatar`, `createdAt`) at the top level, plus a **flat block map**
+optional `avatar`, `createdAt`, the optional `attributes` record — the
+document's consumer-owned metadata — and the optional `attributesOrder`
+array — the attributes' display order, a permutation of the `attributes`
+keys — normalized in `fromJSON` / the validator) at the top level, plus a
+**flat block map**
 (`id → block`) with explicit order via
 `children: [blockId]`; nesting (lists, table cells) is `children`. The text
 of a text block is `content: [{ text, marks }]` runs. JSON ↔ Yjs is

@@ -7,7 +7,11 @@ playwright-report
 .docs
 CHANGELOG.md
 .tmp
+.scratch-probes
 .pi
 .playwright-mcp
+graphify-out
+.ruff_cache
+.vitest
 TODO.md
 CLAUDE.md

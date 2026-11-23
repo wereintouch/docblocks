@@ -31,6 +31,7 @@ import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
 import { PresenceShareControl } from "./inspect/PresenceShareControl";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
+import { createLongDoc } from "./longdoc-seed";
 import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
 import type { MasterRuntime } from "./master";
 import { MentionClickBanner, mentionInteractions } from "./mention-card";
@@ -56,6 +57,8 @@ declare global {
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
     /** Harness-only: re-reads the room's published snapshot from the shared stand (the publish.ts's localStorage) and applies it to the pane's published stand (the e2e's A/B flow: the editor's pane publishes, the viewer's pane re-reads); true when a stand was applied. */
     __reloadPublished?: (client: "a" | "b") => boolean;
+    /** Harness-only: the blob store's `get` calls in order (the lazy loading's e2e probe — which file ids resolved); the array stands from module load. */
+    __blobGets?: string[];
   }
 }
 
@@ -146,6 +149,8 @@ function SyncPane({
   cycle,
   role,
   attrDemo,
+  blobEager,
+  longdoc,
 }: {
   client: "a" | "b";
   syncUrl: string;
@@ -155,6 +160,9 @@ function SyncPane({
   cycle: boolean;
   role: "editor" | "viewer";
   attrDemo: boolean;
+  blobEager: boolean;
+  /** The long-document seed's image count (0 when the mode stands off). */
+  longdoc: number;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -187,6 +195,11 @@ function SyncPane({
   const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
+  /** The provider's blob loading policy: the catalog pane stands eager (the
+   *  visual goldens capture the whole page — the lazy band would leave the
+   *  off-screen images as placeholders); `?blobEager=1` flips the dev
+   *  harness's stand; the package's default is lazy. */
+  const blobLoading: "eager" | "lazy" = catalog || blobEager ? "eager" : "lazy";
   /** The cover preset's gallery's stand (the consumer's `coverPresets` prop's demo): on by default (the feature's visible stand), the toggle's off stands the no-preset's layout. */
   const [coverPresetsOn, setCoverPresetsOn] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
@@ -242,11 +255,14 @@ function SyncPane({
     }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
-    const doc = heavy
-      ? createHeavyDoc(client === "a")
-      : canvas
-        ? createCanvasDoc(client === "a")
-        : seedPaneDoc(catalog);
+    const doc =
+      longdoc > 0
+        ? createLongDoc(client === "a", longdoc)
+        : heavy
+          ? createHeavyDoc(client === "a")
+          : canvas
+            ? createCanvasDoc(client === "a")
+            : seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
     // The pane's master (the sync-embed target): pane a seeds it, pane b
@@ -298,7 +314,7 @@ function SyncPane({
       }
     };
     let unsubscribeSettle: (() => void) | null = null;
-    if (client === "a" && !catalog && !canvas && !heavy) {
+    if (client === "a" && !catalog && !canvas && !heavy && longdoc === 0) {
       unsubscribeSettle = provider.onUpdate(finishStarter);
       settleTimer = window.setTimeout(finishStarter, 1000);
     }
@@ -371,7 +387,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, heavy, cycle, masterDocId, client, role]);
+  }, [syncUrl, catalog, canvas, heavy, longdoc, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
@@ -536,6 +552,7 @@ function SyncPane({
               key={publishedSeq}
               doc={publishedDoc ?? undefined}
               blobStore={blobStore}
+              blobLoading={blobLoading}
               databaseBridge={databaseBridge}
               blockRenderers={BLOCK_RENDERERS}
               pdfPreview={PdfFirstPage}
@@ -557,6 +574,7 @@ function SyncPane({
                 doc={runtime.doc}
                 provider={runtime.provider}
                 blobStore={blobStore}
+                blobLoading={blobLoading}
                 databaseBridge={databaseBridge}
                 blockRenderers={BLOCK_RENDERERS}
                 syncEmbedResolver={syncEmbedResolver}

@@ -1,32 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { useStore } from "zustand";
 
-import { useContext, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { BlockId, ImageBlock as ImageBlockType } from "docblocks-core";
 
-import type { BlockId, ImageBlock as ImageBlockType, TextAlign } from "docblocks-core";
-
-import { CANVAS_SELECTION_OUTLINE } from "../canvas/canvas-view/constants";
 import { useEditorContext } from "../editor-provider";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
-import { BlockContext } from "../shared/providers/block-context";
-import { Button } from "../shared/ui/Button";
 import { Card, CardContent } from "../shared/ui/Card";
-import { cn } from "../shared/ui/cn";
-import {
-  Captions,
-  Download,
-  Image as ImageIcon,
-  LoaderCircle,
-  TextAlignCenter,
-  TextAlignEnd,
-  TextAlignStart,
-} from "../shared/ui/icons";
-import { isSafeDownloadHref } from "../shared/utils";
-import { clamp, preventDefault } from "../shared/utils";
-import { BlockCaption, requestBlockCaption } from "./BlockCaption";
+import { Image as ImageIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
-import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
+import { ImageFigure } from "./ImageFigure";
+import { BLOB_PLACEHOLDER_CLASS, blobPlaceholderAspect } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
 /** The image block's renderable MIME (the bytes' stand): the image stands
@@ -36,32 +18,6 @@ import { useBlobFile } from "./use-blob-file";
  *  stable (the resolution's effect's dep). */
 const IMAGE_RENDERS_BYTES = (mimeType: string): boolean =>
   mimeType.startsWith("image/") || mimeType === "application/pdf";
-
-/** The figure's minimum display width (the port drag's floor; px). */
-const MIN_IMAGE_WIDTH_PX = 20;
-
-/** The drag's commit threshold (px): a sub-threshold drag issues no command. */
-const COMMIT_THRESHOLD_PX = 2;
-/** The port's keyboard resize's step (the arrows' width's nudge per press). */
-const IMAGE_KEYBOARD_RESIZE_STEP_PX = 10;
-
-/** The image's align controls, in display order (the format toolbar's set). */
-const IMAGE_ALIGNS: { align: TextAlign; labelKey: string; icon: typeof TextAlignStart }[] = [
-  { align: "left", labelKey: "align.left", icon: TextAlignStart },
-  { align: "center", labelKey: "align.center", icon: TextAlignCenter },
-  { align: "right", labelKey: "align.right", icon: TextAlignEnd },
-];
-
-/** The corner port's corner (the resize session's drag anchor). */
-type ImagePortCorner = "nw" | "ne" | "sw" | "se";
-
-/** The four corner ports (the cursor per the corner's diagonal). */
-const IMAGE_PORT_CORNERS: { corner: ImagePortCorner; cursor: string }[] = [
-  { corner: "nw", cursor: "cursor-nwse-resize" },
-  { corner: "ne", cursor: "cursor-nesw-resize" },
-  { corner: "sw", cursor: "cursor-nesw-resize" },
-  { corner: "se", cursor: "cursor-nwse-resize" },
-];
 
 /**
  * An image: the <img> src comes from the consumer's blob store (the key is
@@ -73,23 +29,32 @@ const IMAGE_PORT_CORNERS: { corner: ImagePortCorner; cursor: string }[] = [
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
-  const { pdfPreview } = useEditorContext();
+  const { pdfPreview, blobLoading } = useEditorContext();
   const src = block.attrs.src;
-  const file = useBlobFile(src, IMAGE_RENDERS_BYTES);
+  // The lazy stand: the bytes resolve once the block enters the viewport's
+  // preload band; the eager policy skips the gate.
+  const { state: file, ref: placeholderRef } = useBlobFile(
+    src,
+    IMAGE_RENDERS_BYTES,
+    blobLoading === "eager" ? { eager: true } : {}
+  );
 
   if (file.status === "loading" || file.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
     // unknown pre-resolution — the pdf / file's payloads stand their own
     // renderers over the ready state); the missing's stand keeps the
-    // static card (the id stands no blob in this store).
+    // static card (the id stands no blob in this store). The metadata's
+    // dimensions reserve the aspect ratio while the bytes wait.
     return (
       <Card
+        ref={placeholderRef}
         data-slot="docblocks/image-placeholder"
         data-block-type="image"
         data-block-id={id}
         data-state={file.status}
         aria-busy={file.status === "loading"}
         className={BLOB_PLACEHOLDER_CLASS}
+        style={file.status === "loading" ? blobPlaceholderAspect(file.meta) : undefined}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
           {file.status === "loading" ? (
@@ -142,355 +107,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   if (!meta.mimeType.startsWith("image/")) {
     return <FileCard id={id} fileId={src} blockType="image" url={url} name={name} subtype="file" />;
   }
-  return <ImageFigure id={id} block={block} url={url} name={name} />;
-}
-
-/**
- * The image figure (the image subtype). The width: the `width` attr is the
- * display width in px (the aspect ratio stands — the height follows); the
- * absent / `null` width is the editor's full width, and the figure never
- * stands wider than the editor (the `max-width` clamp).
- *
- * The selection: a click on the figure is the blocks selection (the
- * gutter's idiom — the plain click seats one block, the Shift-click
- * extends from the anchor over the siblings). The selected figure stands
- * the canvas selection token's outline (the shared token) and the four
- * corner ports.
- *
- * The corner ports are the resize session (the canvas session's contract):
- * the in-flight width is pure view state (the doc stands as it is), and
- * one `updateBlock({ width })` commits on the release — one undo step, one
- * wire update. A no-op / sub-threshold drag issues no command. The drag
- * keeps the aspect ratio (the width only) and the editor's content width
- * is the upper bound (the figure never stretches past the editor).
- *
- * The hover menu (top-right over the figure; the code header's controls
- * idiom — the hover reveal): the download (the resolved url, the
- * `download` attribute), the caption (the code block's caption mechanism —
- * the `caption` attr), and the three align controls
- * (`updateBlock({ align })` — "left" restores the absent attr).
- */
-function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockType; url: string; name?: string }) {
-  const { t } = useTranslation("blocks");
-  const { doc, store, selection: selectionRef, viewMode } = useEditorContext();
-  const blockContext = useContext(BlockContext);
-  const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
-  const align = block.attrs.align ?? "left";
-  // The align's pick: the current align's press is the no-op stand
-  // (it writes nothing).
-  const pickAlign = (value: TextAlign) => () => {
-    if (align === value) return;
-    doc.updateBlock(id, { align: value });
-  };
-  const [dragWidth, setDragWidth] = useState<number | null>(null);
-  const dragWidthRef = useRef<number | null>(null);
-  const dragRef = useRef<{ startX: number; startWidth: number; max: number; corner: ImagePortCorner } | null>(null);
-  const figureRef = useRef<HTMLDivElement | null>(null);
-  const imgRef = useRef<HTMLImageElement | null>(null);
-
-  const setPreview = (value: number | null): void => {
-    dragWidthRef.current = value;
-    setDragWidth(value);
-  };
-
-  const widthValue =
-    dragWidth !== null ? `${dragWidth}px` : block.attrs.width != null ? `${block.attrs.width}px` : "100%";
-  // The figure's horizontal placement (the align attr at a reduced width;
-  // the full width ignores it — there is nothing to place).
-  const alignClass = align === "center" ? "mx-auto" : align === "right" ? "ml-auto" : "mr-auto";
-
-  /** The click's blocks selection (the gutter's idiom: the plain click seats
-   *  one block, the Shift-click extends from the anchor over the siblings). */
-  const onFigureClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
-    const view = selectionRef.view;
-    if (view === null) return;
-    const current = view.get();
-    if (event.shiftKey && current.kind === "blocks" && blockContext !== null) {
-      const siblings = doc.getChildren(blockContext.parentId);
-      const anchorIndex = siblings.indexOf(current.anchorId);
-      const hereIndex = siblings.indexOf(id);
-      if (anchorIndex !== -1 && hereIndex !== -1) {
-        const [low, high] = anchorIndex <= hereIndex ? [anchorIndex, hereIndex] : [hereIndex, anchorIndex];
-        view.set({ kind: "blocks", ids: siblings.slice(low, high + 1), anchorId: current.anchorId });
-      } else {
-        view.set({ kind: "blocks", ids: [id], anchorId: id });
-      }
-    } else {
-      view.set({ kind: "blocks", ids: [id], anchorId: id });
-    }
-    // The figure takes the focus: the selection's keys (Delete/Backspace/
-    // Escape) bubble to the editor root's handler.
-    figureRef.current?.focus();
-  };
-
-  /** The figure's keyboard focus seats the selection (the ports' + the menu's
-   * stand — the keyboard's resize + the menu's reveal stand on the selected
-   * figure). */
-  const onFigureFocus = (): void => {
-    const view = selectionRef.view;
-    if (view === null) return;
-    view.set({ kind: "blocks", ids: [id], anchorId: id });
-  };
-
-  /** The figure's upper width bound (the editor's content width — the row's
-   * content box over the indent, the editor root in the base view): the
-   * resize's clamp, so the figure never stands past the editor. */
-  const figureMaxWidth = (): number => {
-    const figure = figureRef.current;
-    if (figure === null) return MIN_IMAGE_WIDTH_PX;
-    const rect = figure.getBoundingClientRect();
-    const row = figure.closest<HTMLElement>('[data-slot="docblocks/row"]');
-    const scope = row ?? figure.closest('[data-slot="docblocks/editor"]');
-    let max = rect.width;
-    if (scope !== null) {
-      const scopeStyle = window.getComputedStyle(scope);
-      const content =
-        scope.getBoundingClientRect().width -
-        (parseFloat(scopeStyle.paddingLeft) || 0) -
-        (parseFloat(scopeStyle.paddingRight) || 0);
-      if (content > 0) max = content;
-    }
-    return Math.max(max, rect.width, MIN_IMAGE_WIDTH_PX);
-  };
-
-  /** The port press starts the resize session (the pointer capture stays on the port). */
-  const onPortPointerDown =
-    (corner: ImagePortCorner) =>
-    (event: ReactPointerEvent<HTMLElement>): void => {
-      const figure = figureRef.current;
-      if (figure === null) return;
-      event.stopPropagation();
-      event.preventDefault();
-      const rect = figure.getBoundingClientRect();
-      const row = figure.closest<HTMLElement>('[data-slot="docblocks/row"]');
-      dragRef.current = {
-        startX: event.clientX,
-        startWidth: rect.width,
-        max: figureMaxWidth(),
-        corner,
-      };
-      setPreview(rect.width);
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-      (row ?? figure).focus();
-    };
-
-  /** The session's live width (pure view state — the doc stands as it is). */
-  const onPortPointerMove = (event: ReactPointerEvent<HTMLElement>): void => {
-    const drag = dragRef.current;
-    if (drag === null) return;
-    const dx = event.clientX - drag.startX;
-    const next = drag.corner === "ne" || drag.corner === "se" ? drag.startWidth + dx : drag.startWidth - dx;
-    setPreview(Math.min(drag.max, Math.max(MIN_IMAGE_WIDTH_PX, next)));
-  };
-
-  /** The release commits one `updateBlock` (a no-op / sub-threshold drag issues nothing). */
-  const onPortPointerUp = (): void => {
-    const drag = dragRef.current;
-    if (drag === null) return;
-    dragRef.current = null;
-    const width = dragWidthRef.current;
-    setPreview(null);
-    if (width === null || Math.abs(width - drag.startWidth) < COMMIT_THRESHOLD_PX) return;
-    doc.updateBlock(id, { width: Math.round(width) });
-  };
-
-  /** The port's keyboard resize: the arrows stand the width by a step (one
-   * `updateBlock` — one undo step per press), clamped to the image's range.
-   * The left corners widen on the left's arrow, the right on the right's. */
-  const onPortKeyDown =
-    (corner: ImagePortCorner) =>
-    (event: React.KeyboardEvent<HTMLElement>): void => {
-      const key = event.key;
-      if (key !== "ArrowLeft" && key !== "ArrowRight") return;
-      event.preventDefault();
-      const widens = corner === "nw" || corner === "sw" ? key === "ArrowLeft" : key === "ArrowRight";
-      // The current width's baseline (the committed's attr, the rendered's over
-      // the absent's): the step's stands on the image's current's width, not the
-      // figure's box (the column's — the constant's stand would step nowhere).
-      const baseline = block.attrs?.width ?? imgRef.current?.clientWidth ?? MIN_IMAGE_WIDTH_PX;
-      doc.updateBlock(id, {
-        width: Math.round(
-          clamp(
-            baseline + (widens ? IMAGE_KEYBOARD_RESIZE_STEP_PX : -IMAGE_KEYBOARD_RESIZE_STEP_PX),
-            MIN_IMAGE_WIDTH_PX,
-            figureMaxWidth()
-          )
-        ),
-      });
-    };
-
-  const requestCaption = () => requestBlockCaption(store, id);
-
-  return (
-    <>
-      <div
-        ref={figureRef}
-        data-slot="docblocks/image-figure"
-        data-align={align}
-        data-selected={selected ? "true" : undefined}
-        tabIndex={0}
-        // The island's boundary: the figure is chrome, never text (the
-        // caret and the selection never stand in it).
-        contentEditable={false}
-        className={cn(
-          "group relative",
-          alignClass,
-          "outline-none",
-          // The canvas selection's token (the shared selection outline).
-          selected && CANVAS_SELECTION_OUTLINE,
-          // The keyboard focus's stand (the dashed outline — distinct from
-          // the selection's solid stand, the canvas items' idiom).
-          `
-            focus-visible:outline-(length:--docblocks-canvas-selection-border-width) focus-visible:outline-offset-1
-            focus-visible:outline-(--docblocks-canvas-selection-border-color) focus-visible:outline-dashed
-          `
-        )}
-        // Keep the caret: a default mousedown would move the focus out of the
-        // editable (the figure is chrome, never text).
-        onMouseDown={preventDefault}
-        onClick={onFigureClick}
-        onFocus={onFigureFocus}
-      >
-        <img
-          ref={imgRef}
-          data-slot="docblocks/image"
-          data-block-type="image"
-          data-block-id={id}
-          data-subtype="image"
-          src={url}
-          alt=""
-          draggable={false}
-          className="block h-auto max-w-full rounded-(--docblocks-image-radius)"
-          style={{ width: widthValue }}
-        />
-        {selected &&
-          IMAGE_PORT_CORNERS.map(({ corner, cursor }) => (
-            <button
-              key={corner}
-              type="button"
-              data-slot="docblocks/image-port"
-              data-corner={corner}
-              aria-label={t("image.resize")}
-              className={cn(
-                "pointer-events-auto absolute z-10 size-2.5 rounded-full",
-                "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
-                // The keyboard focus's stand (the dashed outline — the port's
-                // a resize control, not a click).
-                `
-                  outline-none
-                  focus-visible:outline-2 focus-visible:outline-offset-1
-                  focus-visible:outline-(--docblocks-canvas-selection-border-color) focus-visible:outline-dashed
-                `,
-                cursor
-              )}
-              style={{
-                left: corner.endsWith("w") ? "0" : "100%",
-                top: corner.startsWith("n") ? "0" : "100%",
-                // The left / top property stands the port's left edge at the
-                // corner: the -50% translate centers the port on the corner.
-                transform: "translate(-50%, -50%)",
-              }}
-              onPointerDown={onPortPointerDown(corner)}
-              onPointerMove={onPortPointerMove}
-              onPointerUp={onPortPointerUp}
-              onPointerCancel={onPortPointerUp}
-              onKeyDown={onPortKeyDown(corner)}
-            />
-          ))}
-        <div
-          data-slot="docblocks/image-menu"
-          className={cn(
-            "pointer-events-none absolute -top-9 right-0 z-20 flex items-center gap-0.5 rounded-(--docblocks-radius)",
-            "p-0.5",
-            "border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)",
-            "bg-(--docblocks-page-card-background) shadow-(--docblocks-formatbar-shadow)",
-            // The hover / focus reveal (the code header's controls idiom):
-            // invisible and unclickable unless the figure is hovered or a menu
-            // control holds the keyboard focus (the figure's focus-within).
-            `
-              opacity-0 transition-opacity
-              group-focus-within:pointer-events-auto group-focus-within:opacity-100
-              group-hover:pointer-events-auto group-hover:opacity-100
-            `
-          )}
-          // Keep the caret: the menu is chrome (a default mousedown would
-          // move the focus out of the editable).
-          onMouseDown={preventDefault}
-        >
-          <Button variant="ghost" size="icon" asChild className="size-7">
-            {isSafeDownloadHref(url) ? (
-              <a
-                href={url}
-                download={name ?? block.attrs.src}
-                data-slot="docblocks/image-download"
-                aria-label={t("image.download")}
-                title={t("image.downloadTitle")}
-              >
-                <Download className="size-4" />
-              </a>
-            ) : (
-              // The executable-scheme stand (the consumer's hostile url — the
-              // download stands no anchor, the disabled button stands).
-              <button
-                type="button"
-                disabled
-                data-slot="docblocks/image-download"
-                aria-label={t("image.download")}
-                title={t("image.downloadTitle")}
-              >
-                <Download className="size-4" />
-              </button>
-            )}
-          </Button>
-          {viewMode ? null : (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                data-slot="docblocks/image-caption-toggle"
-                aria-label={block.attrs.caption ? t("caption.edit") : t("caption.add")}
-                title={t("caption.aria")}
-                className="size-7"
-                onClick={requestCaption}
-              >
-                <Captions className="size-4" />
-              </Button>
-              <span aria-hidden className="mx-0.5 h-4 w-px bg-(--docblocks-table-border-color)" />
-              {IMAGE_ALIGNS.map(({ align: value, labelKey, icon: Icon }) => {
-                const label = t(labelKey);
-                return (
-                  <Button
-                    key={value}
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    data-slot="docblocks/image-align"
-                    data-align={value}
-                    data-active={align === value ? "true" : undefined}
-                    aria-label={label}
-                    title={label}
-                    aria-pressed={align === value}
-                    className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
-                    onClick={pickAlign(value)}
-                  >
-                    <Icon className="size-4" />
-                  </Button>
-                );
-              })}
-            </>
-          )}
-        </div>
-      </div>
-      <BlockCaption
-        id={id}
-        caption={block.attrs.caption ?? ""}
-        slot="docblocks/image-caption"
-        ariaLabel={t("caption.imageAria")}
-        placeholder={t("caption.placeholder")}
-      />
-    </>
-  );
+  return <ImageFigure id={id} block={block} url={url} name={name} width={meta.width} height={meta.height} />;
 }
 
 export { ImageBlock };

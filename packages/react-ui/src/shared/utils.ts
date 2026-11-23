@@ -1,3 +1,7 @@
+import { normalizeHrefInput } from "docblocks-core";
+
+import { UnhandledValueError } from "./errors";
+
 /** Clamps a value into the inclusive [min, max] range. */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -22,11 +26,13 @@ const UNSAFE_DOWNLOAD_SCHEME = /^[\u0000-\u0020]*(javascript|vbscript)\s*:/i;
  * The download href gate (the defense in depth over the consumer's BlobStore
  * url): the executable schemes stand no anchor; the `data:` / the `blob:` / the
  * http(s) urls stand (the default store's data urls, the consumer's CDN).
- * The browser's leading-control trim is undone before the scheme check (the
- * link href's stand).
+ * The browser's WHATWG normalization stands the core's `normalizeHrefInput`
+ * (the link href's parity — the mid-string strip + the C0 / space trim),
+ * undone before the scheme check.
  */
 function isSafeDownloadHref(url: unknown): boolean {
-  return typeof url === "string" && !UNSAFE_DOWNLOAD_SCHEME.test(url);
+  if (typeof url !== "string") return false;
+  return !UNSAFE_DOWNLOAD_SCHEME.test(normalizeHrefInput(url));
 }
 
 /**
@@ -37,7 +43,7 @@ function isSafeDownloadHref(url: unknown): boolean {
  * slipped past the types.
  */
 function assertNever(value: never): never {
-  throw new Error(`Unhandled value: ${String(value)}`);
+  throw new UnhandledValueError(`Unhandled value: ${String(value)}`);
 }
 
 export { assertNever, clamp, isSafeDownloadHref, preventDefault, stopPropagation };

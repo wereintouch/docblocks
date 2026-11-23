@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, rowsSettled, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -131,7 +131,7 @@ test("the text option stands for a list item with a derived segment (the segment
     doc.insertText(child, 0, "child");
     return { parent, child };
   });
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
+  await rowsSettled(a);
 
   // Select the parent's text (the first matching inner is the parent's own).
   const parentInner = pane(a, "a")
@@ -175,7 +175,7 @@ test("a childless list item becomes text through the menu", async ({ browser }) 
     doc.insertText(li, 0, "standalone item");
     return li;
   });
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
+  await rowsSettled(a);
 
   const inner = pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/block-content"]`).first();
   await inner.click();

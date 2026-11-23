@@ -8,11 +8,14 @@
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks";
 export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
+export { EditorErrorBoundary } from "./EditorErrorBoundary";
+export type { EditorErrorBoundaryProps } from "./EditorErrorBoundary";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  BlobLoading,
   CoverPresetSets,
   DocDescription,
   DocTag,
@@ -38,6 +41,16 @@ export { DocblocksI18nProvider } from "./i18n";
 export type { DocblocksI18nProviderProps } from "./i18n";
 export { createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobStore } from "./blob-store";
+export {
+  BlobNotFoundError,
+  CanvasPasteError,
+  DocBlocksUiError,
+  EditorProviderError,
+  HookMisuseError,
+  PdfFetchError,
+  UnhandledValueError,
+  UnknownSlashCommandError,
+} from "./shared/errors";
 export {
   BASELINE_CAPABILITIES,
   BRIDGE_ERROR_CODES,

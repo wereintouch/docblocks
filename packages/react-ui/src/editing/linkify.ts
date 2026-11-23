@@ -32,8 +32,8 @@ const URL_TRAILING_PUNCT = /[.,;:!?]+$/;
  *  contract; `null` stands the plain's degradation). */
 function bareUrlHref(url: string): string | null {
   let body = url.replace(URL_TRAILING_PUNCT, "");
-  // The balanced parens' stand (the wiki's deep-links' `A_(B)`'s form): a
-  // trailing `)` over an unbalanced count is the sentence's paren, not
+  // The balanced parens' stand (a nested-paren deep-link's `A_(B)` form):
+  // a trailing `)` over an unbalanced count is the sentence's paren, not
   // the URL's body.
   if (body.endsWith(")") && (body.match(/\(/g)?.length ?? 0) < (body.match(/\)/g)?.length ?? 0)) {
     body = body.slice(0, -1);

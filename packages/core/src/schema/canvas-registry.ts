@@ -120,8 +120,10 @@ const CANVAS_BLOCK_SPECS: Pick<
       zIndex: { kind: "number", positive: true, integer: true },
     },
   },
-  // The frame: a viewport window into its own surface's content — no
-  // children, no content. Two contexts, one type: the surface child is
+  // The frame: a childless region marker (the transparent box + the thin
+  // border + the optional `title`'s chip — the canvas's figures stand
+  // behind the box; the content's mirror stands on the page-frame block's
+  // side). Two contexts, one type: the surface child is
   // the canvas frame (the optional `title` label, `frameId` is
   // forbidden), the root child is the page-frame block (the required
   // `frameId` weak reference to a canvas frame, `title` is forbidden) —

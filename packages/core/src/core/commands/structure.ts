@@ -8,7 +8,7 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
 import type { BlockId, BlockType } from "@docblocks-core/schema";
 
-import { DocBlocksError } from "../errors";
+import { DocBlocksError, InvalidOperationError } from "../errors";
 import { rootBlockIdOf, rootOrderOf } from "../layout";
 
 /** The blocks map of the document (throws on a broken layout). */
@@ -94,6 +94,30 @@ function indentJumpViolation(ydoc: Y.Doc, childIds: string[], index: number, ind
   return null;
 }
 
+/**
+ * The TO-side stranding check of a flat page sequence over an outdent:
+ * lowering the checked block's indent (to `newIndent`) may dangle the
+ * following block (its predecessor just got shallower). Throws the typed
+ * `InvalidOperationError` unless the outdent stands inside a larger
+ * transaction (the UI's segment outdent composes the whole stretch in one
+ * transact, so a mid-transact dangle is a transient the composition
+ * resolves — the Yjs transaction's atomicity keeps it off the wire and
+ * off every listener). The next block's pair is checked against the NEW
+ * indent — the caller's patch / removal is not applied yet, so the doc
+ * still stands the old one.
+ */
+function assertNoOutdentStranding(ydoc: Y.Doc, id: string, childIds: string[], index: number, newIndent: number): void {
+  const next = childIds[index + 1];
+  const oldIndent = indentOfBlock(ydoc, id);
+  if (next === undefined || newIndent >= oldIndent) return;
+  const nextIndent = indentOfBlock(ydoc, next);
+  const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
+  if (inBatch || nextIndent <= newIndent + 1) return;
+  throw new InvalidOperationError(
+    `Block "${id}" cannot be outdented to indent ${newIndent}: block "${next}" (indent ${nextIndent}) would be stranded. Outdent the whole derived segment in one transact.`
+  );
+}
+
 /** The array-search owner: the container whose children list holds `id`. */
 function findParentInArrays(ydoc: Y.Doc, id: string): BlockId | null {
   // Top level first (the root's order is the registered array, and the root
@@ -149,6 +173,7 @@ function isDescendant(ydoc: Y.Doc, ancestor: string, candidate: string): boolean
 }
 
 export {
+  assertNoOutdentStranding,
   blockTypeOf,
   childrenOf,
   findParent,

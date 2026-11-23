@@ -6,9 +6,10 @@
  * stands open over the phrase while the picker stands;
  * the pick commits the phrase strip + the `insertBlock('frame', { frameId
  * })` (the page-frame block's weak reference) in the caller's transact.
- * The frames stand live over the doc's changes (the digest's subscription
- * re-renders the list — the frame's add / remove / rename stands the
- * list's own stand). The cancel keeps the command list on the phrase (no
+ * The frames stand live over the doc's changes (the ref-cached
+ * subscription re-renders the list over the frame's add / remove / rename
+ * and the z-order's reorder — the unchanged frames' stand bails over the
+ * cached list). The cancel keeps the command list on the phrase (no
  * write). The no-gate stand (unlike the database's bridge gate): the
  * frames are the doc's own canvas data — the picker stands always (the
  * empty stand is the "no frames yet" line).
@@ -16,7 +17,7 @@
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
@@ -55,12 +56,49 @@ function canvasFrames(rootChildren: readonly BlockId[], blocks: Readonly<Record<
 function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) => void; onCancel: () => void }) {
   const { t } = useTranslation("slash");
   const { store } = useEditorContext();
-  // The frames' digest (the surfaces' frame children + their titles): the
-  // primitive's stand memoizes the walk — the list re-renders over the
-  // doc's changes (the frame's add / remove / rename) and bails while the
-  // data stands.
-  const digest = useStore(store, (state) => JSON.stringify(canvasFrames(state.rootChildren, state.blocks)));
-  const frames = useMemo(() => canvasFrames(store.getState().rootChildren, store.getState().blocks), [digest, store]);
+  // The frames' ref-cached stand (the PresenceCaretOverlay's pattern): the
+  // cached list stands while the root's order's ref, the refs of EVERY
+  // root child block, and the frame blocks' refs stand — a change over
+  // any top-level block's ref (a text edit, an attr's change) re-derives
+  // the list (the O(n) map-lookup's stand); the cached list stands the
+  // ref-unchanged render (the caret's move, the selection's change over
+  // the picker's open window). The child blocks' refs are the walk's own
+  // input (the surfaces' refs change over a frame's add / remove / reorder
+  // into the surface, which the root's order's ref alone does not see —
+  // the root is not over the change's block ids). The frame's refs stand
+  // the frame's own change (the rename) over the unchanged surfaces.
+  const framesCacheRef = useRef<{
+    rootRef: readonly BlockId[];
+    childRefs: (Block | undefined)[];
+    frames: CanvasFrameOption[];
+    blockRefs: Block[];
+  } | null>(null);
+  const frames = useStore(store, (state) => {
+    const cached = framesCacheRef.current;
+    if (
+      cached !== null &&
+      cached.rootRef === state.rootChildren &&
+      cached.childRefs.length === state.rootChildren.length &&
+      state.rootChildren.every((childId, i) => cached.childRefs[i] === state.blocks[childId]) &&
+      // The lists stand together (the cache's update builds both): the
+      // length's parity holds, the undefined's guard stands the type's
+      // stand only.
+      cached.blockRefs.every((ref, i) => {
+        const frame = cached.frames[i];
+        return frame !== undefined && ref === state.blocks[frame.id];
+      })
+    ) {
+      return cached.frames;
+    }
+    const next = canvasFrames(state.rootChildren, state.blocks);
+    framesCacheRef.current = {
+      rootRef: state.rootChildren,
+      childRefs: state.rootChildren.map((childId) => state.blocks[childId]),
+      frames: next,
+      blockRefs: next.map((frame) => state.blocks[frame.id]!),
+    };
+    return next;
+  });
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 

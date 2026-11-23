@@ -223,4 +223,43 @@ describe("remote changes never restore", () => {
     expect(sel.get()).toEqual({ kind: "none" });
     expect(doc1.getBlock("b1")).toBeNull();
   });
+
+  it("the stale step of a remotely deleted block never resurrects it and the older local edit still undoes", () => {
+    // The two-paragraph base with an older and a newer local edit: the
+    // deleted block's step stands the stack's top.
+    const base = createDoc({ id: "d3", createdAt: CREATED_AT, generateId: makeIds("b") });
+    base.insertBlock("paragraph");
+    base.insertText("b0", 0, "older");
+    base.insertBlock("paragraph");
+    base.insertText("b1", 0, "newer");
+    const state = base.encode();
+    const doc1 = loadDoc(state);
+    const doc2 = loadDoc(state);
+    const sel = createSelection(doc1);
+
+    doc1.insertText("b0", 5, " one");
+    sel.set(caret("b1", 5));
+    doc1.insertText("b1", 5, " two"); // the stack's top step
+    expect(doc1.getText("b0")).toBe("older one");
+
+    doc2.removeBlock("b1"); // the remote peer deletes the edited block
+    doc1.applyUpdate(doc2.encodeUpdate(Y.encodeStateVector(doc1.raw)));
+    expect(sel.get()).toEqual({ kind: "none" });
+
+    // The top step's inverse touches no live block: the native stand
+    // consumes the stale step (Yjs may descend to the older local step in
+    // the same call — the capture / GC-dependent fall-through), never
+    // resurrecting the deleted block.
+    doc1.undo();
+    expect(doc1.getBlock("b1")).toBeNull();
+    expect(["older", "older one"]).toContain(doc1.getText("b0"));
+    if (doc1.getText("b0") !== "older") {
+      doc1.undo();
+      expect(doc1.getText("b0")).toBe("older");
+    }
+    expect(doc1.getBlock("b1")).toBeNull();
+    expect(sel.get()).toEqual({ kind: "none" });
+    // The document stands reloadable over its own snapshot.
+    expect(loadDoc(doc1.encode()).toJSON()).toEqual(doc1.toJSON());
+  });
 });

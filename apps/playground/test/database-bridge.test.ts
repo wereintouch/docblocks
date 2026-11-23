@@ -1037,6 +1037,17 @@ describe("the cell's validation", () => {
       )
       .catch((operationError: unknown) => operationError);
     expect(codeOf(inArray)).toBe("validation");
+    // The non-JSON value (function / symbol / BigInt) stands rejected —
+    // the JSON round-trip would stand it silently dropped (the receipt
+    // stands the full data).
+    const asFunction = await bridge
+      .batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: () => 1 }, beforeRowId: null }] }, ctx())
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(asFunction)).toBe("validation");
+    const asBigint = await bridge
+      .batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: 10n }, beforeRowId: null }] }, ctx())
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(asBigint)).toBe("validation");
     // The finite number stands the pass (the stand is the finiteness, not
     // the type — the contract's type-agnostic stand).
     await bridge.batchRows(

@@ -82,6 +82,9 @@ interface UseDatabaseTable {
     beforeRowId: string | null;
   }): Promise<string[]>;
   removeRow(rowId: string): Promise<void>;
+  /** Moves the row before `beforeRowId` (null = the table's tail). An
+   *  unknown `rowId` (a peer's removed row, a stale page) is a no-op:
+   *  the seat resolves against the page, and no matching row exists. */
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
   /** Creates the column over the bridge → the bridge-assigned column id
    *  (the view state the caller appends to the block's `columnOrder`). */
@@ -139,6 +142,10 @@ interface RowOpsContext {
   refresh: (onApplied?: (snapshot: TableSnapshot) => void) => void;
   noteError: (operationError: unknown) => void;
   casOf: (rowId: string) => { expectedRevision?: string };
+  /** The identity stand over the in-flight write's tails: a relink (the
+   *  bridge / the tableId change) makes the late completion's state
+   *  writes land on the previous table's grid — the tail drops them. */
+  sameIdentity: () => boolean;
 }
 
 /** The column-write ops' shared stand: the wire schema (the spec / patch
@@ -151,4 +158,7 @@ interface ColumnOpsContext {
   capabilitiesRef: RefCell<readonly ProtocolCapability[]>;
   pushUndo: (op: InverseOp, opBridge: DatabaseBridge, opTableId: string) => void;
   noteError: (operationError: unknown) => void;
+  /** The identity stand over the in-flight write's failure tail (the same
+   *  stand as the row ops'). */
+  sameIdentity: () => boolean;
 }

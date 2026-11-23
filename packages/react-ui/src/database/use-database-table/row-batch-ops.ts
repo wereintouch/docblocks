@@ -10,9 +10,9 @@
  */
 import { toBridgeError } from "../bridge";
 import type { BatchOp } from "../bridge";
-import type { RowOpsContext, UseDatabaseTable } from "./models";
+import type { DatabaseTableRow, RowOpsContext, UseDatabaseTable } from "./models";
 import { cleanCells } from "./row-write-ops";
-import { cellValueEqual, newMutationContext } from "./utils";
+import { cellValueEqual, newMutationContext, rowOf } from "./utils";
 
 interface RowBatchOps {
   updateRows: UseDatabaseTable["updateRows"];
@@ -21,22 +21,26 @@ interface RowBatchOps {
 
 function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
   const { bridge, tableId, rowsRef, pendingRowRef, revisionsRef, setRows, setPendingRow } = ctx;
-  const { pushUndo, refresh, noteError, casOf } = ctx;
+  const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const updateRows = async (updates: Array<{ rowId: string; cells: Record<string, unknown> }>): Promise<void> => {
     if (updates.length === 0) return;
     const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
     const pendingSnapshot = pendingRowRef.current;
     // The pre-operation cells of the touched rows (the inverse's
-    // restore).
+    // restore): the committed page rows + the pending row (the
+    // filtered-out row the page holds no reference to — the inverse must
+    // not strand it over the absent entry).
     const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
+    seedPendingBefore(before, pendingSnapshot, updates);
     const cleaned = updates.map(({ rowId, cells }) => ({ rowId, cells: cleanCells(cells) }));
     // The all-unchanged batch stands no write (the clear over an
     // already-empty region): the same equality guard as the single-row
-    // path, over every touched cell.
+    // path, over every touched cell (the effective stand — the pending
+    // row's no-op stands the same no-write).
     if (
       cleaned.every(({ rowId, cells }) => {
-        const row = rowsRef.current.find((entry) => entry.rowId === rowId);
+        const row = rowOf(rowsRef, pendingRowRef, rowId);
         return (
           row !== undefined && Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value))
         );
@@ -53,6 +57,9 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
         },
         newMutationContext()
       );
+      // The relink's drop: the commit landed on the previous table — the
+      // revision map, the entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       const restore = restorePatchesOf(before, cleaned);
       pushUndo(
@@ -82,10 +89,14 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
       );
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      setPendingRow(pendingSnapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        setPendingRow(pendingSnapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
@@ -102,13 +113,16 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
     const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
     const pendingSnapshot = pendingRowRef.current;
     // The pre-operation cells of the updated rows (the inverse's
-    // restore).
+    // restore): the committed page rows + the pending row (the effective
+    // stand — the same as the batch update's).
     const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
+    seedPendingBefore(before, pendingSnapshot, updates);
     const cleaned = updates.map(({ rowId, cells }) => ({ rowId, cells: cleanCells(cells) }));
     // The all-unchanged updates + no creates stands no write (the empty
-    // clipboard's no-op — the same equality guard as the batch update's).
+    // clipboard's no-op — the same equality guard as the batch update's,
+    // over the effective stand).
     const updatesChanged = cleaned.some(({ rowId, cells }) => {
-      const row = rowsRef.current.find((entry) => entry.rowId === rowId);
+      const row = rowOf(rowsRef, pendingRowRef, rowId);
       return row === undefined || !Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value));
     });
     if (!updatesChanged && creates.length === 0) return [];
@@ -123,6 +137,10 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
         ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
       ];
       const receipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
+      // The relink's drop: the commit landed on the previous table — the
+      // created rows' ids, the revision map, the entry and the refetch
+      // belong to it.
+      if (!sameIdentity()) return [];
       // The receipt's `rows` stand the created rows over the create
       // op's order (the contract's stand) — the created rows are the
       // ones NOT in the update set (the create's id is fresh; the
@@ -167,17 +185,34 @@ function createRowBatchOps(ctx: RowOpsContext): RowBatchOps {
       refresh();
       return liveRowIds;
     } catch (operationError) {
-      if (updatesChanged) {
-        setRows(snapshot);
-        setPendingRow(pendingSnapshot);
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        if (updatesChanged) {
+          setRows(snapshot);
+          setPendingRow(pendingSnapshot);
+        }
+        noteError(operationError);
+        refresh();
       }
-      noteError(operationError);
-      refresh();
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
 
   return { updateRows, pasteRows };
+}
+
+/** The pending row's pre-operation cells over the `before` map (the
+ *  inverse's restore stand): the page holds no reference to the
+ *  filtered-out row, so the map's seed is the write's pre-operation
+ *  source only when the batch touches the row's id. */
+function seedPendingBefore(
+  before: Map<string, Record<string, unknown>>,
+  pending: DatabaseTableRow | null,
+  updates: Array<{ rowId: string }>
+): void {
+  if (pending === null) return;
+  if (updates.some(({ rowId }) => rowId === pending.rowId)) before.set(pending.rowId, pending.cells);
 }
 
 /** The optimistic apply over the cleaned patches (the single-row / the
@@ -212,7 +247,9 @@ function restorePatchesOf(
   return cleaned.flatMap(({ rowId, cells }) => {
     const oldCells = before.get(rowId);
     if (oldCells === undefined) return [];
-    const patch: Record<string, unknown> = {};
+    // The keys stand the bridge's column ids (the data's stand — the
+    // null-prototype's map keeps a hostile `__proto__` the inert own entry).
+    const patch = Object.create(null) as Record<string, unknown>;
     for (const key of Object.keys(cells)) {
       patch[key] = oldCells[key] === undefined ? null : oldCells[key];
     }

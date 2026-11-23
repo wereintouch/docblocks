@@ -120,9 +120,10 @@ describe("the motion re-render contract", () => {
       doc.insertBlock("paragraph");
     });
 
-    // The row list's body stands (the order and the derivation moved).
+    // The row list's body re-renders (the order and the derivation moved).
     expect(counters.rowList).toBe(rowList + 1);
-    // The survivors stand their bodies (the interned node identities).
+    // The survivors' bodies do not re-render (the render counts stand —
+    // the interned node's identity).
     expect(seen[a]).toBe(beforeA);
     expect(seen[b]).toBe(beforeB);
     expect(seen[c]).toBe(beforeC);

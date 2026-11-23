@@ -37,7 +37,7 @@ function CoverBanner() {
 /** The banner's body (the hooks' stand — the mount only over the cover's
  *  presence, so the resolution's hook never sees the empty's id). */
 function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }) {
-  const file = useBlobFile(coverId, COVER_RENDERS_BYTES);
+  const { state: file } = useBlobFile(coverId, COVER_RENDERS_BYTES, { eager: true });
   const blob = file.status === "ready" ? file.blob : null;
 
   /** The intrinsic dimensions' probe (the centering's slice's input — the

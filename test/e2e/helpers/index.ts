@@ -19,8 +19,9 @@ import {
 } from "./clipboard";
 import { editorContext, insertBlockType, openPane, pane, switchPaneView, twoPanes } from "./harness";
 import type { PaneDoc } from "./pane-doc";
+import { rowsSettled, slotEntered } from "./settle";
 import { caretIn } from "./text";
-import { RELAY, SETTLE, outCount } from "./wire";
+import { RELAY, SETTLE, expectStays, outCount } from "./wire";
 
 export {
   caretIn,
@@ -31,6 +32,7 @@ export {
   canvasCenter,
   canvasView,
   editorContext,
+  expectStays,
   grantClipboardPermissions,
   hitPointOf,
   interceptClipboardWrites,
@@ -40,10 +42,12 @@ export {
   pane,
   pasteFromClipboard,
   readClipboardPayload,
+  rowsSettled,
   screenAt,
   screenAtZoom,
   seedClipboardPayload,
   seedShape,
+  slotEntered,
   switchPaneView,
   toCanvas,
   twoPanes,

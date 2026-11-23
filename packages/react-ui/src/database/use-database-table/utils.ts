@@ -11,6 +11,7 @@ import type {
   MutationContext,
   TableDescription,
 } from "../bridge";
+import type { DatabaseTableRow, RefCell } from "./models";
 
 /** The cell-value equality (null / undefined stand as the empty cell).
  *  The composite value (the multi-select's array) stands the element-wise
@@ -95,4 +96,19 @@ function isFatalTableError(error: unknown): boolean {
   return code === "not_found" || code === "forbidden";
 }
 
-export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext };
+/** The row's effective read (the write's pre-operation state source):
+ *  the committed page row, else the pending row (the filtered-out row the
+ *  page holds no reference to — the no-op guard and the undo entry's
+ *  pre-operation stand must not strand over its absent entry). */
+function rowOf(
+  rowsRef: RefCell<DatabaseTableRow[]>,
+  pendingRowRef: RefCell<DatabaseTableRow | null>,
+  rowId: string
+): DatabaseTableRow | undefined {
+  const committed = rowsRef.current.find((row) => row.rowId === rowId);
+  if (committed !== undefined) return committed;
+  const pending = pendingRowRef.current;
+  return pending !== null && pending.rowId === rowId ? pending : undefined;
+}
+
+export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext, rowOf };

@@ -45,6 +45,16 @@ describe("callout icon resolver (the lenient reader)", () => {
     expect(calloutIconName("no-such-icon", "warning")).toBe("triangle-alert");
   });
 
+  it("falls back over a prototype-key name (the wire data's stand)", () => {
+    // The catalog's lookup must not follow the prototype chain: a
+    // prototype-key name (the lenient reader keeps the wire's data as-is)
+    // resolves nothing, the preset stands.
+    for (const name of ["constructor", "toString", "hasOwnProperty", "__proto__"] as const) {
+      expect(calloutIconName(name, "info")).toBe("info");
+      expect(Object.hasOwn(CALLOUT_ICON_COMPONENTS, name)).toBe(false);
+    }
+  });
+
   it("maps every preset icon to a catalog component (no drift)", () => {
     for (const [variant, icon] of Object.entries(CALLOUT_PRESET_ICONS)) {
       expect(CALLOUT_ICON_COMPONENTS[icon]).toBeDefined();

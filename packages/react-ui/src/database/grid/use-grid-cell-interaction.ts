@@ -2,7 +2,8 @@
  * click's one cell, the press-drag's rectangle over the frame's corners,
  * the double click's edit session), the keyboard's selection stand (the
  * arrow's region slide, the shift+arrow's extension, the Escape's clear,
- * the Delete / Backspace's one-commit clear — one `updateRow` per row),
+ * the Delete / Backspace's one-commit clear — the whole clear as one
+ * `updateRows` batch),
  * the undo / redo hotkey (the grid's own stack — the bridge operations),
  * and the press-outside's teardown (the view state resets, the edit session
  * closes). The selection's set + the frame's state + the editing cell's
@@ -11,10 +12,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BridgeColumn } from "../bridge";
-import { columnAnnotation, parseCellValue } from "../bridge";
 import type { UseDatabaseTable } from "../use-database-table";
 import { DRAG_START_THRESHOLD_PX } from "./constants";
-import { cellKeyOf, cellTextOf, parseClipboardTsv } from "./utils";
+import { handleGridCellKeyDown } from "./grid-cell-keyboard";
+import { handleGridCellPaste } from "./grid-cell-paste";
+import { cellKeyOf } from "./utils";
 
 interface GridCellInteractionDeps {
   /** The live rows (the selection's set + the keyboard's rows count). */
@@ -29,13 +31,17 @@ interface GridCellInteractionDeps {
   readOnly?: boolean;
 }
 
+/** The selection's frame (the rectangle's anchor + the cursor over the
+ * cells' indices). */
+interface GridCellSelectionFrame {
+  anchorR: number;
+  anchorC: number;
+  cursorR: number;
+  cursorC: number;
+}
+
 function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = false }: GridCellInteractionDeps) {
-  const [selectionFrame, setSelectionFrame] = useState<{
-    anchorR: number;
-    anchorC: number;
-    cursorR: number;
-    cursorC: number;
-  } | null>(null);
+  const [selectionFrame, setSelectionFrame] = useState<GridCellSelectionFrame | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   // The selection's set (the rectangle over the frame's corners — the
   // cells' keys stand from the live rows / columns by their indices).
@@ -145,193 +151,28 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
     };
   }, []);
 
-  /** The selection's clear (the Delete / Backspace over the stand; the
-   *  focused input keeps its own character editing — no cell clear). One
-   *  `updateRow` per row, the columns are the null cells. */
+  /** The table's keydown stand (the grid's own gestures over the table's
+   *  focus — the editor root's blocks-selection gestures must not fire
+   *  over the stand). */
   const onTableKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    // The read-only stand (view / published): the keyboard's selection's
-    // stand and the clipboard's copy / clear's commits stand off (the
-    // selection stands no stand there).
-    if (readOnly) return;
-    // The clipboard's copy (the TSV's stand — the paste's round-trip):
-    // the selection's rectangle over the grid's own columns, the rows
-    // top → bottom, the cells left → right. The edit's own input keeps its
-    // native text copy; the no-selection stands no copy.
-    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "c") {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (selectionFrame === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const rMin = Math.min(selectionFrame.anchorR, selectionFrame.cursorR);
-      const rMax = Math.max(selectionFrame.anchorR, selectionFrame.cursorR);
-      const cMin = Math.min(selectionFrame.anchorC, selectionFrame.cursorC);
-      const cMax = Math.max(selectionFrame.anchorC, selectionFrame.cursorC);
-      const lines: string[] = [];
-      for (let r = rMin; r <= rMax; r += 1) {
-        const cells: string[] = [];
-        for (let c = cMin; c <= cMax; c += 1) {
-          const row = rows[r];
-          const column = columns[c];
-          cells.push(row === undefined || column === undefined ? "" : cellTextOf(row.cells[column.id]));
-        }
-        lines.push(cells.join("\t"));
-      }
-      const tsv = lines.join("\n");
-      if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
-        void navigator.clipboard.writeText(tsv).catch(() => undefined);
-      }
-      return;
-    }
-    // The undo / redo hotkey over the table's focus: the grid's own stack
-    // (the bridge operations — the doc's undo does not cover them). The
-    // focused input keeps its own history (the browser's edit commands).
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      event.preventDefault();
-      event.stopPropagation();
-      void (event.shiftKey ? data.redo() : data.undo()).catch(() => undefined);
-      return;
-    }
-    if (event.key === "Escape") {
-      if (selectionFrame === null && editingCell === null) return;
-      // The grid owns the Escape (the cell selection / the edit session):
-      // the editor root's blocks-selection gesture must not double-fire.
-      event.preventDefault();
-      event.stopPropagation();
-      setSelectionFrame(null);
-      setEditingCell(null);
-      return;
-    }
-    // The keyboard's selection stand: the arrow stands the region's slide
-    // (the single cell's move; the shape stands, the grid's edge stands no
-    // move), the shift+arrow stands the region's extension (the cursor
-    // moves over the anchor — the Excel's model).
-    const isArrow =
-      event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight";
-    if (isArrow) {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return; // the edit's own stand
-      if (selectionFrame === null) return; // the stand stands the selected region only
-      event.preventDefault();
-      // The arrows over the stand are the grid's own gesture: the editor
-      // root's caret navigation must not fire over the table's focus.
-      event.stopPropagation();
-      const dr = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
-      const dc = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
-      const rowsCount = rows.length;
-      const colsCount = columns.length;
-      if (rowsCount === 0 || colsCount === 0) return;
-      if (event.shiftKey) {
-        setSelectionFrame((frame) =>
-          frame === null
-            ? frame
-            : {
-                ...frame,
-                cursorR: Math.max(0, Math.min(frame.cursorR + dr, rowsCount - 1)),
-                cursorC: Math.max(0, Math.min(frame.cursorC + dc, colsCount - 1)),
-              }
-        );
-        return;
-      }
-      setSelectionFrame((frame) => {
-        if (frame === null) return frame;
-        const rMin = Math.min(frame.anchorR, frame.cursorR);
-        const rMax = Math.max(frame.anchorR, frame.cursorR);
-        const cMin = Math.min(frame.anchorC, frame.cursorC);
-        const cMax = Math.max(frame.anchorC, frame.cursorC);
-        // The slide's clamp: the region's top / left corner stands over
-        // the grid (the edge stands no move — the shift is 0 at the
-        // boundary).
-        const r0 = Math.max(0, Math.min(rMin + dr, rowsCount - 1 - (rMax - rMin)));
-        const c0 = Math.max(0, Math.min(cMin + dc, colsCount - 1 - (cMax - cMin)));
-        const rShift = r0 - rMin;
-        const cShift = c0 - cMin;
-        if (rShift === 0 && cShift === 0) return frame;
-        return {
-          ...frame,
-          anchorR: frame.anchorR + rShift,
-          anchorC: frame.anchorC + cShift,
-          cursorR: frame.cursorR + rShift,
-          cursorC: frame.cursorC + cShift,
-        };
-      });
-      return;
-    }
-    if (event.key !== "Delete" && event.key !== "Backspace") return;
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-    if (selectedCells.size === 0) return;
-    event.preventDefault();
-    // The cell clear is the grid's own gesture: the editor root's
-    // blocks-selection Delete (the non-text row removal) must not fire
-    // over the stand (the stand's row would take the block-level delete).
-    event.stopPropagation();
-    const byRow = new Map<string, Record<string, unknown>>();
-    selectedCells.forEach((key) => {
-      const [rowId, colId] = key.split("\u0000");
-      const cells = byRow.get(rowId!) ?? {};
-      cells[colId!] = null;
-      byRow.set(rowId!, cells);
+    handleGridCellKeyDown(event, {
+      readOnly,
+      rows,
+      columns,
+      data,
+      selectionFrame,
+      editingCell,
+      selectedCells,
+      setSelectionFrame,
+      setEditingCell,
     });
-    // The whole clear is ONE commit (the batch's one bridge call + the
-    // one undo entry): the undo stands every cleared row back, not one
-    // per row.
-    void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells }))).catch(() => undefined);
   };
 
-  // The clipboard's paste (the mixed batch): the TSV's grid stands
-  // from the selection's anchor cell (the active cell) over the grid's
-  // own columns — the visible rows from the anchor down stand the updates,
-  // the overflow past the last visible row stands the creates (one
-  // `batchRows`, one undo entry). The option-based columns (the enum /
-  // the row-link) stand no paste (the option's id stands not resolvable
-  // from the pasted text — the v1's stand); the unparseable value stands
-  // no cell (the editor's stand: the invalid input is not committed).
+  /** The clipboard's paste (the mixed batch: the TSV's grid stands from
+   *  the selection's anchor cell over the grid's own columns — the
+   *  updates + the creates over one `batchRows`). */
   const onTablePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    // The read-only stand (view / published): the paste's batch's commit is
-    // off (the selection's anchor stands no stand there).
-    if (readOnly) return;
-    // The edit's own control keeps its native paste (the character's
-    // stand — the browser's text insert over the input).
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-    const frame = selectionFrame;
-    if (frame === null) return; // no active cell: the paste has no origin
-    const text = event.clipboardData.getData("text/plain");
-    if (text === "") return;
-    event.preventDefault();
-    const grid = parseClipboardTsv(text);
-    if (grid.length === 0 || rows.length === 0 || columns.length === 0) return;
-    const r0 = frame.anchorR;
-    const c0 = frame.anchorC;
-    const updates: Array<{ rowId: string; cells: Record<string, unknown> }> = [];
-    const creates: Array<Record<string, unknown>> = [];
-    for (let i = 0; i < grid.length; i += 1) {
-      const line = grid[i];
-      if (line === undefined) continue;
-      const cells: Record<string, unknown> = {};
-      for (let j = 0; j < line.length; j += 1) {
-        const column = columns[c0 + j];
-        if (column === undefined) continue; // the grid's right edge: the overflow columns stand no stand
-        const input = columnAnnotation(column).valueInput;
-        if (input === "enum" || input === "row-link" || input === "none") continue; // the option's id stands not resolvable over the pasted text
-        const raw = line[j];
-        if (raw === undefined) continue;
-        const parsed = parseCellValue(input, raw);
-        if (!parsed.ok) continue;
-        cells[column.id] = parsed.value;
-      }
-      const rowAt = rows[r0 + i];
-      if (rowAt !== undefined) {
-        updates.push({ rowId: rowAt.rowId, cells });
-      } else {
-        creates.push(cells);
-      }
-    }
-    if (updates.length === 0 && creates.length === 0) return;
-    // The created rows' seat: the visible successor of the last updated
-    // row (the absent one — the paste over the window's tail — stands the
-    // table's tail).
-    const lastUpdatedIndex = r0 + updates.length - 1;
-    const successor = rows[lastUpdatedIndex + 1];
-    void data.pasteRows({ updates, creates, beforeRowId: successor?.rowId ?? null }).catch(() => undefined);
+    handleGridCellPaste(event, { readOnly, rows, columns, data, selectionFrame });
   };
 
   // A press outside the table stands the selection no stand (the view
@@ -366,3 +207,4 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
 }
 
 export { useGridCellInteraction };
+export type { GridCellSelectionFrame };

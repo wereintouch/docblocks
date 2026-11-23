@@ -10,10 +10,14 @@
  * the indentation, and the markdown-flavored lines stand verbatim).
  */
 
-/** The element's content's escape (the code's text's stand — the
- * `&` / `<` / `>`'s escape over the serialized html). */
+/** The clipboard HTML's escape (the `&` / `<` / `>` / `"`'s escape over
+ * the serialized html). The `"` closes the attribute context: the
+ * `language` (a free data string) sits in the `class` attribute, so a
+ * value written over the CRDT's raw (no command's validation) must not be
+ * able to open a new attribute there — the escape stands the third-party
+ * paste target (the local paste re-parses through the whitelist). */
 function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** The code block's `text/html` payload: the `PRE`'s stand (the rich

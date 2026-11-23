@@ -15,12 +15,12 @@ function publishKey(room: string): string {
 }
 
 /** Stores the doc's JSON state as the room's published snapshot (the consumer's publish action). */
-export function publishSnapshot(room: string, doc: Doc): void {
+function publishSnapshot(room: string, doc: Doc): void {
   window.localStorage.setItem(publishKey(room), JSON.stringify(doc.toJSON()));
 }
 
 /** Reads the room's published snapshot as a fresh hydrated `Doc`; null when the snapshot is not stored. */
-export function loadPublishedSnapshot(room: string): Doc | null {
+function loadPublishedSnapshot(room: string): Doc | null {
   const raw = window.localStorage.getItem(publishKey(room));
   if (raw === null) return null;
   try {
@@ -31,6 +31,8 @@ export function loadPublishedSnapshot(room: string): Doc | null {
 }
 
 /** Removes the room's published snapshot (the harness reset). */
-export function clearPublishedSnapshot(room: string): void {
+function clearPublishedSnapshot(room: string): void {
   window.localStorage.removeItem(publishKey(room));
 }
+
+export { clearPublishedSnapshot, loadPublishedSnapshot, publishSnapshot };

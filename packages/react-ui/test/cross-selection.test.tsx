@@ -1,79 +1,23 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// The cross-block's text's range: the keyboard's operations (the
+// Delete's / the Backspace's remove, the typing's replace, the whole's
+// block's remove, the Enter's / the Tab's no-op) and the format's
+// toolbar (the mark's apply over the per-block's segments, the code's
+// chain's hide).
+import { act } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
-import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-type TestDoc = ReturnType<typeof createDoc>;
-
-function renderDoc(prepare: (doc: TestDoc) => void): TestDoc {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  prepare(doc);
-  render(
-    <EditorProvider doc={doc}>
-      <Editor />
-    </EditorProvider>
-  );
-  return doc;
-}
-
-/** The wrapper element of the block. */
-function wrapperOf(id: BlockId): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
-  expect(el, `the block ${id} should be rendered`).not.toBeNull();
-  return el!;
-}
-
-/** The block's text node (the test docs carry one unmarked run per block). */
-function textNodeOf(id: BlockId): Text {
-  const inner = wrapperOf(id).querySelector<HTMLElement>('[data-slot="docblocks/block-content"]')!;
-  const node = inner.firstChild;
-  expect(node, "the block should carry a text node").not.toBeNull();
-  return node as Text;
-}
-
-/**
- * Select from (block a, offset aOffset) to (block b, offset bOffset) in
- * document order and sync the view selection (the selectionchange mapping).
- */
-function selectAcross(a: BlockId, aOffset: number, b: BlockId, bOffset: number): void {
-  const range = document.createRange();
-  range.setStart(textNodeOf(a), aOffset);
-  range.setEnd(textNodeOf(b), bOffset);
-  const selection = window.getSelection()!;
-  selection.removeAllRanges();
-  selection.addRange(range);
-  document.dispatchEvent(new Event("selectionchange"));
-}
-
-/** Dispatch a keydown on the wrapper; false when the handler suppressed the event. */
-function key(wrapper: HTMLElement, name: string, init: KeyboardEventInit = {}): boolean {
-  let result = true;
-  act(() => {
-    result = wrapper.dispatchEvent(
-      new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true, ...init })
-    );
-  });
-  return result;
-}
-
-/** The root's children ids. */
-function childrenOf(doc: TestDoc): BlockId[] {
-  return doc.getChildren(doc.meta.id);
-}
-
-/** Flush the frame the store-driven re-render lands on. */
-const flushFrames = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
-
-afterEach(() => {
-  cleanup();
-  window.getSelection()?.removeAllRanges();
-});
+import {
+  childrenOf,
+  flushFrames,
+  key,
+  renderDoc,
+  selectAcross,
+  textNodeOf,
+  wrapperOf,
+} from "./cross-selection.helpers";
 
 describe("cross-block text range: the keyboard operations", () => {
   it("Delete removes the range as text: the endpoints are trimmed, the blocks survive", () => {
@@ -259,95 +203,5 @@ describe("cross-block text range: the format toolbar", () => {
     selectAcross(p1, 2, code, 3);
     await flushFrames();
     expect(document.querySelector('[data-slot="docblocks/format-toolbar"]')).toBeNull();
-  });
-});
-
-describe("the endpoint block's remote change (the cross selection's stand)", () => {
-  // The rebuild of the endpoint block's text detaches the selection's
-  // local-end nodes (the browser drops the cross selection over them —
-  // the stale view stand). The capture over the store subscription (the
-  // DOM intact) stands the re-establish: the local end rebases across the
-  // delta, the far end stands by its node.
-  it("the remote's insert over the start endpoint rebases the cross range (the selection stands)", async () => {
-    let p1: BlockId = "";
-    let p2: BlockId = "";
-    const doc = renderDoc((d) => {
-      p1 = d.insertBlock("paragraph");
-      d.insertText(p1, 0, "alpha");
-      p2 = d.insertBlock("paragraph");
-      d.insertText(p2, 0, "beta gamma");
-    });
-
-    // The cross selection: p1[2..5] ("pha") over p2[0..4] ("beta").
-    selectAcross(p1, 2, p2, 4);
-    // The peer's insert at p1's start (the remote change over the start
-    // endpoint — the rebuild detaches the selection's nodes).
-    act(() => {
-      doc.insertText(p1, 0, "XX");
-    });
-    await flushFrames();
-
-    // The cross selection stands, the start endpoint rebased over the
-    // delta (2 → 4 over the inserted "XX").
-    const range = window.getSelection()!.getRangeAt(0);
-    const p1Node = textNodeOf(p1);
-    expect(range.startContainer).toBe(p1Node);
-    expect(range.startOffset).toBe(4);
-    expect(range.endContainer).toBe(textNodeOf(p2));
-    expect(range.endOffset).toBe(4);
-  });
-
-  it("the remote's insert over the end endpoint rebases the far end (the selection stands)", async () => {
-    let p1: BlockId = "";
-    let p2: BlockId = "";
-    const doc = renderDoc((d) => {
-      p1 = d.insertBlock("paragraph");
-      d.insertText(p1, 0, "alpha");
-      p2 = d.insertBlock("paragraph");
-      d.insertText(p2, 0, "beta gamma");
-    });
-
-    selectAcross(p1, 2, p2, 4);
-    // The peer's insert at p2's start (the end endpoint's block).
-    act(() => {
-      doc.insertText(p2, 0, "X");
-    });
-    await flushFrames();
-
-    const range = window.getSelection()!.getRangeAt(0);
-    expect(range.startContainer).toBe(textNodeOf(p1));
-    expect(range.startOffset).toBe(2);
-    expect(range.endContainer).toBe(textNodeOf(p2));
-    expect(range.endOffset).toBe(5);
-  });
-
-  it("the remote's mark over the endpoint's segment re-establishes the cross range (the runs' in-place re-render)", async () => {
-    let p1: BlockId = "";
-    let p2: BlockId = "";
-    const doc = renderDoc((d) => {
-      p1 = d.insertBlock("paragraph");
-      d.insertText(p1, 0, "alpha");
-      p2 = d.insertBlock("paragraph");
-      d.insertText(p2, 0, "beta gamma");
-    });
-
-    selectAcross(p1, 2, p2, 4);
-    // The peer's bold over p1[1..4) (the mark/attrs-only change: the runs
-    // re-render in place — the local end's nodes detach over the same
-    // text).
-    act(() => {
-      doc.setMark(p1, 1, 3, { type: "bold" });
-    });
-    await flushFrames();
-
-    // The cross selection stands at the same offsets: p1's rebuilt runs
-    // carry the flat offset 2 in the bold segment ("lph"), p2 stands.
-    const range = window.getSelection()!.getRangeAt(0);
-    const bold = wrapperOf(p1).querySelector<HTMLElement>("strong");
-    expect(bold).not.toBeNull();
-    expect(range.startContainer).toBe(bold!.firstChild);
-    expect(range.startOffset).toBe(1);
-    expect(range.endContainer).toBe(textNodeOf(p2));
-    expect(range.endOffset).toBe(4);
   });
 });

@@ -30,7 +30,7 @@ function CoverModeSelector({
   onChange: (mode: CoverMode) => void;
 }) {
   const { t } = useTranslation("editor");
-  const file = useBlobFile(coverId, COVER_RENDERS_BYTES);
+  const { state: file } = useBlobFile(coverId, COVER_RENDERS_BYTES, { eager: true });
   const blob = file.status === "ready" ? file.blob : null;
 
   /** The intrinsic dimensions' probe (the gate's input — the undecodable's

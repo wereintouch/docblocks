@@ -1,5 +1,5 @@
 import { createMemoryBlobStore } from "docblocks-react-ui";
-import type { BlobRef, BlobStore, CellMap, Column, DatabaseBridge } from "docblocks-react-ui";
+import type { BlobMeta, BlobRef, BlobStore, CellMap, Column, DatabaseBridge } from "docblocks-react-ui";
 
 import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
@@ -31,6 +31,10 @@ type InsertableType = (typeof INSERTABLE_TYPES)[number];
 
 /** The fixed image key the harness inserts; its src is a small inline SVG. */
 const IMAGE_KEY = "demo-image";
+/** The wide / tall fixtures the long-document seed cycles (the variable
+ *  image heights — the windowing baseline's content). */
+const IMAGE_WIDE_KEY = "demo-image-wide";
+const IMAGE_TALL_KEY = "demo-image-tall";
 /** The fixed generic attachment the catalog renders. */
 const CATALOG_FILE_KEY = "demo-file";
 
@@ -416,13 +420,37 @@ const BLOB_REFS: Record<string, BlobRef> = {
       ],
       { type: "image/svg+xml" }
     ),
-    meta: { name: "catalog.svg", mimeType: "image/svg+xml" },
+    meta: { name: "catalog.svg", mimeType: "image/svg+xml", width: 120, height: 80 },
   },
   [CATALOG_FILE_KEY]: {
     blob: new Blob(["Catalog attachment"], { type: "text/plain" }),
     meta: { name: "catalog.txt", mimeType: "text/plain" },
   },
+  // The long-document seed's variable-height fixtures: the wide strip and
+  // the tall poster (the placeholder's aspect reservation follows the same
+  // metadata).
+  [IMAGE_WIDE_KEY]: {
+    blob: new Blob(
+      [
+        "<svg xmlns='http://www.w3.org/2000/svg' width='480' height='120'><rect width='480' height='120' fill='#1a7f37'/></svg>",
+      ],
+      { type: "image/svg+xml" }
+    ),
+    meta: { name: "wide.svg", mimeType: "image/svg+xml", width: 480, height: 120 },
+  },
+  [IMAGE_TALL_KEY]: {
+    blob: new Blob(
+      [
+        "<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='320' height='240' fill='#bc4c00'/></svg>",
+      ],
+      { type: "image/svg+xml" }
+    ),
+    meta: { name: "tall.svg", mimeType: "image/svg+xml", width: 320, height: 240 },
+  },
 };
+
+/** The image keys the long-document seed cycles (the variable heights). */
+const DEMO_IMAGE_KEYS = [IMAGE_KEY, IMAGE_WIDE_KEY, IMAGE_TALL_KEY] as const;
 
 /** The cover preset's monochrome swatch (a solid SVG fill — the layout's
  *  evaluation's fixture; the preset's id stands over the BLOB_REFS's map so
@@ -519,14 +547,34 @@ const coverPresets = {
 /** The in-memory half of the harness's blob store (the slash Image uploads). */
 const memoryBlobs = createMemoryBlobStore();
 
+/** The harness's blob `get` calls, in order (the lazy loading's e2e probe:
+ *  which file ids resolved). */
+const blobGets: string[] = [];
+if (typeof window !== "undefined") window.__blobGets = blobGets;
+
+/** The fixed key's ref (the harness store's own-key read). */
+function fixedRef(fileId: string): BlobRef | undefined {
+  return Object.hasOwn(BLOB_REFS, fileId) ? BLOB_REFS[fileId] : undefined;
+}
+
 /**
  * The harness's blob store: the fixed keys above (the catalog image),
- * then the in-memory uploads (one per page — the A/B panes share it).
+ * then the in-memory uploads (one per page — the A/B panes share it). The
+ * metadata's lookup (`getMeta`) is wired so the blocks stand the
+ * placeholder's reserved aspect ratio; the `get` calls land in
+ * `window.__blobGets` for the lazy loading's e2e probes.
  */
 const blobStore: BlobStore = {
   get: async (fileId): Promise<BlobRef> => {
+    blobGets.push(fileId);
     if (fileId === ALPHA_COVER_ID) return alphaPng();
-    return BLOB_REFS[fileId] ?? memoryBlobs.get(fileId);
+    return fixedRef(fileId) ?? memoryBlobs.get(fileId);
+  },
+  getMeta: async (fileId): Promise<BlobMeta> => {
+    if (fileId === ALPHA_COVER_ID) return (await alphaPng()).meta;
+    const fixed = fixedRef(fileId);
+    if (fixed !== undefined) return fixed.meta;
+    return (await memoryBlobs.get(fileId)).meta;
   },
   upload: (file) => memoryBlobs.upload(file),
   rename: (fileId, name) => memoryBlobs.rename(fileId, name),
@@ -609,6 +657,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
 export {
   blobStore,
   CATALOG_FILE_KEY,
+  DEMO_IMAGE_KEYS,
   coverPresets,
   databaseBridge,
   EMBED_SRC,

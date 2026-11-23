@@ -42,7 +42,7 @@ interface LinkPress {
 
 /** The editor root's link-open's handlers (the mousedown's record + the
  * click's open over the plain press). */
-export function useLinkOpen(): {
+function useLinkOpen(): {
   onMouseDown: (event: ReactMouseEvent<HTMLElement>) => void;
   onClick: (event: ReactMouseEvent<HTMLElement>) => void;
 } {
@@ -85,3 +85,5 @@ export function useLinkOpen(): {
 
   return { onMouseDown, onClick };
 }
+
+export { useLinkOpen };

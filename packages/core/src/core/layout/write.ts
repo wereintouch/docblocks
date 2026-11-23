@@ -1,23 +1,22 @@
-/** The layout's write path: the attr value write, the block write (the
- *  registry's fields), the parents' write, the full-document write, and the
- *  opaque block write (the cross-minor stand). */
+/** The layout's write path: the block write (the registry's fields), the
+ *  parents' write, and the full-document write. The attr value write stands
+ *  over ./write-value, the unknown-type block's stand over ./write-opaque. */
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
-import type { Block, DocJSON, OpaqueBlock, TextRun } from "@docblocks-core/schema";
+import type { Block, DocJSON, OpaqueBlock } from "@docblocks-core/schema";
 
 import { markSetToAttrs } from "../text-model";
 import { getBlocks, rootOrderOf, writeMeta } from "./layout";
 import type { AnyMap, WritableBlock } from "./models";
 import { loadOriginOf } from "./origins";
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { writeOpaqueBlock } from "./write-opaque";
+import { isPlainObject, writeAttrValue } from "./write-value";
 
 /** The layout's own top-level keys (the spec-gated writers + the CRDT
  *  owner field): everything else on a block entry is additive data of a
  *  future minor and stands the generic as-is write (the cross-minor stand). */
-export const LAYOUT_BLOCK_KEYS = new Set([
+const LAYOUT_BLOCK_KEYS = new Set([
   "type",
   "attrs",
   "geometry",
@@ -28,25 +27,6 @@ export const LAYOUT_BLOCK_KEYS = new Set([
   "columnOrder",
   "parent",
 ]);
-
-/** Primitive attr values are stored directly; plain objects become nested Y.Maps, and arrays become Y.Arrays (array elements are stored as-is — the schema keeps them plain). */
-function writeAttrValue(target: AnyMap, key: string, value: unknown): void {
-  if (value === undefined) return;
-  if (isPlainObject(value)) {
-    const nested = new Y.Map<unknown>();
-    for (const [nestedKey, nestedValue] of Object.entries(value)) writeAttrValue(nested, nestedKey, nestedValue);
-    target.set(key, nested);
-  } else if (Array.isArray(value)) {
-    const array = new Y.Array<unknown>();
-    // Clone the elements: a Yjs array holds plain values by reference, so
-    // the caller's objects/arrays must not be aliased into the CRDT (a
-    // post-call mutation would change the doc outside any transaction).
-    for (const element of value) array.push([structuredClone(element)]);
-    target.set(key, array);
-  } else {
-    target.set(key, value);
-  }
-}
 
 /**
  * Write one block, creating only the fields its type has per the registry:
@@ -235,68 +215,6 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
   }, loadOriginOf(ydoc));
 }
 
-/**
- * Write an unknown-type block as opaque data (the cross-minor stand): the
- * fields present in the data (attrs, geometry, content, children) are
- * written as-is, with no registry gating, so a save keeps the data the
- * engine does not know. The read path (readOpaqueBlock) keeps it intact too.
- * The type-specific fields (rows / rowOrder / columnOrder) belong to the
- * known types and are never written here.
- */
-function writeOpaqueBlock(blocks: AnyMap, id: string, block: OpaqueBlock): void {
-  const yblock = new Y.Map<unknown>();
-  yblock.set("type", block.type);
-
-  if (isPlainObject(block.attrs)) {
-    const attrEntries = Object.entries(block.attrs).filter(([, value]) => value !== undefined);
-    if (attrEntries.length > 0) {
-      const attrs = new Y.Map<unknown>();
-      for (const [key, value] of attrEntries) writeAttrValue(attrs, key, value);
-      yblock.set("attrs", attrs);
-    }
-  }
-
-  if (isPlainObject(block.geometry)) {
-    const entries = Object.entries(block.geometry).filter(
-      ([, value]) => typeof value === "number" && Number.isFinite(value)
-    );
-    if (entries.length > 0) {
-      const geometry = new Y.Map<unknown>();
-      for (const [key, value] of entries) geometry.set(key, value);
-      yblock.set("geometry", geometry);
-    }
-  }
-
-  if (Array.isArray(block.content)) {
-    const text = new Y.Text();
-    const delta = block.content
-      .filter((run) => isPlainObject(run) && typeof run.text === "string" && run.text !== "")
-      .map((run) => {
-        const attrs = markSetToAttrs((run as TextRun).marks ?? {});
-        return Object.keys(attrs).length > 0 ? { insert: run.text, attributes: attrs } : { insert: run.text };
-      });
-    if (delta.length > 0) text.applyDelta(delta);
-    yblock.set("content", text);
-  }
-
-  if (Array.isArray(block.children)) {
-    const children = new Y.Array<string>();
-    for (const childId of block.children) if (typeof childId === "string") children.push([childId]);
-    yblock.set("children", children);
-  }
-
-  // Additive top-level fields of a future minor: written as-is (the generic
-  // storage semantics — primitives as-is, plain objects as nested Y.Maps,
-  // arrays as Y.Arrays) so a save keeps the data the engine does not know.
-  const known = new Set(["type", "attrs", "content", "children", "geometry"]);
-  for (const [key, value] of Object.entries(block)) {
-    if (known.has(key)) continue;
-    writeAttrValue(yblock, key, value);
-  }
-
-  blocks.set(id, yblock);
-}
-
 /** Build a fresh doc holding only meta and the root block (empty page). */
 function layoutDoc(
   id: string,
@@ -315,4 +233,4 @@ function layoutDoc(
   return ydoc;
 }
 
-export { layoutDoc, writeAttrValue, writeBlock, writeDocument, writeOpaqueBlock };
+export { LAYOUT_BLOCK_KEYS, layoutDoc, writeBlock, writeDocument };

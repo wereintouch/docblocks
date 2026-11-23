@@ -1,10 +1,11 @@
-// The consumer-placed document header panel (the page/canvas switcher, the
-// avatar, the title): the title / the avatar edit commit one command (one
-// undo step) and sync over the wire to the second pane; the mode switcher
-// drives the pane's editor view (the sliding pill); the panel stands in the
-// pane's chrome, so the editor's views are headerless. The mermaid mode
-// switcher (the SegmentSelector it was refactored from) is pinned by its
-// own spec (mermaid.spec.ts).
+// The consumer-placed document header panel's title (the inline edit): the
+// edit commits one setTitle (one undo step) and syncs over the wire to the
+// second pane (the caret's end seat, the Enter / the Escape / the blur, the
+// empty + the no-op commits); the panel stands in the pane's chrome, so the
+// editor's views are headerless (the composition's order stands). The
+// avatar's ops stand over doc-header-avatar.spec.ts, the mode switcher over
+// doc-header-mode.spec.ts. The mermaid mode switcher (the SegmentSelector it
+// was refactored from) is pinned by its own spec (mermaid.spec.ts).
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, twoPanes } from "./helpers";
@@ -17,19 +18,6 @@ async function metaOf(page: Page, client: "a" | "b"): Promise<{ title: string; a
       const doc = client === "a" ? docs?.a : docs?.b;
       if (doc === null || doc === undefined) return { title: "", avatar: "" };
       return { title: doc.meta.title, avatar: doc.meta.avatar ?? "" };
-    },
-    { client }
-  );
-}
-
-/** The pane's doc JSON (a stable string — the no-data-write pin). */
-async function jsonOf(page: Page, client: "a" | "b"): Promise<string> {
-  return page.evaluate(
-    ({ client }) => {
-      const docs = window.__paneDocs;
-      const doc = client === "a" ? docs?.a : docs?.b;
-      if (doc === null || doc === undefined) return "";
-      return JSON.stringify(doc.toJSON());
     },
     { client }
   );
@@ -52,12 +40,6 @@ async function setDocAvatar(page: Page, emojiLabel: string): Promise<void> {
   await page.getByRole("button", { name: emojiLabel }).click();
 }
 
-/** Clears the avatar through the panel's emoji popover's clear option. */
-async function clearDocAvatar(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Edit the document avatar" }).click();
-  await page.getByRole("button", { name: "Remove avatar" }).click();
-}
-
 test("the title edit commits one setTitle and syncs to the second pane (the JSON and the panel)", async ({
   browser,
 }) => {
@@ -71,141 +53,6 @@ test("the title edit commits one setTitle and syncs to the second pane (the JSON
     await expect
       .poll(() => b.getByRole("button", { name: "Edit the document title" }).innerText(), SETTLE)
       .toBe("First doc");
-  } finally {
-    await close();
-  }
-});
-
-test("the avatar pick commits one setAvatar and syncs to the second pane (the popover closes on the pick)", async ({
-  browser,
-}) => {
-  const { a, b, close } = await twoPanes(browser, "doc-header-avatar");
-  try {
-    await setDocAvatar(a, "Fox");
-    await expect.poll(() => metaOf(a, "a").then((m) => m.avatar), SETTLE).toBe("🦊");
-    // The popover closed on the pick (the grid is gone).
-    await expect(a.getByRole("button", { name: "Remove avatar" })).toHaveCount(0);
-    // Pane B's JSON and its panel stand the synced avatar.
-    await expect.poll(() => metaOf(b, "b").then((m) => m.avatar), SETTLE).toBe("🦊");
-    await expect.poll(() => b.getByRole("button", { name: "Edit the document avatar" }).innerText(), SETTLE).toBe("🦊");
-    // The clear option removes it (the dashed plus stand) and syncs.
-    await clearDocAvatar(a);
-    await expect.poll(() => metaOf(a, "a").then((m) => m.avatar), SETTLE).toBe("");
-    await expect.poll(() => metaOf(b, "b").then((m) => m.avatar), SETTLE).toBe("");
-    await expect.poll(() => a.getByRole("button", { name: "Edit the document avatar" }).innerText(), SETTLE).toBe("+");
-  } finally {
-    await close();
-  }
-});
-
-test("the mode switcher drives the pane's editor view (the pill stands over the active mode)", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "doc-header-view");
-  try {
-    const docArea = a.locator('[data-testid="doc-a"]');
-    // The page view is the default: the page flows (no page miniature).
-    await expect(docArea.locator('[data-slot="docblocks/page-card"]')).toHaveCount(0);
-    // The panel's sliding pill stands (over the active page mode).
-    await expect(a.locator('[data-slot="docblocks/doc-header-view-pill"]')).toBeVisible();
-    await expect(a.locator('[data-doc-header-view-button="page"]')).toHaveAttribute("aria-pressed", "true");
-    // Capture the doc's JSON (the switch is view state — it must not change it).
-    const jsonBefore = await jsonOf(a, "a");
-    // Switch to the canvas view: the editor's view changes (the page miniature stands).
-    await a.getByRole("button", { name: "Canvas view" }).click();
-    await expect(docArea.locator('[data-slot="docblocks/page-card"]')).toBeVisible();
-    // The pill slides to the canvas mode (the active button flips).
-    await expect(a.locator('[data-doc-header-view-button="canvas"]')).toHaveAttribute("aria-pressed", "true");
-    // The switch is view state (no data write — the JSON is byte-identical).
-    await expect.poll(() => jsonOf(a, "a"), SETTLE).toBe(jsonBefore);
-  } finally {
-    await close();
-  }
-});
-
-test("the mode switcher's pill stands the soft-highlight token (the dark reads over the track's `muted`; the active icon stands the foreground)", async ({
-  browser,
-}) => {
-  const { a, close } = await twoPanes(browser, "doc-header-pill-token");
-  try {
-    // The pill's background = a standard soft-highlight token (NOT `background`
-    // — the former stand was the dark theme's near-black, darker than the
-    // track's `muted` and "gloomy"): the light stands the `accent` token, the
-    // dark stands the `ring` token (the neutral theme's `accent` == `muted` —
-    // the track — so the `accent`'s pill blends with the track; the `ring`
-    // reads over it). The active icon = the `foreground` token (it reads over
-    // the pill — the token's own contrast, not a blend). Each token's stand
-    // stands the theme's resolve (the consumer's theme or the fallback
-    // literal) — both themes are checked.
-    const pillInfo = (expectedToken: string) =>
-      a.evaluate((tok) => {
-        const pill = document.querySelector('[data-slot="docblocks/doc-header-view-pill"]');
-        if (pill === null) return null;
-        const pillBg = getComputedStyle(pill).backgroundColor;
-        // A probe element resolves a token's computed color (the same resolve the
-        // pill's `bg-accent` / `dark:bg-ring` / the icon's `text-foreground`
-        // run through) — the comparison is theme-agnostic (no token-string
-        // normalization).
-        const probe = (val: string): string => {
-          const el = document.createElement("div");
-          el.style.backgroundColor = val;
-          el.style.position = "absolute";
-          el.style.width = "0";
-          el.style.height = "0";
-          document.body.appendChild(el);
-          const c = getComputedStyle(el).backgroundColor;
-          el.remove();
-          return c;
-        };
-        const expectedBg = probe(`var(${tok})`);
-        const bgBg = probe("var(--background)");
-        const mutedBg = probe("var(--muted)");
-        const fgBg = probe("var(--foreground)");
-        const activeBtn = document.querySelector('[data-slot="docblocks/doc-header-view"] [aria-pressed="true"]');
-        return {
-          pillBg,
-          expectedBg,
-          bgBg,
-          mutedBg,
-          activeColor: activeBtn !== null ? getComputedStyle(activeBtn).color : null,
-          fgBg,
-        };
-      }, expectedToken);
-    // The light's pill = the `accent`; the dark's pill = the `ring` (brighter
-    // than the track's `muted` — the pill-blends-with-the-track guard,
-    // the dark-only check). Both stand NOT the `background`.
-    const themeTokens: [string, string][] = [
-      ["light", "--accent"],
-      ["dark", "--ring"],
-    ];
-    for (const [theme, token] of themeTokens) {
-      await a.evaluate((t) => {
-        if (t === "dark") document.documentElement.classList.add("dark");
-        else document.documentElement.classList.remove("dark");
-      }, theme);
-      // Wait for the pill to stand the expected token (not the background / the
-      // track) + the active icon to stand the foreground.
-      await expect
-        .poll(async () => {
-          const info = await pillInfo(token);
-          return (
-            info !== null &&
-            info.pillBg === info.expectedBg &&
-            info.pillBg !== info.bgBg &&
-            (theme === "light" || info.pillBg !== info.mutedBg) &&
-            info.activeColor === info.fgBg
-          );
-        }, SETTLE)
-        .toBe(true);
-      const info = await pillInfo(token);
-      expect(info?.pillBg).toBe(info?.expectedBg);
-      expect(info?.pillBg).not.toBe(info?.bgBg);
-      if (theme === "dark") expect(info?.pillBg).not.toBe(info?.mutedBg);
-      expect(info?.activeColor).toBe(info?.fgBg);
-    }
-    // Regression: the switch still works (the pill slides over the active mode —
-    // the past ticket's stand; the component's shared style, the same pill,
-    // stands the mermaid's selector too — the one class).
-    await a.getByRole("button", { name: "Canvas view" }).click();
-    await expect(a.locator('[data-doc-header-view-button="canvas"]')).toHaveAttribute("aria-pressed", "true");
   } finally {
     await close();
   }
@@ -376,46 +223,6 @@ test("the title edit's no-op commit (the unchanged value) stands no wire write a
     await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("");
     // A single undo reverts the seed (the no-op added no step): if the no-op
     // had written, this undo would be the no-op and the title would stand.
-  } finally {
-    await close();
-  }
-});
-
-test("the avatar popover's portaled content stands the standard tokens (the `--popover` background, not the `--docblocks-*`)", async ({
-  browser,
-}) => {
-  const { a, close } = await twoPanes(browser, "doc-header-avatar-tokens");
-  try {
-    await a.getByRole("button", { name: "Edit the document avatar" }).click();
-    await expect(a.getByRole("button", { name: "Remove avatar" })).toBeVisible();
-    // The portaled popover content's background resolves the standard
-    // `--popover` token (the panel is outside the editor root, where the
-    // `--docblocks-*` tokens are not mapped).
-    const info = await a.evaluate(() => {
-      const content = document.querySelector('[data-slot="popover-content"]');
-      if (content === null) return null;
-      const probe = (val: string) => {
-        const el = document.createElement("div");
-        el.style.backgroundColor = val;
-        el.style.position = "absolute";
-        el.style.width = "0";
-        el.style.height = "0";
-        document.body.appendChild(el);
-        const c = getComputedStyle(el).backgroundColor;
-        el.remove();
-        return c;
-      };
-      return {
-        bg: getComputedStyle(content).backgroundColor,
-        expected: probe("var(--popover)"),
-        // The popover content is portaled (a body-level surface, not nested
-        // under the doc-header panel).
-        portaled: !document.querySelector('[data-slot="docblocks/doc-header"]')?.contains(content),
-      };
-    });
-    expect(info).not.toBeNull();
-    expect(info!.bg).toBe(info!.expected);
-    expect(info!.portaled).toBe(true);
   } finally {
     await close();
   }

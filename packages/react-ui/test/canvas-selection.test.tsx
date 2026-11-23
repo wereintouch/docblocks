@@ -1,89 +1,12 @@
 // @vitest-environment jsdom
 // The canvas mouse selection (the shift-click additive toggle, the
-// shift-marquee union, the Escape clear, and the selection's visual
-// contract: the selected item's thin cyan outline over the tint, the
-// marquee's line only).
-import { cleanup, fireEvent, render } from "@testing-library/react";
+// shift-marquee union, the Escape clear, and the multi-selection's summary
+// box).
+import { cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
-
-import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/editor-provider";
-import { dragTo, pressBlock, pressPointOf } from "./canvas-press";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-
-type TestDoc = ReturnType<typeof createDoc>;
-
-interface Seeded {
-  doc: TestDoc;
-  a: string;
-  b: string;
-  connector: string;
-}
-
-function seededDoc(): Seeded {
-  const doc = createDoc({ id: "canvas-selection-doc", createdAt: CREATED_AT });
-  const surface: string = doc.insertBlock("surface");
-  const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-  doc.setGeometry(a, { x: -100, y: -50, w: 100, h: 60 });
-  const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
-  doc.setGeometry(b, { x: 100, y: 50, w: 80, h: 60 });
-  const connector = doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
-  return { doc, a, b, connector };
-}
-
-interface Rendered {
-  doc: TestDoc;
-  view: HTMLElement;
-  a: string;
-  b: string;
-  connector: string;
-  wrapperOf: (id: string) => HTMLElement;
-  json: () => ReturnType<TestDoc["toJSON"]>;
-}
-
-function renderCanvas(): Rendered {
-  const { doc, a, b, connector } = seededDoc();
-  const { container } = render(
-    <EditorProvider doc={doc}>
-      <Editor view="canvas" />
-    </EditorProvider>
-  );
-  const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
-  if (view === null) throw new Error("the canvas view is missing");
-  return {
-    doc,
-    a,
-    b,
-    connector,
-    view,
-    wrapperOf: (id: string) => {
-      const el = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-      if (el === null) throw new Error(`the canvas item ${id} is missing`);
-      return el;
-    },
-    json: () => doc.toJSON(),
-  };
-}
-
-/** The selected ids (the data-selected wrappers). */
-function selectedIds(container: HTMLElement): string[] {
-  return Array.from(container.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item'][data-selected]")).map(
-    (el) => el.dataset.blockId as string
-  );
-}
-
-/** A plain click over the block's own hit zone (the press starts a no-op move). */
-function click(r: Rendered, id: string): void {
-  pressBlock(r.view, r.doc, id);
-}
-
-/** A shift-click over the block's own hit zone. */
-function shiftClick(r: Rendered, id: string): void {
-  pressBlock(r.view, r.doc, id, { shiftKey: true });
-}
+import { dragTo, pressPointOf } from "./canvas-press";
+import { click, renderCanvas, selectedIds, shiftClick } from "./canvas-selection.helpers";
 
 describe("the shift-click toggle", () => {
   it("adds the id to the standing selection (no move, the doc stands)", () => {
@@ -168,49 +91,6 @@ describe("the shift-marquee union", () => {
     });
     fireEvent.pointerUp(r.view, { pointerId: 3 });
     expect(selectedIds(r.view)).toEqual([r.a]);
-  });
-});
-
-describe("the visual contract", () => {
-  it("stands the selected item's outline over the tint", () => {
-    const r = renderCanvas();
-    click(r, r.a);
-    const wrapper = r.wrapperOf(r.a);
-    expect(wrapper.className).toContain("bg-(--docblocks-selected-background)");
-    expect(wrapper.className).toContain("outline-(--docblocks-canvas-selection-border-color)");
-    expect(wrapper.className).toContain("outline-(length:--docblocks-canvas-selection-border-width)");
-    expect(wrapper.className).toContain("outline-offset-1");
-    // The unselected item stands neither.
-    expect(r.wrapperOf(r.b).className).toBe("");
-  });
-
-  it("stands the marquee's line + the 50% fill (the cyan selection tokens)", () => {
-    const r = renderCanvas();
-    const start = r.view.getBoundingClientRect();
-    const cx = start.x + start.width / 2;
-    const cy = start.y + start.height / 2;
-    fireEvent.pointerDown(r.view, { clientX: cx - 40, clientY: cy - 30, pointerId: 4 });
-    fireEvent.pointerMove(r.view, { clientX: cx + 40, clientY: cy + 30, buttons: 1, pointerId: 4 });
-    const marquee = r.view.querySelector<HTMLElement>("[data-slot='docblocks/canvas-marquee']");
-    expect(marquee).not.toBeNull();
-    expect(marquee!.className).toContain("border-(--docblocks-canvas-selection-border-color)");
-    expect(marquee!.className).toContain("border-(length:--docblocks-canvas-selection-border-width)");
-    expect(marquee!.className).toContain("bg-(--docblocks-canvas-selection-fill)");
-    expect(marquee!.className).not.toContain("bg-(--docblocks-selected-background)");
-    expect(marquee!.className).not.toContain("border-(--docblocks-formatbar-border-color)");
-    fireEvent.pointerUp(r.view, { pointerId: 4 });
-  });
-
-  it("stands the selection's handles on the accent (the cyan selection fill)", () => {
-    const r = renderCanvas();
-    click(r, r.a);
-    const handles = Array.from(r.view.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-handle']"));
-    expect(handles.length).toBe(8); // the eight box handles
-    for (const handle of handles) {
-      expect(handle.className).toContain("bg-(--docblocks-canvas-selection-border-color)");
-    }
-    // The handle keeps the theme's thin border (the contrast ring).
-    expect(handles[0]!.className).toContain("border-(--docblocks-formatbar-border-color)");
   });
 });
 

@@ -134,5 +134,9 @@
     "copy": "Copy link address",
     "edit": "Edit link",
     "menuAria": "Link actions"
+  },
+  "error": {
+    "editor": "The editor failed to render.",
+    "retry": "Try again"
   }
 }

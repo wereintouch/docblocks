@@ -49,6 +49,11 @@ interface AddColumnFormDraft {
    *  is the display order; the existing option's row id stands over the
    *  edit's diff, the added draft's option stands none). */
   enumOptions?: EnumOptionDraft[];
+  /** The enum's options' row ids at the form's prefill (the seen's set —
+   *  the edit commit's delete set never touches an option added
+   *  concurrently over the open form: the user never saw it, so its
+   *  removal would stand the silent-loss's stand). */
+  enumSeenRowIds?: readonly string[];
   /** The edit mode's column id (the create stands none). */
   editColumnId?: string;
 }

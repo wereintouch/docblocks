@@ -8,7 +8,13 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { highlightCode, loadGrammar } from "../src/blocks/code/code-highlight";
+import {
+  grammarOf,
+  highlightCode,
+  highlightSync,
+  isHighlightable,
+  loadGrammar,
+} from "../src/blocks/code/code-highlight";
 
 // A mocked grammar module that fails to load (the transient chunk fetch
 // failure pin — the "c" grammar is used by that pin only in this file).
@@ -28,6 +34,19 @@ describe("highlightCode", () => {
 
   it("is deterministic (the same input yields the same fragment)", async () => {
     expect(await highlightCode(PYTHON, "python")).toBe(await highlightCode(PYTHON, "python"));
+  });
+
+  it("stands plain over a prototype-key language (no inherited value, no throw)", async () => {
+    // The language attr is plain data — a peer or a doc fence may set a
+    // prototype key. The own-key lookup keeps it plain (the inherited
+    // Object.prototype function would crash the downstream resolution).
+    for (const language of ["constructor", "toString", "__proto__", "hasOwnProperty"] as const) {
+      expect(await highlightCode(PYTHON, language)).toBeNull();
+      expect(isHighlightable(language)).toBe(false);
+      expect(grammarOf(language)).toBeNull();
+      // the synchronous path (the block's layout-effect paint) never throws
+      expect(highlightSync(PYTHON, language)).toBeNull();
+    }
   });
 
   it("resolves null for the plain languages (absent, mermaid, unknown)", async () => {

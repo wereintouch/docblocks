@@ -18,6 +18,8 @@ declare global {
     __pbSeed?: { html?: string; plain?: string };
     /** The app's clipboard write's capture queue (the no-read engine's copy's assertion stand: the `copy`'s event + the clipboard API's write(s) intercepted). */
     __pbWrites?: { html?: string; plain?: string }[];
+    /** The playground blob store's `get` calls in order (the lazy loading's probe: which file ids resolved). */
+    __blobGets?: string[];
     /** The playground pane's published stand's re-read (the publish.ts's harness stand: the room's shared localStorage stand over the pane's published's prop; true when a stand was applied) — the e2e's A/B publish flow drives it. */
     __reloadPublished?: (client: "a" | "b") => boolean;
   }

@@ -62,7 +62,7 @@ const CALLOUT_PRESET_ICONS: Record<CalloutVariant, string> = {
  * falls back to the preset rather than rendering nothing).
  */
 function calloutIconName(icon: string | null | undefined, variant: CalloutVariant | undefined): string {
-  if (typeof icon === "string" && icon in CALLOUT_ICON_COMPONENTS) return icon;
+  if (typeof icon === "string" && Object.hasOwn(CALLOUT_ICON_COMPONENTS, icon)) return icon;
   return CALLOUT_PRESET_ICONS[variant ?? "info"];
 }
 

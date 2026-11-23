@@ -1,96 +1,23 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+// The text block's contenteditable's editing (the input's commit, the
+// undo's restore, the selection's mapping + the rebase across the
+// store's change) and the task's checkbox (the toggle, the non-task's
+// no-checkbox, the done's 30% fade).
+import { act } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
-import type { BlockId, Selection } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
-import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/editor-provider";
-import type { EditorContextValue } from "../src/editor-provider";
-
-const CREATED_AT = "2026-10-10T00:00:00.000Z";
-type TestDoc = ReturnType<typeof createDoc>;
-
-// Captures the context at render time; the selection handle is a stable
-// ref object, so `.view` read later is the live event-time value.
-let context: EditorContextValue | null = null;
-function ContextCapture() {
-  context = useEditorContext();
-  return null;
-}
-
-/** The id of the (single) paragraph block of the doc. */
-function paragraphIdOf(doc: TestDoc): BlockId {
-  const blocks = doc.toJSON().blocks;
-  const id = Object.keys(blocks).find((key) => blocks[key]?.type === "paragraph");
-  expect(id, "the doc should have a paragraph").toBeDefined();
-  return id!;
-}
-
-/**
- * Seed the doc with content before the render (the store seeds from the
- * doc's snapshot at mount), then render the provider + editor + capture.
- */
-function renderDoc(prepare: (doc: TestDoc) => void) {
-  const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  prepare(doc);
-  render(
-    <EditorProvider doc={doc}>
-      <Editor />
-      <ContextCapture />
-    </EditorProvider>
-  );
-  return doc;
-}
-
-/** The (single) paragraph wrapper element of the rendered editor. */
-function paragraphOf(doc: TestDoc): HTMLElement {
-  const el = document.querySelector(`[data-block-id="${paragraphIdOf(doc)}"]`);
-  expect(el, "the paragraph should be rendered").not.toBeNull();
-  return el as HTMLElement;
-}
-
-/** The inner editable of a block wrapper (the contenteditable element). */
-function innerOf(wrapper: HTMLElement): HTMLElement {
-  const inner = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
-  expect(inner, "the wrapper should carry the inner editable").not.toBeNull();
-  return inner as HTMLElement;
-}
-
-/** Place the DOM caret at `offset` of the inner editable's first text node. */
-function caretAt(el: HTMLElement, offset: number): void {
-  const inner = innerOf(el);
-  const textNode = Array.from(inner.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
-  expect(textNode, "the inner editable should have a text node").not.toBeNull();
-  const range = document.createRange();
-  range.setStart(textNode!, offset);
-  range.collapse(true);
-  const selection = window.getSelection();
-  expect(selection).not.toBeNull();
-  selection!.removeAllRanges();
-  selection!.addRange(range);
-}
-
-/** Trigger the mapping of the current DOM selection into the core view. */
-function fireSelectionChange(): void {
-  act(() => {
-    document.dispatchEvent(new Event("selectionchange"));
-  });
-}
-
-/** The core selection currently held by the view. */
-function viewSelection(): Selection {
-  expect(context).not.toBeNull();
-  const view = context!.selection.view;
-  expect(view, "the selection view should be live after mount").not.toBeNull();
-  return view!.get();
-}
-
-afterEach(() => {
-  cleanup();
-  context = null;
-});
+import {
+  caretAt,
+  fireSelectionChange,
+  innerOf,
+  paragraphIdOf,
+  paragraphOf,
+  renderDoc,
+  viewSelection,
+} from "./text-block.helpers";
+import type { TestDoc } from "./text-block.helpers";
 
 describe("TextBlock contenteditable editing", () => {
   it("renders the block text in an inner contenteditable of a wrapper", () => {
@@ -319,49 +246,5 @@ describe("Task checkbox", () => {
     const checkbox = taskWrapper?.querySelector('[data-slot="docblocks/checkbox"]') ?? null;
     expect(checkbox, "the task should render its checkbox").not.toBeNull();
     expect(taskInner !== null && checkbox !== null && taskInner.contains(checkbox)).toBe(false);
-  });
-});
-
-describe("Collapse toggle", () => {
-  it("hides the children on click (view state: no doc change) and restores them", async () => {
-    let parent: BlockId = "";
-    let child: BlockId = "";
-    const doc = renderDoc((d) => {
-      parent = d.insertBlock("list-item", { list: "bullet" });
-      d.insertText(parent, 0, "parent");
-      child = d.insertBlock("list-item", { list: "bullet", indent: 1 });
-      d.insertText(child, 0, "child");
-    });
-    const before = JSON.stringify(doc.toJSON());
-    const wrapper = document.querySelector(`[data-block-id="${parent}"]`);
-    expect(wrapper, "the parent list item should be rendered").not.toBeNull();
-    const toggle = wrapper!.querySelector<HTMLButtonElement>(':scope > button[data-slot="docblocks/collapse"]');
-    expect(toggle, "a list item with children should render a collapse toggle").not.toBeNull();
-    expect(toggle!.getAttribute("aria-expanded")).toBe("true");
-    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be visible").not.toBeNull();
-
-    act(() => toggle!.click());
-
-    expect(toggle!.getAttribute("aria-expanded")).toBe("false");
-    // The row's exit animation keeps the element in the DOM while it
-    // collapses; the unmount stands once it completes (the motion page's
-    // row list stands the visible rows only).
-    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).toBeNull(), {
-      timeout: 5000,
-    });
-    expect(JSON.stringify(doc.toJSON()), "a collapse must not touch the doc").toBe(before);
-
-    act(() => toggle!.click());
-    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).not.toBeNull(), {
-      timeout: 5000,
-    });
-  });
-
-  it("renders no toggle for a childless list item", () => {
-    renderDoc((d) => {
-      const id = d.insertBlock("list-item", { list: "bullet" });
-      d.insertText(id, 0, "a leaf");
-    });
-    expect(document.querySelector('[data-slot="docblocks/collapse"]')).toBeNull();
   });
 });

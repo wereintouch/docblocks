@@ -46,7 +46,12 @@ function useTableList(bridge: DatabaseBridge): UseTableList {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // The bridge's identity stand: a relink (the consumer's fresh bridge
+    // instance) re-reads the catalog over the fresh bridge (the
+    // `useDatabaseTable`'s re-bootstrap parity); the own's mutations and
+    // the manual's `refresh` re-read over the stable instance (the
+    // refresh reads the bridge over its ref).
+  }, [bridge, refresh]);
 
   const create = useCallback(
     async (name: string) => {

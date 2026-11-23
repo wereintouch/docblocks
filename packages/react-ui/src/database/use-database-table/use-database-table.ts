@@ -87,6 +87,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   // The subscription's generation: a re-subscription (the rebaseline, the
   // identity change) invalidates the previous subscription's deliveries.
   const subGenRef = useRef(0);
+  // The live identity: a write's late tail (the rollback / the post-commit
+  // refetch) compares it against the identity its closure captured — a
+  // relink makes the tail's state writes stale.
+  const identityRef = useRef({ bridge, tableId });
+  identityRef.current = { bridge, tableId };
+  const sameIdentity = (): boolean => identityRef.current.bridge === bridge && identityRef.current.tableId === tableId;
 
   const filterKey = filter === undefined ? "" : JSON.stringify(filter);
 
@@ -128,11 +134,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
 
   const refresh = useCallback(
     (onApplied?: (snapshot: TableSnapshot) => void) => {
+      // A stale closure's refetch (the write tail of a table the block
+      // no longer shows) stands no load: its token bump would supersede
+      // the fresh identity's bootstrap and leave the phase loading.
+      if (!sameIdentity()) return;
       void (async () => {
         const token = ++loadTokenRef.current;
         try {
           const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
-          if (token !== loadTokenRef.current) return;
+          if (token !== loadTokenRef.current || !sameIdentity()) return;
           applySnapshotState(streamState, snapshot);
           onApplied?.(snapshot);
         } catch {
@@ -185,6 +195,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     refresh,
     noteError,
     casOf,
+    sameIdentity,
   };
   const rowWrite = createRowWriteOps(rowCtx);
   const rowBatch = createRowBatchOps(rowCtx);
@@ -197,6 +208,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     capabilitiesRef,
     pushUndo: history.pushUndo,
     noteError,
+    sameIdentity,
   };
   const column = createColumnOps(columnCtx);
 

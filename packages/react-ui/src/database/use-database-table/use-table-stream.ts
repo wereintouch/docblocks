@@ -23,7 +23,7 @@ import type {
   TableSnapshot,
 } from "../bridge";
 import { isBridgeError, validateProtocolDescriptor } from "../bridge";
-import { PAGE_SIZE } from "./constants";
+import { PAGE_SIZE, SEQ_DEDUP_WINDOW } from "./constants";
 import type { DatabaseTablePhase, DatabaseTableRow, RefCell } from "./models";
 import { descriptionToGrid, isFatalTableError } from "./utils";
 
@@ -181,6 +181,10 @@ function useTableStream(ctx: TableStreamContext): void {
               }
               lastSeenSeq = envelope.seq;
               seenSeqs.add(envelope.seq);
+              // The window's bound (the long session's growth stands
+              // bounded): the stale check — the seq at or below the
+              // head's drop — protects the pruned seqs over the clear.
+              if (seenSeqs.size >= SEQ_DEDUP_WINDOW) seenSeqs.clear();
               // The `commit` and the `invalidate` both stand the page
               // refetch (the rebaseline is NOT an in-place refill); the
               // subscription stays alive over it.

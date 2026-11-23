@@ -40,6 +40,8 @@ function useCoverAverageColor(): string | null {
         const ref = await blobStore.get(coverId);
         settle(await averageColorOfBlob(ref.blob));
       } catch {
+        // A failed read / decode stands the untinted frame (the border's
+        // plain default), not a thrown render.
         settle(null);
       }
     };

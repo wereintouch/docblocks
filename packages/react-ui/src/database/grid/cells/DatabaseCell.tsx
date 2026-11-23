@@ -2,46 +2,23 @@
  *  (the selection / the edit) over the column's value input. */
 import { format } from "date-fns";
 
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { Calendar } from "../../../shared/ui/Calendar";
-import { Checkbox } from "../../../shared/ui/Checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/ui/Popover";
-import { Separator } from "../../../shared/ui/Separator";
-import { Textarea } from "../../../shared/ui/Textarea";
-import { TimeSegments } from "../../../shared/ui/TimeSegments";
 import { cn } from "../../../shared/ui/cn";
-import { preventDefault } from "../../../shared/utils";
-import { columnAnnotation, parseCellValue } from "../../bridge";
+import { columnAnnotation } from "../../bridge";
 import type { BridgeColumn, BridgeColumnAnnotation } from "../../bridge";
-import { formatNumberValue } from "../../number-format";
 import {
   CELL_SELECTED,
   CELL_SELECTED_MULTI,
   CELL_WRAP,
   CHECKBOX_TOGGLE_GUARD_MS,
   GRID_DRAG_TRANSITION,
-  PICKER_SIDE_OFFSET_PX,
 } from "../constants";
 import type { RefTableData } from "../use-ref-tables";
-import {
-  cellKeyOf,
-  dateOnly,
-  dateTimeLabel,
-  formatCellDateTime,
-  hasTime,
-  numberDisplayAttrs,
-  numberStepFor,
-  parseCellDateTime,
-} from "../utils";
-import { CellDisplay } from "./CellDisplay";
-import { CellEditInput } from "./CellEditInput";
-import { EnumPicker } from "./EnumPicker";
-import { RefMultiEditor } from "./RefMultiEditor";
-import { RefValueChips } from "./RefValueChips";
-import { RowLinkPicker } from "./RowLinkPicker";
-import type { RefOption } from "./models";
+import { cellKeyOf, dateOnly, hasTime, parseCellDateTime } from "../utils";
+import { DatabaseCellContent } from "./DatabaseCellContent";
+import { DatabaseCellText } from "./DatabaseCellText";
+import { useCellEditSession } from "./use-cell-edit-session";
 
 interface DatabaseCellProps {
   rowId: string;
@@ -115,6 +92,7 @@ function DatabaseCell({
   const isNumber = annotation.valueInput === "number";
   const dateValue = isDate || isDateTime ? parseCellDateTime(value) : null;
   const rawValue = value === undefined || value === null ? "" : String(value);
+  const isManyRef = column.refKind !== undefined && column.refMany === true;
   const dragStyle =
     dragDx !== 0
       ? {
@@ -124,395 +102,64 @@ function DatabaseCell({
           transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
         }
       : undefined;
-  // The text / number's draft stands from the value at the session's open
-  // (like the datetime's own stand below): the grid's session teardown — the
-  // outside press, the other cell's press — drops the `editing` prop before
-  // the input's blur stands (the input unmounts with the session), so the
-  // close commits the draft on the teardown itself (the cancel / the
-  // repeat guards keep the no-write + the double stand a no-write).
-  const [textDraft, setTextDraft] = useState<string | null>(null);
-  const textCancelledRef = useRef(false);
-  const textSettledRef = useRef(false);
-  // The draft's open stand (the deferred commit's pin + the no-write's
-  // guard): the mid-session's value changes re-baseline the grid's
-  // revision map (the peer's commit over the refetch), so the close's
-  // unchanged test + the CAS stand the open-time value + revision — the
-  // stale pin's rejection stands the conflict, not a silent overwrite.
-  const openValueRef = useRef<string | null>(null);
-  const openDateRef = useRef<Date | null>(null);
-  const openRevisionRef = useRef<string | undefined>(undefined);
 
-  // A grid-initiated edit (a newly inserted row) uses the same draft and
-  // revision initialization as the double-press entry.
-  useEffect(() => {
-    if (!editing || (!isText && !isNumber) || openValueRef.current !== null) return;
-    textCancelledRef.current = false;
-    textSettledRef.current = false;
-    openValueRef.current = rawValue;
-    openRevisionRef.current = revision;
-    setTextDraft(rawValue);
-  }, [editing]);
+  const {
+    textDraft,
+    setTextDraft,
+    commitTextDraft,
+    cancelTextDraft,
+    textCancelledRef,
+    textSettledRef,
+    openValueRef,
+    openDateRef,
+    openRevisionRef,
+    draftDate,
+    setDraftDate,
+    draftTime,
+    setDraftTime,
+    commitDateTime,
+    closeCommittedRef,
+    dateTimeCancelledRef,
+  } = useCellEditSession({
+    editing,
+    isText,
+    isNumber,
+    isDateTime,
+    rawValue,
+    revision,
+    column,
+    onChange,
+    onEditEnd,
+  });
 
-  // The multi-line edit's caret seat (the autoFocus's start seat): the
-  // session's open focuses the editor and seats the caret at the value's
-  // end (the edit stands over the existing text's tail). The seat stands
-  // the textarea's ref callback (the portal's content attaches after the
-  // commit's effects — a commit-time effect stands the null ref out), the
-  // element's identity keeps the re-renders' re-focus out (the typing's
-  // caret is never moved), the close's reset stands the next open's
-  // re-seat.
-  const multiLineSeatRef = useRef<HTMLTextAreaElement | null>(null);
-  useEffect(() => {
-    if (!editing) multiLineSeatRef.current = null;
-  }, [editing]);
-  const multiLineRefCallback = (el: HTMLTextAreaElement | null) => {
-    if (el !== null && editing && multiLineSeatRef.current !== el) {
-      multiLineSeatRef.current = el;
-      el.focus();
-      const end = el.value.length;
-      el.setSelectionRange(end, end);
-    }
-  };
-
-  /** The draft's close commit (the single commit path — the blur and the
-   * external teardown both end the session, the session's end commits):
-   * the parse's invalid stand no commit, the negative's reject stand no
-   * commit, the unchanged value stand no commit (no bridge call, no
-   * refetch, no no-op undo entry). The unchanged test + the CAS stand the
-   * open-time stand (the mid-session's peer's commit stands no clobber). */
-  const commitTextDraft = () => {
-    const draft = textDraft;
-    if (draft === null) return;
-    const result = parseCellValue(isNumber ? "number" : "text", draft);
-    if (result.ok === false) return;
-    const parsed = result.value;
-    const rejected = isNumber && column.allowNegative === false && parsed !== null && Number(parsed) < 0;
-    if (rejected) return;
-    if (draft === openValueRef.current) return;
-    onChange(parsed, openRevisionRef.current);
-  };
-
-  /** The Escape's cancel: the session closes without a commit (no write
-   * over the wire). */
-  const cancelTextDraft = () => {
-    textCancelledRef.current = true;
-    onEditEnd();
-  };
-
-  // The external teardown's commit stand (the text / the number — the
-  // datetime's own stand below): the grid's session clear (the outside
-  // press, the other cell's press) drops the `editing` prop before the
-  // input's blur stands, so the draft commits on the teardown itself.
-  // The draft + the value stand as of the flip's render: a later draft
-  // change is impossible (the input unmounts with the close).
-  useEffect(() => {
-    if (editing) return;
-    if (textDraft === null || textCancelledRef.current || textSettledRef.current) return;
-    textSettledRef.current = true;
-    commitTextDraft();
-  }, [editing]);
-
-  // The datetime's drafts stand from the value at the session's open (the
-  // close commits; the in-flight draft never touches the consumer state and
-  // stands the mid-session value changes — the picker session's own data
-  // until the release). The close's keys stand: the Enter commits the draft
-  // (the date + the time as set) and closes, the Escape cancels (the
-  // draft's drop — no write over the wire), the close (the trigger's / the
-  // outside press / the session's teardown) commits.
-  const [draftDate, setDraftDate] = useState<Date | null>(null);
-  const [draftTime, setDraftTime] = useState<string | null>(null);
-
-  const commitDateTime = () => {
-    const committed = draftDate === null ? null : dateOnly(draftDate);
-    if (draftTime !== null && committed !== null) {
-      const [hours, minutes, seconds] = draftTime.split(":");
-      committed.setHours(Number(hours), Number(minutes), Number(seconds));
-    }
-    // A no-op close (the draft stands the OPEN-time value) stands no
-    // commit: the peer's mid-session commit stands no clobber over the
-    // fresh value.
-    if ((committed?.getTime() ?? null) === (openDateRef.current?.getTime() ?? null)) return;
-    const iso = formatCellDateTime(committed);
-    // A repeat close (the popover's own dispatch after the teardown stand)
-    // re-emits the same ISO — the guard (per session: the open resets it)
-    // keeps it a no-write.
-    if (iso === committedIsoRef.current) return;
-    committedIsoRef.current = iso;
-    onChange(iso, openRevisionRef.current);
-  };
-
-  // The external teardown's commit stand: the grid's session clear (the
-  // outside press, the other cell's press) drops the popover's `open` prop
-  // without the radix's close callback (the popover unmounts before its
-  // deferred dispatch), so the deferred close commit never stands — the
-  // cell commits the draft on the teardown itself (the no-op + repeat
-  // guards above keep the double stand a no-write).
-  const sessionStoodOpenRef = useRef(false);
-  const closeCommittedRef = useRef(false);
-  const committedIsoRef = useRef<string | null | undefined>(undefined);
-  // The Escape's cancel stand (the draft's drop — no write over the wire):
-  // the flag guards the close's commit stands out (the session's close
-  // commits otherwise — the close's contract).
-  const dateTimeCancelledRef = useRef(false);
-  useEffect(() => {
-    if (!isDateTime) return;
-    if (editing) {
-      sessionStoodOpenRef.current = true;
-      closeCommittedRef.current = false;
-      dateTimeCancelledRef.current = false;
-      // The repeat-commit guard stands per session: a later session may
-      // legitimately re-commit an earlier ISO (the value moved away and
-      // back), so the open resets it.
-      committedIsoRef.current = undefined;
-      return;
-    }
-    if (!sessionStoodOpenRef.current || closeCommittedRef.current || dateTimeCancelledRef.current) return;
-    sessionStoodOpenRef.current = false;
-    commitDateTime();
-  }, [editing]);
-
-  // The ref table's stand (the enum's options — the option's row id stands
-  // the value, the display stands the label (the dict's legacy PK-as-label
-  // stand stands the display too), the `color` column stands the chip's
-  // color; the row-link's displays — the dead row id keeps the raw stand,
-  // the lenient read).
-  const refRowIds = refTableData?.rowIds ?? [];
-  const refDisplays = refTableData?.displays ?? {};
-  const refOptions: RefOption[] = refRowIds.map((rowId) => ({
-    value: rowId,
-    label: refDisplays[rowId] ?? rowId,
-    color: refTableData?.colors[rowId],
-  }));
-
-  let content: ReactNode;
-  const isManyRef = column.refKind !== undefined && column.refMany === true;
-  // The ref value's stand (the many cardinality): the empty / the legacy
-  // scalar value normalizes to the array (the editor's commit stands the
-  // array always — the single scalar is the lenient read, not the state).
-  const refValues = Array.isArray(value)
-    ? value.map((item) => String(item))
-    : isManyRef && value !== undefined && value !== null && String(value) !== ""
-      ? [String(value)]
-      : [];
-  if (isManyRef || Array.isArray(value)) {
-    // The many cardinality (the multi-enum / the row-links): the edit is
-    // the popover's checkbox list (the toggle commits immediately — one
-    // `updateRow` per option, the draft stands none; the commit stands the
-    // array always — the first pick over the empty cell stands `[value]`),
-    // the display stands the option's chips (the train over the cell — the
-    // joined text is out; the non-ref array keeps the raw join — the
-    // lenient stand).
-    if (editing && column.refKind !== undefined) {
-      content = <RefMultiEditor values={refValues} options={refOptions} onCommit={onChange} onEditEnd={onEditEnd} />;
-    } else if (column.refKind !== undefined) {
-      content = <RefValueChips values={refValues} options={refOptions} fade />;
-    } else {
-      content = <CellDisplay text={refValues.join(", ")} />;
-    }
-  } else {
-    const noOp = () => undefined;
-    const clearValue = () => onChange(null);
-    const dateOnOpenChange = (open: boolean) => {
-      if (!open) onEditEnd();
-    };
-    const onDateSelect = (day: Date | undefined) => {
-      // The pick commits the ISO date (the same-day pick clears it — the
-      // day-picker's toggle) + closes the popover.
-      const next = day === undefined || day === null ? null : dateOnly(day);
-      onChange(next === null ? null : format(next, "yyyy-MM-dd"));
-      onEditEnd();
-    };
-    // The day-picker's same-day toggle (the undefined stand) resets no
-    // draft date: the datetime's commit is deferred to the close, so the
-    // toggle would clear the draft date and lose the typed time (the clear
-    // stand is the date cell's immediate-commit contract only).
-    const onDateTimeDaySelect = (day: Date | undefined) => {
-      if (day === undefined || day === null) return;
-      setDraftDate(dateOnly(day));
-    };
-    const dateTimeOnOpenChange = (open: boolean) => {
-      if (!open) {
-        closeCommittedRef.current = true;
-        // The Escape's cancel stand: the flag keeps the commit out (the
-        // onEscapeKeyDown's preventDefault stands the radix's own close
-        // out — the guard stands the radix's close paths' parity).
-        if (!dateTimeCancelledRef.current) commitDateTime();
-        onEditEnd();
-      }
-    };
-    // The Escape's cancel: the draft's drop (no write over the wire) — the
-    // session's close stands over the grid's teardown stand (the flag's
-    // guard above keeps the commit out).
-    const cancelDateTimeDraft = () => {
-      dateTimeCancelledRef.current = true;
-      onEditEnd();
-    };
-    // The Enter's commit stand (the popover's keys): the commit + the close
-    // stand the draft (the date + the time as set); the day's button keeps
-    // the native's activation (the `data-day` hook's stand — the pick
-    // stands the draft, the popover stands open over the time's input).
-    const onDateTimePopoverKeyDown = (event: React.KeyboardEvent) => {
-      if (event.key !== "Enter") return;
-      if ((event.target as HTMLElement).closest("[data-day]") !== null) return;
-      event.preventDefault();
-      closeCommittedRef.current = true;
-      commitDateTime();
-      onEditEnd();
-    };
-    // The press stands the toggle only over the armed stand (the cell
-    // stood the sole selection at the press — the selecting press stands
-    // no toggle; the double press's second click is the detail guard).
-    // The toggle's timestamp arms the wrapper's dblclick guard.
-    const onCheckboxPress = (event: React.MouseEvent<HTMLSpanElement>) => {
-      if (event.detail > 1) return;
-      if (!booleanPress.current.armed) return;
-      booleanPress.current.toggledTs = Date.now();
-      onChange(value === true ? false : true);
-    };
-
-    switch (annotation.valueInput) {
-      case "number": {
-        // The display stands the column's format (the prefix / the
-        // thousands / the suffix frame the value — the raw number stays
-        // the data; a non-numeric stand (the consumer's odd value) keeps
-        // the raw string).
-        const numeric = rawValue === "" ? null : Number(rawValue);
-        const display =
-          numeric !== null && Number.isFinite(numeric)
-            ? formatNumberValue(numeric, numberDisplayAttrs(column))
-            : rawValue;
-        content = editing ? (
-          <CellEditInput
-            draft={textDraft ?? ""}
-            kind="number"
-            min={column.allowNegative === false ? 0 : undefined}
-            step={numberStepFor(column)}
-            onDraftChange={setTextDraft}
-            onEnd={onEditEnd}
-            onCancel={cancelTextDraft}
-            alignRight
-          />
-        ) : (
-          <CellDisplay text={empty ? "" : display} alignRight />
-        );
-        break;
-      }
-      case "date":
-        content = (
-          <Popover open={editing} onOpenChange={dateOnOpenChange}>
-            <PopoverTrigger asChild>
-              <CellDisplay text={dateValue !== null ? format(dateValue, "dd.MM.yyyy") : ""} />
-            </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX} className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={dateValue ?? undefined}
-                {...(dateValue !== null ? { defaultMonth: dateValue } : {})}
-                onSelect={onDateSelect}
-              />
-            </PopoverContent>
-          </Popover>
-        );
-        break;
-      case "datetime":
-        content = (
-          <Popover open={editing} onOpenChange={dateTimeOnOpenChange}>
-            <PopoverTrigger asChild>
-              <CellDisplay text={dateValue !== null ? dateTimeLabel(dateValue) : ""} />
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              sideOffset={PICKER_SIDE_OFFSET_PX}
-              className="w-auto p-0"
-              onKeyDown={onDateTimePopoverKeyDown}
-              onEscapeKeyDown={(event) => {
-                event.preventDefault();
-                cancelDateTimeDraft();
-              }}
-            >
-              <Calendar
-                mode="single"
-                selected={draftDate ?? undefined}
-                defaultMonth={dateValue ?? undefined}
-                onSelect={onDateTimeDaySelect}
-              />
-              <Separator />
-              <div className="p-2">
-                <TimeSegments
-                  id={`db-cell-time-${rowId}-${column.id}`}
-                  value={draftTime}
-                  onChange={setDraftTime}
-                  clearable
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
-        );
-        break;
-      case "boolean": {
-        // The checkbox's interactive stand: over the sole selection the
-        // press over the checkbox is the toggle (the pointer cursor);
-        // otherwise it stands pointer-transparent (the single press is the
-        // cell selection, the double press is the toggle over the wrapper).
-        const checkboxInteractive = singleSelected && !editing;
-        content = (
-          <span
-            data-slot="docblocks/database-cell-checkbox-wrap"
-            className={cn(
-              "flex w-full items-center justify-center px-1",
-              checkboxInteractive ? "cursor-pointer" : "pointer-events-none"
-            )}
-            onClick={onCheckboxPress}
-          >
-            <Checkbox
-              data-slot="docblocks/database-cell-checkbox"
-              aria-label={column.name}
-              checked={value === true}
-              onCheckedChange={noOp}
-              className="pointer-events-none"
-            />
-          </span>
-        );
-        break;
-      }
-      case "enum":
-        content = (
-          <EnumPicker
-            options={refOptions}
-            current={value === undefined || value === null ? null : String(value)}
-            open={editing}
-            onPick={onChange}
-            onClear={clearValue}
-            onEditEnd={onEditEnd}
-          />
-        );
-        break;
-      case "row-link":
-        content = (
-          <RowLinkPicker
-            rowIds={refRowIds}
-            displays={refDisplays}
-            current={empty ? "" : rawValue}
-            open={editing}
-            onPick={onChange}
-            onClear={clearValue}
-            onEditEnd={onEditEnd}
-          />
-        );
-        break;
-      default:
-        // The multi-line stand (the text's cell): the edit stands the
-        // floating editor over the cell (the Baserow's stand — the
-        // portaled layer: the top edge over the cell's top edge, the box's
-        // 6 rows stand over the rows below — the rows keep their fixed
-        // track, the layout stands no shift). The display stands none while
-        // the edit is open (the duplication is out), the Enter stands the
-        // soft break (the raw \n — no commit), the close (the blur / the
-        // session's teardown) commits the draft in one updateRow, the
-        // Escape cancels (no write).
-        content = editing && isText ? null : <CellDisplay text={empty ? "" : String(value)} />;
-    }
-  }
+  const content = (
+    <DatabaseCellContent
+      rowId={rowId}
+      column={column}
+      value={value}
+      editing={editing}
+      singleSelected={singleSelected}
+      booleanPress={booleanPress}
+      refTableData={refTableData}
+      annotation={annotation}
+      empty={empty}
+      isText={isText}
+      dateValue={dateValue}
+      rawValue={rawValue}
+      onChange={onChange}
+      onEditEnd={onEditEnd}
+      textDraft={textDraft}
+      setTextDraft={setTextDraft}
+      cancelTextDraft={cancelTextDraft}
+      draftDate={draftDate}
+      setDraftDate={setDraftDate}
+      draftTime={draftTime}
+      setDraftTime={setDraftTime}
+      commitDateTime={commitDateTime}
+      closeCommittedRef={closeCommittedRef}
+      dateTimeCancelledRef={dateTimeCancelledRef}
+    />
+  );
 
   // The enum's overflow's stand (the value's display clipped — the
   // ellipsis / the fade's mask): the press stands the picker's popover
@@ -590,66 +237,18 @@ function DatabaseCell({
     </div>
   );
   if (isText) {
-    // The multi-line text's edit stand (the text's cell): the double press
-    // opens the floating editor over the cell (the Baserow's stand — the
-    // portaled layer: the editor's top edge stands a few px over the
-    // cell's top edge, the width stands the cell's, the 6-row's box stands
-    // over the rows below — the scroller's clip is out, the rows stand no
-    // shift). The opaque stand (the popover's background) keeps the
-    // covered rows out of the sight. The Enter stands the soft break (the
-    // raw \n — no commit), the close (the real blur / the outside press /
-    // the session's teardown) commits the draft in one updateRow, the
-    // Escape cancels (no write — the content's onEscapeKeyDown keeps the
-    // radix's own close commit out).
-    const multiOnOpenChange = (open: boolean) => {
-      if (!open) {
-        // The popover's own close (the real blur / the outside press)
-        // commits the draft over its own stand; the session's teardown
-        // (the other cell's / the outside press over the grid's pointer
-        // model) commits over the teardown's effect — the settled ref
-        // keeps the repeat commit a no-write.
-        if (!textCancelledRef.current) {
-          textSettledRef.current = true;
-          commitTextDraft();
-        }
-        onEditEnd();
-      }
-    };
-    const onMultiChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => setTextDraft(event.target.value);
-    const onMultiKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === "Escape") cancelTextDraft();
-    };
-
     return (
-      <Popover open={editing} onOpenChange={multiOnOpenChange}>
-        <PopoverTrigger asChild>{cell}</PopoverTrigger>
-        <PopoverContent
-          side="bottom"
-          align="start"
-          // The editor's top edge stands the cell's top edge over (the box
-          // opens over the row's top): the cell's 32px's height + the 8px's
-          // stand, the negative offset over the anchor's bottom edge.
-          sideOffset={-40}
-          onEscapeKeyDown={preventDefault}
-          className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-0 shadow-md ring-0"
-        >
-          <Textarea
-            data-slot="docblocks/database-cell-multiline"
-            ref={multiLineRefCallback}
-            rows={6}
-            className="
-              resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-y-auto border-border
-              bg-transparent px-2.75 py-1.75 shadow-none select-text
-              focus-visible:ring-0
-              md:text-base
-            "
-            value={textDraft ?? ""}
-            onChange={onMultiChange}
-            onBlur={onEditEnd}
-            onKeyDown={onMultiKeyDown}
-          />
-        </PopoverContent>
-      </Popover>
+      <DatabaseCellText
+        cell={cell}
+        editing={editing}
+        textDraft={textDraft}
+        setTextDraft={setTextDraft}
+        commitTextDraft={commitTextDraft}
+        cancelTextDraft={cancelTextDraft}
+        textCancelledRef={textCancelledRef}
+        textSettledRef={textSettledRef}
+        onEditEnd={onEditEnd}
+      />
     );
   }
   return cell;

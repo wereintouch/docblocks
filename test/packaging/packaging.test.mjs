@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // The packaging gate: verifies the published tarball composition and that a
 // clean project installs both packages and uses the main entry, the CSS, and
-// the optional subpaths — with no dependency on monorepo files (a package
-// that referenced monorepo paths would not resolve outside the repo).
+// the subpath modules (the required peers' wiring) — with no dependency on
+// monorepo files (a package that referenced monorepo paths would not resolve
+// outside the repo).
 //
 // Runs against the built dist; execute `npm run build` first. This is a
 // standalone node script (it spans both workspaces and does a clean install),
@@ -61,7 +62,7 @@ try {
   // unreviewed.
   console.log("checking the tarball composition …");
   const coreFiles = list(coreTgz);
-  for (const f of ["package.json", "README.md", "LICENSE", "dist/index.mjs", "dist/index.d.mts"]) {
+  for (const f of ["package.json", "README.md", "CHANGELOG.md", "LICENSE", "dist/index.mjs", "dist/index.d.mts"]) {
     assert(coreFiles.includes(f), `the core archive carries ${f}`);
   }
   const coreAllowed = (f) =>
@@ -77,6 +78,7 @@ try {
   for (const f of [
     "package.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "dist/index.mjs",
     "dist/index.d.mts",
@@ -175,10 +177,10 @@ try {
   );
 
   // The minimal consumer: exercise the core entry, import the react-ui
-  // entry + the optional subpaths (the full module evaluation — a parse
-  // error stands the gate red, not only the resolution), resolve the CSS
-  // (node cannot import it), and prove everything stands inside the
-  // installed copy (not the monorepo).
+  // entry + the subpath modules (the required peers' wiring — the full module
+  // evaluation: a parse error stands the gate red, not only the resolution),
+  // resolve the CSS (node cannot import it), and prove everything stands
+  // inside the installed copy (not the monorepo).
   writeFileSync(
     join(consumerDir, "consume.mjs"),
     `import { readFileSync } from "node:fs";

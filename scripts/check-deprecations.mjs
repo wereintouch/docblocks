@@ -19,12 +19,14 @@ import ts from "typescript";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = path.resolve(here, "..");
 
-// The tsconfigs `npm run typecheck` covers (the workspaces + the e2e project).
+// The tsconfigs `npm run typecheck` covers (the workspaces + the e2e project
+// + the root's node-side tooling project).
 const DEFAULT_CONFIGS = [
   "packages/core/tsconfig.json",
   "packages/react-ui/tsconfig.json",
   "apps/playground/tsconfig.json",
   "test/e2e/tsconfig.json",
+  "tsconfig.json",
 ];
 
 // The inline suppression marker: an intentional use of a deprecated API.

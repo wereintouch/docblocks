@@ -61,7 +61,7 @@ const CANVAS_ITEM_LABEL_KEYS: Record<string, string> = {
 /** The canvas-text's side inset from the box's edges (the shape's text's
  * padding parity — the rect's 8 px x). The text stands inside the box's
  * edges (the edge's stick's stand is the missing inset's gap). */
-export const CANVAS_TEXT_PADDING_X = 8;
+const CANVAS_TEXT_PADDING_X = 8;
 
 const CanvasItem = memo(
   function CanvasItem({
@@ -229,4 +229,4 @@ const CanvasItem = memo(
     prev.id === next.id && prev.pendingConnector === next.pendingConnector && prev.interactive === next.interactive
 );
 
-export { CanvasItem };
+export { CanvasItem, CANVAS_TEXT_PADDING_X };

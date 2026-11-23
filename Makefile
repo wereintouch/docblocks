@@ -16,7 +16,7 @@ B ?= chromium
 
 NPM_TOKEN ?= $(shell awk '/^NPM_TOKEN=/ { sub(/^NPM_TOKEN=/, ""); print; exit }' .env 2>/dev/null | tr -d "\"'" | tr -d " \t")
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full version publish dev clean
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations changesets build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full version publish dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -49,6 +49,9 @@ typecheck-playground: ## tsc --noEmit: playground app
 
 deprecations: ## Deprecated API usage over the typecheck's tsconfigs (fails; inline deprecation-allow markers)
 	npm run check:deprecations
+
+changesets: ## Pending changesets' frontmatter parses (the real changesets parser; a broken fence fails here, not at publish)
+	npm run check:changesets
 
 ## Build and tests
 
@@ -105,9 +108,9 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 
 ## Gates
 
-check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
+check: lint typecheck deprecations changesets ## Quick gate: lint + typecheck + deprecations + changesets
 
-full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
+full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> changesets -> test -> packaging -> e2e
 	PLAYWRIGHT_RETRIES=1 npm run check
 
 ## Release

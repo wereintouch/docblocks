@@ -66,6 +66,8 @@ async function readImageDimensions(file: Blob): Promise<ImageDimensions | null> 
       bitmap.close();
     }
   } catch {
+    // The probe stands "unknown" over an undecodable file (the caller
+    // keeps the renderer's own stand — the SVG / the exotic formats).
     return null;
   }
 }
@@ -92,6 +94,8 @@ async function decodeToImage(file: Blob): Promise<HTMLImageElement | null> {
     await img.decode();
     return img;
   } catch {
+    // The decode stands null over an unreadable payload (the tint stands
+    // none — the caller's plain border).
     return null;
   } finally {
     URL.revokeObjectURL(url);
@@ -144,6 +148,8 @@ async function averageColorOfBlob(file: Blob): Promise<string | null> {
         const mean = (sum: number): number => Math.round(sum / alphaSum);
         return `rgb(${mean(r)}, ${mean(g)}, ${mean(b)})`;
       } catch {
+        // The canvas's read stands null over an unreadable image or a
+        // tainted context (the tint stands none — the plain border).
         return null;
       }
     })();

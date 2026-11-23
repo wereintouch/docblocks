@@ -88,9 +88,8 @@ function GridBody({
   }, [data.table?.columns]);
   const refTableData = useRefTables(bridge, refTableEntries);
 
-  // The motion's options' editor's variant (the framer's Reorder's stand
-  // over the `./motion`'s subpath — the null's stand stands the plain
-  // editor, the base's boundary's contract).
+  // The motion's options' editor's variant (the framer's Reorder's stand;
+  // the absent slot stands the plain editor).
   const motionEnumOptionsEditor = useEnumOptionsMotion();
   const OptionsEditor = motionEnumOptionsEditor ?? EnumOptionsEditor;
 

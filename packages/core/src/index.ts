@@ -64,6 +64,7 @@ export {
   isSafeEmbedSrc,
   isSafeLinkHref,
   linkHrefKindOf,
+  normalizeHrefInput,
   validateBlockAttrs,
   validateDoc,
   validateMarkSet,

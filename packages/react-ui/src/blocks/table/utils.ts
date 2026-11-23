@@ -126,6 +126,8 @@ async function readClipboardText(): Promise<string> {
   try {
     items = await navigator.clipboard.read();
   } catch {
+    // The page may not allow the read (the focus / the permission's
+    // refusal): the paste stands a no-op over the empty payload.
     return "";
   }
   let html = "";

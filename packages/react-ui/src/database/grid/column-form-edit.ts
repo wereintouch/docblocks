@@ -6,11 +6,11 @@
  * `renameColumn` (the undo entry's stand). The bridge's calls stand direct
  * (the system table's rows keep no per-block undo — the create form's
  * table-creation contract). The commit's failure stands the form open (the
- * retry is the form's own save press) + the catalog's re-read (the
- * partial's stand).
+ * retry is the form's own save press) with the cause over the form's error
+ * line + the catalog's re-read (the partial's stand).
  */
 import type { BatchOp, BridgeColumn, DatabaseBridge } from "../bridge";
-import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, toBridgeError } from "../bridge";
 import { newMutationContext } from "../use-database-table";
 import type { AddColumnFormDraft } from "./models";
 import { loadFullPages } from "./use-ref-tables";
@@ -25,10 +25,12 @@ interface ColumnFormEditContext {
   bumpCatalogRefresh: () => void;
   /** The form's close (the commit's success stand). */
   close: () => void;
+  /** The commit's failure message (the form's error line). */
+  onError: (message: string) => void;
 }
 
 function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDraft): void {
-  const { bridge, data, bumpCatalogRefresh, close } = ctx;
+  const { bridge, data, bumpCatalogRefresh, close, onError } = ctx;
   const columnId = draft.editColumnId;
   const refTableId = draft.refPick;
   const column = data.table?.columns.find((entry) => entry.id === columnId);
@@ -41,13 +43,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
       // page's limit would truncate the catalog over 200 options (the
       // diff's delete set over the truncated rows stands the
       // silent-ignored delete of the truncated option).
-      const pageSet = await loadFullPages(bridge, refTableId);
-      // The partial page set (the cursor's churn over the retry bound):
-      // the diff's delete set over the truncated rows stands no stand —
-      // the commit stands none (the retry is the form's own press, the
-      // refresh re-reads the full set).
-      if (pageSet === null) throw new Error("the catalog's page set stood partial over the cursor's churn");
-      const snapshot = pageSet;
+      // The full page set (the cursor's churn over the retry bound lands
+      // the partial set — the lenient read; the catalog's refresh re-reads
+      // it over the next event).
+      const snapshot = await loadFullPages(bridge, refTableId);
       const nameColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_NAME_COLUMN)?.id;
       const colorColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_COLOR_COLUMN)?.id;
       const current: { rowId: string; name: string; color: string | null }[] = snapshot.rows.map((row) => ({
@@ -62,9 +61,19 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
             : null,
       }));
       const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
+      // The seen's set (the form's open's snapshot — the options the user
+      // saw over the prefill): the delete set is the seen minus the
+      // kept, so an option added concurrently over the open form (in
+      // `current`, not in the seen) survives the save (the user never
+      // saw it — its removal would stand the silent-loss's stand). The
+      // absent seen set (no prefill) stands the legacy full-replace.
+      const seenRowIds = draft.enumSeenRowIds !== undefined ? new Set(draft.enumSeenRowIds) : null;
       const keptRowIds = new Set<string>();
       const cellOf = (option: { rowId?: string; name: string; color: string | null }): Record<string, unknown> => {
-        const cells: Record<string, unknown> = {};
+        // The cell's keys stand the bridge's column ids (the data's
+        // stand — a hostile id stands the inert own entry, not the
+        // prototype's write): the null-prototype's map.
+        const cells = Object.create(null) as Record<string, unknown>;
         if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
         if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
         return cells;
@@ -87,7 +96,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           keptRowIds.add(option.rowId);
           const before = current.find((entry) => entry.rowId === option.rowId);
           if (before === undefined) continue;
-          const cells: Record<string, unknown> = {};
+          // The cell's keys stand the bridge's column ids (the data's
+          // stand — a hostile id stands the inert own entry, not the
+          // prototype's write): the null-prototype's map.
+          const cells = Object.create(null) as Record<string, unknown>;
           if (before.name !== option.name.trim() && nameColumnId !== undefined)
             cells[nameColumnId] = option.name.trim();
           if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
@@ -98,7 +110,9 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           }
         }
         for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) ops.push({ op: "delete", rowId: entry.rowId });
+          if (!keptRowIds.has(entry.rowId) && (seenRowIds === null || seenRowIds.has(entry.rowId))) {
+            ops.push({ op: "delete", rowId: entry.rowId });
+          }
         }
         if (ops.length > 0) {
           const created = await bridge.batchRows(refTableId, { ops }, newMutationContext());
@@ -121,7 +135,10 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           keptRowIds.add(option.rowId);
           const before = current.find((entry) => entry.rowId === option.rowId);
           if (before === undefined) continue;
-          const cells: Record<string, unknown> = {};
+          // The cell's keys stand the bridge's column ids (the data's
+          // stand — a hostile id stands the inert own entry, not the
+          // prototype's write): the null-prototype's map.
+          const cells = Object.create(null) as Record<string, unknown>;
           if (before.name !== option.name.trim() && nameColumnId !== undefined)
             cells[nameColumnId] = option.name.trim();
           if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
@@ -136,7 +153,7 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           }
         }
         for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) {
+          if (!keptRowIds.has(entry.rowId) && (seenRowIds === null || seenRowIds.has(entry.rowId))) {
             await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
           }
         }
@@ -162,12 +179,11 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
       if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
       close();
     } catch (error) {
-      // The commit's failure: the form stands open (the retry is the
-      // form's own save press); the partial's stand (the mixed batch's
-      // atomic commit + the move's second commit) re-reads the catalog
-      // (the move over the failed batch stands applied), the error
-      // stands the log.
-      console.error("docblocks: the column's enum commit failed — the catalog re-reads", error);
+      // The commit's failure: the form stands open with the cause (the
+      // retry is the form's own save press); the partial's stand (the
+      // mixed batch's atomic commit + the move's second commit) re-reads
+      // the catalog (the move over the failed batch stands applied).
+      onError(toBridgeError(error).message);
       bumpCatalogRefresh();
     }
   })();

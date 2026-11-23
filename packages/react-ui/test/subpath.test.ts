@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -42,5 +42,35 @@ describe("subpath split (built artifacts)", () => {
 
   it("ships the mermaid entry importing mermaid", () => {
     expect(readFileSync(join(DIST, "mermaid/index.mjs"), "utf8")).toContain('from "mermaid"');
+  });
+
+  it("keeps pdfjs-dist out of the base entry", () => {
+    expect(readFileSync(join(DIST, "index.mjs"), "utf8")).not.toContain("pdfjs-dist");
+    expect(readFileSync(join(DIST, "index.d.mts"), "utf8")).not.toContain("pdfjs-dist");
+  });
+
+  it("keeps the pdf subpath the only pdfjs-dist consumer in dist", () => {
+    const withPdfjs = filesOf(DIST).filter((file) => readFileSync(file, "utf8").includes('from "pdfjs-dist"'));
+    // The shared chunk and every type file stay pdfjs-free as well.
+    expect(withPdfjs).toEqual([join(DIST, "pdf/index.mjs")]);
+  });
+
+  it("covers every emitted chunk over the sideEffects' list", () => {
+    // The content-hashed chunk carries a side effect (the legacy i18n
+    // instance's registration over the html lang's observer): a chunk the
+    // list misses, the bundler's tree-shake can drop. The coverage: the
+    // `dist/*.mjs` over the top-level chunks, the explicit entries over
+    // the subpaths.
+    const pkg = JSON.parse(readFileSync(join(DIST, "..", "package.json"), "utf8")) as { sideEffects: string[] };
+    const explicit = new Set(pkg.sideEffects.filter((pattern) => pattern !== "**/*.css" && pattern !== "dist/*.mjs"));
+    const chunks = filesOf(DIST).filter((file) => file.endsWith(".mjs"));
+    expect(chunks.length).toBeGreaterThan(0);
+    for (const file of chunks) {
+      const rel = relative(join(DIST, ".."), file).split("/").join("/");
+      const topLevelChunk = rel.startsWith("dist/") && rel.endsWith(".mjs") && !rel.slice(5).includes("/");
+      if (!topLevelChunk && !explicit.has(rel)) {
+        throw new Error(`the chunk "${rel}" carries no sideEffects entry`);
+      }
+    }
   });
 });

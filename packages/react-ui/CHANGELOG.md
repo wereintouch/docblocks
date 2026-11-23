@@ -1,5 +1,158 @@
 # docblocks-react-ui
 
+## 0.19.0
+
+### Minor Changes
+
+- f5c22cd: The image and file blocks resolve their bytes lazily: the metadata's lookup
+  (the store's `getMeta`) runs at mount and the bytes (`get` + the object URL)
+  wait for the block to enter the viewport's preload band (the viewport grown
+  by the `--docblocks-image-preload-margin` token, 200% by default; the blocks
+  above the fold on mount and the cover resolve eagerly). The new optional
+  `EditorProvider.blobLoading` prop (`"lazy"` by default, `"eager"` for the
+  previous behavior, inherited by nested providers) sets the policy. The new
+  optional `BlobMeta.width` / `BlobMeta.height` let the placeholder reserve the
+  image's aspect ratio, so the resolution never shifts the page. The resolved
+  `<img>` carries `loading="lazy"`, `decoding="async"`, and the metadata's
+  `width`/`height` (the box reserved before the decode).
+
+### Patch Changes
+
+- bcb06c3: The code block's clipboard `text/html` payload now escapes the double quote
+  in the language's `class` attribute (and in the code's body). A hostile
+  `language` value (a free data string, reachable through a raw document
+  write or a markdown fence's info) could otherwise open a new HTML attribute
+  in the serialized payload and reach the clipboard of a third-party paste
+  target.
+- b195fb8: The code block's language lookup uses the own-key stand only: a language value
+  standing on an `Object.prototype` key (such as `constructor` — reachable over
+  `updateBlock`, a markdown fence, or a peer write, since the attr is a plain
+  string) renders plain (no highlight layer) instead of resolving to the
+  inherited non-grammar value that crashed the block's render to its error
+  placeholder.
+- 8c10428: The external-form database grid's write-tails over a pending row (the row
+  filtered out of the page) build their undo entries over the pre-operation
+  state seeded from the pending stand: the pending row's edit and its removal
+  are undoable (the removal's inverse is the row-restore over the `rowRestore`
+  capability), and the insert's entry no longer strands over a removed pending
+  row — undoing such a removal restores the row, and the following undo deletes
+  it over the restored row.
+- 074f982: The enum column's edit form no longer deletes options added concurrently
+  over the open form. The commit's delete set is now the form's prefill (the
+  options the user saw) minus the kept, so an option an other client adds
+  while the form is open survives the save; the user's own removals over the
+  form still stand.
+- 917abf8: The callout icon catalog and the canvas connector port lookup now use own-key
+  membership instead of the prototype-chain lookup. A prototype-key value kept
+  by the lenient reader over the wire data (`constructor`, `__proto__`, ...)
+  used to resolve through `Object.prototype`: the callout block crashed into
+  its error placeholder, and the connector endpoint resolved to NaN geometry.
+- ad4696d: The standalone's `useTableList` catalog hook now re-reads the catalog over a
+  bridge identity change (a relink to a fresh bridge instance), in parity with
+  the `useDatabaseTable`'s re-bootstrap — the stale catalog over the previous
+  bridge no longer stands while mutations land on the new one.
+- Updated dependencies [d58429f]
+  - docblocks-core@0.8.2
+
+## 0.18.1
+
+### Patch Changes
+
+- 2d9c34a: The database grid's data-keyed cell writes now build their cell maps over
+  the null-prototype's map everywhere the keys stand the bridge's column ids
+  (the enum column form's option cells, the multi-cell paste, the keyboard's
+  clear, the write's inverse / clean / batch restore): a hostile column id
+  (`__proto__`) stands the inert own entry, not the prototype's write —
+  the cell keeps its value over the write instead of standing silently
+  dropped.
+- c71c306: The download-href gate stands the core's shared `normalizeHrefInput`
+  (the duplicated WHATWG normalization regexes stand removed — the link
+  href's parity). The data-keyed writes (the enum option's cell maps over
+  the bridge column ids, the persisted viewport's map over the doc id)
+  stand the null-prototype's maps (a hostile id stands the inert own entry,
+  not the prototype's write). The table stream's at-least-once dedup set
+  stands bounded (the stale check — the seq at or below the head's drop —
+  protects the pruned seqs; the long session's growth is bounded).
+- 28b8f34: The download-href gate over the consumer's `BlobStore` url now normalizes the
+  browser's WHATWG control handling (the mid-string U+0009/U+000A/U+000D strip +
+  the leading / trailing C0 / space trim) before the scheme check, in parity with
+  the link-href's classifier — a `downloadUrl` carrying a control-split
+  `javascript:` scheme no longer stands an anchor.
+- d32aeee: The slash Frame picker's ref-cached list now tracks the root's child blocks' refs alongside the frame blocks' refs: a frame added (or reordered) into an existing surface invalidates the cache — the list re-renders over the live change while the picker stands open.
+- 461e4fc: The provider hooks' misuse now throws the typed `HookMisuseError` (the
+  `DocBlocksUiError` family, exported over the entry point) instead of a
+  raw `Error`: an editor hook rendered outside the `EditorProvider`, or a
+  block hook outside its block context, is catchable by class. The
+  `./motion` subpath's references in the shipped comments stand replaced
+  over the current stand (the base entry's row layer — framer-motion the
+  required peer).
+- 46e525a: The imperative mention chip's renderer now falls back to the `doc`'s icon
+  geometry over an out-of-enum `mention` kind (the lenient reader keeps the
+  wire's value as-is; the kind's mark data is stored over the write's
+  validation, so a peer-written kind outside the enum stands the data). The
+  block no longer crashes to its error placeholder over such a run — the
+  chip renders with its label, the React's path's parity.
+- 89004ef: The `./mermaid` subpath's entry now stands in the package's `sideEffects`
+  list (as the `./pdf`'s entry does): the entry runs the module-scope
+  mermaid's configuration, and a tree-shaking bundler over the absent
+  entry could drop its side effects.
+- 6c49e41: The ref-table data provider (`useRefTables`) now coalesces its live
+  refreshes per entry: a bridge envelope that arrives over a running full
+  page-set load marks the entry pending instead of firing a parallel load,
+  and the pending re-run stands over the running load's write — a burst of
+  envelopes runs the running load plus one trailing load, and overlapping
+  loads never interleave their states.
+- d751449: The page sequence's structural stamp (`seqStamp`) now sources a block's
+  `type` change over the entry sequence: a `changeBlockType` of a root
+  block (the `surface`'s filter input over the page children's derivation)
+  stands the stamp's bump, so the sequence re-derives its membership
+  instead of standing the stale row set until the next structural change.
+- 691c46c: The `sideEffects` field now covers the base entry's top-level chunks
+  (`dist/*.mjs`): the module-scope initialization (the package's own i18next
+  instance + the legacy `<html lang>`'s runtime observer) stands declared
+  over the tree-shaking's bundlers instead of standing reachable only over
+  the subpath entries.
+- Updated dependencies [2cd7f10]
+- Updated dependencies [772a8a0]
+- Updated dependencies [1a77fa3]
+- Updated dependencies [a7610aa]
+- Updated dependencies [ebe7313]
+- Updated dependencies [f1f3679]
+  - docblocks-core@0.8.1
+
+## 0.18.0
+
+### Minor Changes
+
+- d89891d: The editor stands a top-level render boundary: a throw of the editor's
+  chrome outside a block's renderer (the attributes panel, the canvas chrome,
+  the row list) is contained to the editor's content with a failure note and a
+  retry, so the consumer's application stays mounted. The boundary is exported
+  for the consumer's own wrappers (`fallback` and `resetKey` props); a block's
+  renderer keeps its narrower per-block boundary.
+
+### Patch Changes
+
+- dea90e3: The add-column form surfaces a failed commit's cause over its own error line:
+  the bridge's refusal (an in-use enum option's delete, a failed table or column
+  creation) no longer stands only in the console while the form shows nothing.
+- ab7a859: The database table's row and column writes drop their late tail after the
+  block's table changes: a rollback, an error note or a post-commit refetch of
+  the previous table no longer overwrites the relinked grid's rows or leaves it
+  loading.
+- 7e0e7c5: The markdown frontmatter drops a `__proto__` key: the entries live in plain
+  objects, where the assignment wrote the prototype chain instead of a value,
+  so a pasted or imported header could poison the parse's record. The key never
+  reaches the document's meta, and the rest of the header parses as usual.
+- 16b251a: The react-ui layer stands a typed error family (`DocBlocksUiError` base +
+  the `EditorProviderError`, `BlobNotFoundError`, `PdfFetchError`,
+  `CanvasPasteError`, `UnknownSlashCommandError`, `UnhandledValueError`
+  conditions, all exported from the base entry): the former raw `Error`
+  throws of the provider's prop contract, the blob store's missing-id
+  rejections, the PDF fetch's non-ok response, and the internal invariant
+  guards now throw the named class — the messages are unchanged, so a
+  consumer can catch by class.
+
 ## 0.17.0
 
 ### Minor Changes

@@ -2,19 +2,20 @@
  *  the pick / image / database commit paths. */
 import { useTranslation } from "react-i18next";
 
-import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
-import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
-import { Input } from "../../shared/ui/Input";
-import { focusCaretIn, segmentRange } from "../block-commands";
+import { segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
-import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
-import { SlashMenu } from "./SlashMenu";
-import type { OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
+import type { SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import { SlashMenuNode } from "./slash-menu-node";
+import { useSlashCommitPaths } from "./use-slash-commit-paths";
+import { useSlashMenuKeys } from "./use-slash-menu-keys";
+import { useSlashPickers } from "./use-slash-pickers";
 import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
 
 /**
@@ -33,38 +34,26 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const [state, setState] = useState<SlashMenuState | null>(null);
   const stateRef = useRef<SlashMenuState | null>(null);
   stateRef.current = state;
-  // The slash File upload: the pending pick context (the caret block and
-  // the slash anchor), committed on the file pick. The stand (the phrase
-  // block's row stands the skeleton over the popover's closed state) is
-  // the store's `fileUpload` slice — the row stands it, the popover stands
-  // closed. The hidden file input stands at the editor's level (not inside
-  // the menu's popover — the popover stands closed on the File's pick),
-  // mounted while the stand or the menu stands (the dialog's delivery
-  // lands on it).
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // The hidden file input's click stand: the File command's pick opens the
+  // OS picker programmatically (no pointer events reach the editor).
   const fileClickRef = useRef<{ open: () => void } | null>(null);
-  const pendingFileRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
-  // The slash Database picker: the open flag (the menu panel stands the
-  // picker over the phrase) + the pending pick context, committed on the
-  // table pick.
-  const [databasePick, setDatabasePick] = useState(false);
-  const databasePickRef = useRef(false);
-  databasePickRef.current = databasePick;
-  const pendingDatabaseRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
-  // The slash Frame picker: the open flag (the menu panel stands the
-  // picker over the phrase) + the pending pick context, committed on the
-  // frame pick (the page-frame block's weak reference — no gate: the
-  // frames are the doc's own canvas data, no bridge is required).
-  const [framePick, setFramePick] = useState(false);
-  const framePickRef = useRef(false);
-  framePickRef.current = framePick;
-  const pendingFrameRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
-  // The slash Embed form: the open flag (the menu panel stands the form over
-  // the phrase) + the pending form context, committed on the form's commit.
-  const [embedForm, setEmbedForm] = useState(false);
-  const embedFormRef = useRef(false);
-  embedFormRef.current = embedForm;
-  const pendingEmbedRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  const {
+    databasePick,
+    setDatabasePick,
+    databasePickRef,
+    pendingDatabaseRef,
+    framePick,
+    setFramePick,
+    framePickRef,
+    pendingFrameRef,
+    embedForm,
+    setEmbedForm,
+    embedFormRef,
+    pendingEmbedRef,
+    cancelDatabasePick,
+    cancelFramePick,
+    cancelEmbedForm,
+  } = useSlashPickers();
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setDatabasePick(false);
@@ -85,6 +74,20 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     pendingEmbedRef.current = null;
     setState(null);
   }, []);
+
+  const { handleFile, commitDatabase, commitFrame, commitEmbed, pendingFileRef } = useSlashCommitPaths({
+    doc,
+    store,
+    blobStore,
+    rootRef,
+    close,
+    setDatabasePick,
+    pendingDatabaseRef,
+    setFramePick,
+    pendingFrameRef,
+    setEmbedForm,
+    pendingEmbedRef,
+  });
 
   /** The open-menu derivation (the live doc text + the live caret). */
   const openDerivation = useCallback(
@@ -183,339 +186,25 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [close, doc, openDerivation, rootRef, store, t]
   );
 
-  /**
-   * The open-menu key handling, on the key facts; true = the key is the
-   * menu's (the caller preventDefaults). Everything else is the doc's:
-   * printable keys, Backspace, and space flow through the normal input
-   * path (they grow, shrink, or end the query).
-   */
-  /**
-   * The file pick of the slash File command: the upload runs first (the
-   * doc holds only a committed key), then one transact — the trigger
-   * phrase strip (when it still stands at its anchor) + the image / file
-   * insert. A phrase-only block without a derived segment is replaced at
-   * its slot; otherwise the attachment lands after the caret block. A
-   * trailing empty paragraph stands when the attachment takes the
-   * sequence's end (the caret seats there). A cancelled pick stands no
-   * event of its own (the dialog's close's page-focus clears the stand,
-   * the phrase's row returns); a refused upload commits nothing (the
-   * failed stand's error line stands over the skeleton — the stand's
-   * click dismisses it).
-   */
-  const handleFile = useCallback(
-    (file: File | null) => {
-      const pending = pendingFileRef.current;
-      pendingFileRef.current = null;
-      if (pending === null) return;
-      const { blockId, parentId, slashOffset } = pending;
-      if (file === null) {
-        // A cleared input (no delivery): the stand clears, the phrase's
-        // row returns.
-        store.getState().setFileUpload(null);
-        return;
-      }
-      if (doc.getBlock(blockId) === null) {
-        store.getState().setFileUpload(null);
-        return;
-      }
-      store.getState().setFileUpload({ blockId, phase: "uploading" });
-      void (async () => {
-        try {
-          const fileId = await blobStore.upload(file);
-          const scope = rootRef.current ?? document;
-          try {
-            doc.transact(() => {
-              const current = doc.getBlock(blockId);
-              if (current === null) return;
-              const indent = indentOf(current);
-              const ind = indent !== 0 ? { indent } : {};
-              const text = blockTextOf(current);
-              const hasPhrase = text.charAt(slashOffset) === "/";
-              let queryEnd = slashOffset + 1;
-              if (hasPhrase) {
-                while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
-              }
-              const stripped = hasPhrase ? text.slice(0, slashOffset) + text.slice(queryEnd) : text;
-              const segment = segmentRange(doc, parentId, blockId);
-              const replace = stripped === "" && segment !== null && segment.end === segment.start + 1;
-              if (!replace && hasPhrase) doc.deleteText(blockId, slashOffset, queryEnd);
-              const position = { parent: parentId, after: blockId };
-              const attachmentId = file.type.startsWith("image/")
-                ? doc.insertBlock("image", { src: fileId, ...ind }, position)
-                : doc.insertBlock("file", { fileId, ...ind }, position);
-              // Inserting after the phrase-only block and then removing it
-              // keeps the attachment at the same sequence slot.
-              if (replace) {
-                doc.removeBlock(blockId);
-                rootRef.current?.focus();
-              }
-              const sequence = doc.getChildren(parentId);
-              if (sequence[sequence.length - 1] === attachmentId) {
-                const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: attachmentId });
-                focusCaretIn(trailingId, 0, scope);
-              } else if (replace) {
-                const attachmentIndex = sequence.indexOf(attachmentId);
-                const nextId = sequence.slice(attachmentIndex + 1).find((id) => {
-                  const next = doc.getBlock(id);
-                  return next !== null && BLOCK_REGISTRY[next.type].content;
-                });
-                if (nextId !== undefined) focusCaretIn(nextId, 0, scope);
-              } else {
-                focusCaretIn(blockId, slashOffset, scope);
-              }
-            });
-          } catch (error) {
-            if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) {
-              store.getState().setFileUpload(null);
-              return;
-            }
-            throw error;
-          }
-          close();
-          store.getState().setFileUpload(null);
-        } catch {
-          // The upload was refused: nothing commits; the failed stand's
-          // error line stands over the phrase block's skeleton (the
-          // stand's click dismisses it — the phrase's row returns).
-          store.getState().setFileUpload({ blockId, phase: "failed" });
-        }
-      })();
-    },
-    [blobStore, close, doc, rootRef, store]
-  );
-
-  /**
-   * The table pick of the slash Database command: one transact — the
-   * trigger phrase strip (when it still stands at its anchor) + the
-   * database insert (the `tableId` reference) after the caret block, a
-   * trailing empty paragraph when the block takes the sequence's end (the
-   * caret seats there), and the caret re-seat. A cancelled pick commits
-   * nothing (the menu stands open on the phrase).
-   */
-  const commitDatabase = useCallback(
-    (tableId: string) => {
-      const pending = pendingDatabaseRef.current;
-      pendingDatabaseRef.current = null;
-      setDatabasePick(false);
-      if (pending === null) return;
-      const { blockId, parentId, slashOffset } = pending;
-      if (doc.getBlock(blockId) === null) return;
-      const scope = rootRef.current ?? document;
-      try {
-        doc.transact(() => {
-          const current = doc.getBlock(blockId);
-          if (current === null) return;
-          const indent = indentOf(current);
-          const ind = indent !== 0 ? { indent } : {};
-          const text = blockTextOf(current);
-          if (text.charAt(slashOffset) === "/") {
-            let queryEnd = slashOffset + 1;
-            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
-            doc.deleteText(blockId, slashOffset, queryEnd);
-          }
-          const databaseId = doc.insertBlock("database", { tableId, ...ind }, { parent: parentId, after: blockId });
-          const sequence = doc.getChildren(parentId);
-          if (sequence[sequence.length - 1] === databaseId) {
-            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: databaseId });
-            focusCaretIn(trailingId, 0, scope);
-          } else {
-            focusCaretIn(blockId, slashOffset, scope);
-          }
-        });
-      } catch (error) {
-        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
-        throw error;
-      }
-      close();
-    },
-    [close, doc, rootRef]
-  );
-
-  /**
-   * The frame pick of the slash Frame command: one transact — the
-   * trigger phrase strip (when it still stands at its anchor) + the
-   * page-frame block's insert (the `frameId` weak reference) after the
-   * caret block, a trailing empty paragraph when the block takes the
-   * sequence's end (the caret seats there), and the caret re-seat. A
-   * cancelled pick commits nothing (the menu stands open on the phrase).
-   */
-  const commitFrame = useCallback(
-    (frameId: string) => {
-      const pending = pendingFrameRef.current;
-      pendingFrameRef.current = null;
-      setFramePick(false);
-      if (pending === null) return;
-      const { blockId, parentId, slashOffset } = pending;
-      if (doc.getBlock(blockId) === null) return;
-      const scope = rootRef.current ?? document;
-      try {
-        doc.transact(() => {
-          const current = doc.getBlock(blockId);
-          if (current === null) return;
-          const indent = indentOf(current);
-          const ind = indent !== 0 ? { indent } : {};
-          const text = blockTextOf(current);
-          if (text.charAt(slashOffset) === "/") {
-            let queryEnd = slashOffset + 1;
-            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
-            doc.deleteText(blockId, slashOffset, queryEnd);
-          }
-          const frameBlockId = doc.insertBlock("frame", { frameId, ...ind }, { parent: parentId, after: blockId });
-          const sequence = doc.getChildren(parentId);
-          if (sequence[sequence.length - 1] === frameBlockId) {
-            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: frameBlockId });
-            focusCaretIn(trailingId, 0, scope);
-          } else {
-            focusCaretIn(blockId, slashOffset, scope);
-          }
-        });
-      } catch (error) {
-        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
-        throw error;
-      }
-      close();
-    },
-    [close, doc, rootRef]
-  );
-
-  const commitEmbed = useCallback(
-    (src: string) => {
-      const pending = pendingEmbedRef.current;
-      pendingEmbedRef.current = null;
-      setEmbedForm(false);
-      if (pending === null) return;
-      const { blockId, parentId, slashOffset } = pending;
-      if (doc.getBlock(blockId) === null) return;
-      const scope = rootRef.current ?? document;
-      try {
-        doc.transact(() => {
-          const current = doc.getBlock(blockId);
-          if (current === null) return;
-          const indent = indentOf(current);
-          const ind = indent !== 0 ? { indent } : {};
-          const text = blockTextOf(current);
-          if (text.charAt(slashOffset) === "/") {
-            let queryEnd = slashOffset + 1;
-            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
-            doc.deleteText(blockId, slashOffset, queryEnd);
-          }
-          const embedId = doc.insertBlock(
-            "embed",
-            { kind: "iframe", src, ...ind },
-            { parent: parentId, after: blockId }
-          );
-          const sequence = doc.getChildren(parentId);
-          if (sequence[sequence.length - 1] === embedId) {
-            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: embedId });
-            focusCaretIn(trailingId, 0, scope);
-          } else {
-            focusCaretIn(blockId, slashOffset, scope);
-          }
-        });
-      } catch (error) {
-        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
-        throw error;
-      }
-      close();
-    },
-    [close, doc, rootRef]
-  );
-
-  const handleOpenMenuKey = useCallback(
-    (key: OpenMenuKey, blockId: BlockId): boolean => {
-      const s = stateRef.current;
-      if (s === null || s.blockId !== blockId) return false;
-      const derivation = openDerivation(blockId, s.slashOffset);
-      if (derivation.closed) {
-        close();
-        return false;
-      }
-      const items = filterCommands(derivation.query, databaseAvailable, t);
-      // The picker state: the Escape cancels the picker (the menu stands
-      // open on the phrase); the picker's input stops its own keys' propagation.
-      if (databasePickRef.current) {
-        if (key.key === "Escape") {
-          setDatabasePick(false);
-          pendingDatabaseRef.current = null;
-          return true;
-        }
-        return false;
-      }
-      if (framePickRef.current) {
-        if (key.key === "Escape") {
-          setFramePick(false);
-          pendingFrameRef.current = null;
-          return true;
-        }
-        return false;
-      }
-      if (embedFormRef.current) {
-        if (key.key === "Escape") {
-          setEmbedForm(false);
-          pendingEmbedRef.current = null;
-          return true;
-        }
-        return false;
-      }
-      switch (key.key) {
-        case "Escape":
-          close();
-          return true;
-        case "ArrowDown":
-          if (items.length > 0) {
-            move(1);
-            return true;
-          }
-          return false;
-        case "ArrowUp":
-          if (items.length > 0) {
-            move(-1);
-            return true;
-          }
-          return false;
-        case "Enter":
-          if (!key.isComposing && items.length > 0) {
-            pick(s.active);
-            return true;
-          }
-          return false;
-        default:
-          return false;
-      }
-    },
-    [close, move, openDerivation, pick, t]
-  );
-
-  /** The open-menu key handling on the block's react event (consumes it). */
-  const onKeyDown = useCallback(
-    (event: KeyboardEvent, blockId: BlockId): boolean => {
-      const consumed = handleOpenMenuKey(
-        {
-          key: event.key,
-          isComposing: event.nativeEvent.isComposing,
-        },
-        blockId
-      );
-      if (consumed) event.preventDefault();
-      return consumed;
-    },
-    [handleOpenMenuKey]
-  );
-
-  // The "/" trigger: a plain "/" keystroke with a collapsed caret. The
-  // default is prevented — the browser's insertion stands suppressed; the
-  // caller commits the character through the command API (one undo step)
-  // and the menu tracks it by offset (the doc is the source of truth).
-  const onSlashKey = useCallback(
-    (event: KeyboardEvent, blockId: BlockId, parentId: BlockId, caretOffset: number): boolean => {
-      if (event.key !== "/" || event.nativeEvent.isComposing) return false;
-      if (event.metaKey || event.ctrlKey || event.altKey) return false;
-      event.preventDefault();
-      open(blockId, parentId, caretOffset);
-      return true;
-    },
-    [open]
-  );
+  const { onKeyDown, onSlashKey } = useSlashMenuKeys({
+    t,
+    open,
+    close,
+    openDerivation,
+    move,
+    pick,
+    stateRef,
+    databaseAvailable,
+    databasePickRef,
+    setDatabasePick,
+    pendingDatabaseRef,
+    framePickRef,
+    setFramePick,
+    pendingFrameRef,
+    embedFormRef,
+    setEmbedForm,
+    pendingEmbedRef,
+  });
 
   // Auto-close: the selection left the triggering block, became a range,
   // or the block vanished (the caret window itself is checked on the
@@ -562,77 +251,27 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     return () => window.removeEventListener("focus", onFocus);
   }, [store]);
 
-  // The hidden file input's open ref (a programmatic click opens the OS
-  // picker — no pointer events reach the editor).
-  useEffect(() => {
-    fileClickRef.current = fileInputRef.current !== null ? { open: () => fileInputRef.current?.click() } : null;
-  });
-
-  // The pick's cancels (the database's picker, the embed's form): the
-  // stand closes, the pending stand cleared (the phrase strip's removal
-  // is the close's own press).
-  const cancelDatabasePick = () => {
-    setDatabasePick(false);
-    pendingDatabaseRef.current = null;
-  };
-  const cancelFramePick = () => {
-    setFramePick(false);
-    pendingFrameRef.current = null;
-  };
-  const cancelEmbedForm = () => {
-    setEmbedForm(false);
-    pendingEmbedRef.current = null;
-  };
-
   const api = useMemo(() => ({ onKeyDown, onSlashKey }), [onKeyDown, onSlashKey]);
-  // The hidden file input of the File command: it stands for the editor's
-  // whole lifetime — the OS picker stands bound to the element that opened
-  // it, and the delivered file's change lands on that same element (a
-  // conditional unmount would detach it and lose the delivery — the menu's
-  // popover stands closed over the File's pick). A programmatic click
-  // opens the picker (no pointer events reach the editor).
-  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
-    event.target.value = "";
-    handleFile(file);
-  };
-  const fileInput = (
-    <Input
-      ref={fileInputRef}
-      type="file"
-      data-slot="docblocks/slash-file-input"
-      className="
-        pointer-events-none absolute h-0 w-0 border-0 bg-transparent p-0 opacity-0 shadow-none
-        file:h-0
-        dark:bg-transparent
-      "
-      onChange={onFileChange}
-    />
-  );
   const menuNode = (
-    <>
-      {fileInput}
-      {state !== null ? (
-        <SlashMenu
-          rootRef={rootRef}
-          state={state}
-          onHover={hover}
-          onPick={pick}
-          onClose={close}
-          databasePick={databasePick}
-          databaseAvailable={databaseAvailable}
-          onDatabasePickCancel={cancelDatabasePick}
-          onDatabaseCommit={commitDatabase}
-          framePick={framePick}
-          onFramePickCancel={cancelFramePick}
-          onFrameCommit={commitFrame}
-          embedForm={embedForm}
-          onEmbedCancel={cancelEmbedForm}
-          onEmbedCommit={commitEmbed}
-        />
-      ) : null}
-    </>
+    <SlashMenuNode
+      rootRef={rootRef}
+      state={state}
+      fileClickRef={fileClickRef}
+      handleFile={handleFile}
+      hover={hover}
+      pick={pick}
+      close={close}
+      databasePick={databasePick}
+      databaseAvailable={databaseAvailable}
+      cancelDatabasePick={cancelDatabasePick}
+      commitDatabase={commitDatabase}
+      framePick={framePick}
+      cancelFramePick={cancelFramePick}
+      commitFrame={commitFrame}
+      embedForm={embedForm}
+      cancelEmbedForm={cancelEmbedForm}
+      commitEmbed={commitEmbed}
+    />
   );
 
   return { api, menuNode };

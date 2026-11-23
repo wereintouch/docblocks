@@ -3,12 +3,11 @@
 // menu's Quote command and the format toolbar's list-type menu option (after
 // the list kinds). Enter on a non-empty line is a soft line break; Enter on
 // the empty LAST line exits (the preceding lines stand as the quote, a new
-// paragraph takes the caret); Backspace at the start never merges into the
-// previous block (the characters, line breaks included, delete in place
-// until the quote is empty, then it resets to a paragraph).
+// paragraph takes the caret). The rule stands on the checkbox's axis, from
+// the first line to the last.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, caretIn, editorContext, outCount } from "./helpers";
+import { RELAY, SETTLE, caretIn, editorContext, outCount, rowsSettled } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -47,8 +46,6 @@ function toolbar(page: Page, client: "a" | "b") {
   return pane(page, client).locator('[data-slot="docblocks/format-toolbar"]');
 }
 
-/** The pane's wire-log outbound doc-update count (awareness frames are not logged). */
-
 /** The pane's root entry-list ids (plain values across the evaluate bridge). */
 async function rootIds(page: Page, client: "a" | "b"): Promise<string[]> {
   return page.evaluate((c) => {
@@ -86,7 +83,7 @@ async function typeAndSelectAll(page: Page, client: "a" | "b"): Promise<void> {
 }
 
 test("the slash menu's Quote converts the block and the rule stands in both panes", async ({ browser }) => {
-  const { a, b, close } = await openPanes(browser, "ux10-quote-slash");
+  const { a, b, close } = await openPanes(browser, "quote-slash");
   const target = inner(a, "a");
   await target.click();
 
@@ -120,7 +117,7 @@ test("the slash menu's Quote converts the block and the rule stands in both pane
 });
 
 test("the list-type menu's Quote option converts a paragraph; Text converts it back", async ({ browser }) => {
-  const { a, b, close } = await openPanes(browser, "ux11-quote-listmenu");
+  const { a, b, close } = await openPanes(browser, "quote-listmenu");
   await typeAndSelectAll(a, "a");
   const bar = toolbar(a, "a");
   await expect(bar).toBeVisible();
@@ -161,7 +158,7 @@ test("the list-type menu's Quote option converts a paragraph; Text converts it b
 test("Enter: a non-empty line is a break; the empty last line exits; the empty middle line is a break", async ({
   browser,
 }) => {
-  const { a, b, close } = await openPanes(browser, "ux12-quote-enter");
+  const { a, b, close } = await openPanes(browser, "quote-enter");
   const quoteId = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) throw new Error("the pane's doc is not mounted");
@@ -170,7 +167,7 @@ test("Enter: a non-empty line is a break; the empty last line exits; the empty m
     return q;
   });
   expect(quoteId).not.toBeNull();
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
+  await rowsSettled(a);
 
   const quoteInner = a.locator(`[data-block-id="${quoteId}"] [data-slot="docblocks/block-content"]`);
   await quoteInner.click();
@@ -226,14 +223,14 @@ test("Enter: a non-empty line is a break; the empty last line exits; the empty m
 });
 
 test("Enter on a wholly empty quote converts it to a paragraph in place", async ({ browser }) => {
-  const { a, close } = await openPanes(browser, "ux13-quote-empty-enter");
+  const { a, close } = await openPanes(browser, "quote-empty-enter");
   const quoteId = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) throw new Error("the pane's doc is not mounted");
     return doc.insertBlock("quote");
   });
   expect(quoteId).not.toBeNull();
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const quoteInner = a.locator(`[data-block-id="${quoteId}"] [data-slot="docblocks/block-content"]`);
   await quoteInner.click();
@@ -244,101 +241,8 @@ test("Enter on a wholly empty quote converts it to a paragraph in place", async 
   await close();
 });
 
-test("Backspace at the start of a non-empty quote never merges; the empty quote resets to a paragraph", async ({
-  browser,
-}) => {
-  const { a, b, close } = await openPanes(browser, "ux14-quote-backspace");
-  const ids = await a.evaluate(() => {
-    const doc = window.__paneDocs?.a ?? null;
-    if (doc === null) throw new Error("the pane's doc is not mounted");
-    const prev = doc.insertBlock("paragraph");
-    doc.insertText(prev, 0, "prev");
-    const q = doc.insertBlock("quote");
-    doc.insertText(q, 0, "abc");
-    return { prev, q };
-  });
-  await a.waitForTimeout(600);
-
-  const quoteInner = a.locator(`[data-block-id="${ids.q}"] [data-slot="docblocks/block-content"]`);
-  await quoteInner.click();
-  await a.keyboard.press("Home");
-
-  // Backspace at offset 0: no merge — the quote stands with its text, the
-  // previous block is untouched (nothing deletes backwards past the start).
-  await a.keyboard.press("Backspace");
-  expect(await rootIds(a, "a")).toHaveLength(3); // the pane's starter + prev + the quote
-  expect(await a.evaluate((q) => window.__paneDocs?.a?.getText(q) ?? null, ids.q)).toBe("abc");
-  expect(await a.evaluate((p) => window.__paneDocs?.a?.getText(p) ?? null, ids.prev)).toBe("prev");
-
-  // From the end the characters delete in place (the browser's in-block
-  // default, committed by the input diff) until the quote is empty; the
-  // next Backspace then resets it to a paragraph.
-  await a.keyboard.press("End");
-  await a.keyboard.press("Backspace");
-  await a.keyboard.press("Backspace");
-  await a.keyboard.press("Backspace");
-  expect(await a.evaluate((q) => window.__paneDocs?.a?.getText(q) ?? null, ids.q)).toBe("");
-  await a.keyboard.press("Backspace");
-  expect((await blockOf(a, "a", ids.q))?.type).toBe("paragraph");
-  expect(await rootIds(a, "a")).toHaveLength(3); // the starter + prev + the converted paragraph
-  // The reset traveled the wire — wait for B to stand the paragraph (one-shot
-  // reads can catch B mid-convergence under full-suite load).
-  await expect.poll(async () => (await blockOf(b, "b", ids.q))?.type, SETTLE).toBe("paragraph");
-  await close();
-});
-
-test("the callout shares the quote interactivity", async ({ browser }) => {
-  const { a, b, close } = await openPanes(browser, "ux15-quote-callout");
-  const calloutId = await a.evaluate(() => {
-    const doc = window.__paneDocs?.a ?? null;
-    if (doc === null) throw new Error("the pane's doc is not mounted");
-    const c = doc.insertBlock("callout");
-    doc.insertText(c, 0, "one");
-    return c;
-  });
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
-
-  const calloutInner = a.locator(`[data-block-id="${calloutId}"] [data-slot="docblocks/block-content"]`);
-  const outBefore = await outCount(a, "a");
-
-  // Backspace at offset 0 of a non-empty callout: no merge, no wire update.
-  await calloutInner.click();
-  await a.keyboard.press("Home");
-  await a.keyboard.press("Backspace");
-  await expect.poll(async () => outCount(a, "a")).toBe(outBefore);
-  expect(await a.evaluate((c) => window.__paneDocs?.a?.getText(c) ?? null, calloutId)).toBe("one");
-  expect((await blockOf(a, "a", calloutId))?.type).toBe("callout");
-
-  // Enter is a line break (no split); from the empty last line it exits:
-  // the lines stand as the callout, a new paragraph takes the caret.
-  await a.keyboard.press("End");
-  await a.keyboard.press("Enter"); // line break
-  await a.keyboard.type("two");
-  await a.keyboard.press("Enter"); // line break after "two"
-  await a.keyboard.press("Enter"); // the exit
-  expect((await blockOf(a, "a", calloutId))?.type).toBe("callout");
-  expect(await a.evaluate((c) => window.__paneDocs?.a?.getText(c) ?? null, calloutId)).toBe("one\ntwo");
-  const ids = await rootIds(a, "a");
-  expect(ids).toHaveLength(3); // the starter + the callout + the new paragraph
-  expect(ids[1]).toBe(calloutId);
-  expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
-  // The caret stands in the new paragraph (the gesture's focus move — the
-  // shared page container is the focused element, the caret's seat is the
-  // live selection's).
-  await expect
-    .poll(() => caretIn(a, `[data-block-id="${ids[2]!}"] [data-slot="docblocks/block-content"]`), SETTLE)
-    .toBe(true);
-  // The exit traveled the wire — wait for B to stand the callout + text
-  // (one-shot reads can catch B mid-convergence).
-  await expect.poll(async () => (await blockOf(b, "b", calloutId))?.type, SETTLE).toBe("callout");
-  await expect
-    .poll(async () => await b.evaluate((c) => window.__paneDocs?.b?.getText(c) ?? null, calloutId), SETTLE)
-    .toBe("one\ntwo");
-  await close();
-});
-
 test("the rule stands on the checkbox's axis, from the first line to the last", async ({ browser }) => {
-  const { a, b, close } = await openPanes(browser, "ux15-quote-rule");
+  const { a, b, close } = await openPanes(browser, "quote-rule");
   const ids = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) throw new Error("the pane's doc is not mounted");
@@ -348,7 +252,7 @@ test("the rule stands on the checkbox's axis, from the first line to the last", 
     doc.insertText(q, 0, "first line\nsecond line\nthird line");
     return { li, q };
   });
-  await a.waitForTimeout(600);
+  await rowsSettled(a);
 
   const checkbox = a.locator(`[data-block-id="${ids.li}"] [data-slot="docblocks/checkbox"]`);
   await expect(checkbox).toBeVisible();

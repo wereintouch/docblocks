@@ -254,6 +254,7 @@ function GridTable({
           form={form.columnForm}
           formNumber={form.columnFormNumber}
           formRef={form.columnFormRef}
+          error={form.columnFormError}
           bridgeTables={form.bridgeTables}
           OptionsEditor={OptionsEditor}
           onCommit={form.commitColumnForm}

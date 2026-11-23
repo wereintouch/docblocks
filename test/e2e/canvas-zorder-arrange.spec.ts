@@ -1,0 +1,276 @@
+// The arrange toolbars over the non-shape selections (the connector's
+// line, the container, the frame): the reorder via `setZOrder` (one
+// transact — one undo step, one wire update), the dense indices, the
+// paint order's DOM parity (the connector's line stands inside its own
+// wrapper — the reorder moves the real line over / under the figures),
+// the other pane's order / indices / paint over the wire, and the
+// undo's restore.
+import { type Page, expect, test } from "@playwright/test";
+
+import { SETTLE, toCanvas, twoPanes } from "./helpers";
+
+/** The surface + the two shapes + the connector (the topmost child). */
+async function seedConnectorScene(
+  page: Page,
+  client: "a" | "b"
+): Promise<{ surface: string; a: string; b: string; connector: string }> {
+  return page.evaluate(
+    ({ client }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      const surface = doc.insertBlock("surface");
+      const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      const b = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      doc.setGeometry(a, { x: -120, y: 0, w: 80, h: 60 });
+      doc.setGeometry(b, { x: 120, y: 0, w: 80, h: 60 });
+      const connector = doc.insertBlock(
+        "connector",
+        { start: { blockId: a }, end: { blockId: b } },
+        { parent: surface }
+      );
+      return { surface, a, b, connector };
+    },
+    { client }
+  );
+}
+
+/** The surface's children order (the z-order's storage). */
+async function surfaceOrder(page: Page, client: "a" | "b", surface: string): Promise<string[]> {
+  return page.evaluate(
+    ({ client, surface }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      return doc.getChildren(surface);
+    },
+    { client, surface }
+  );
+}
+
+/** The block's `zIndex` stand (null when absent). */
+async function zIndexOf(page: Page, client: "a" | "b", id: string): Promise<number | null> {
+  return page.evaluate(
+    ({ client, id }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      return (doc.getBlock(id)?.attrs?.zIndex as number | undefined) ?? null;
+    },
+    { client, id }
+  );
+}
+
+/** The canvas-item wrappers in DOM order (the paint order's stand). */
+async function paintOrder(page: Page, client: "a" | "b"): Promise<string[]> {
+  return page.evaluate(
+    ({ client }) => {
+      const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
+      if (view === null) throw new Error("the canvas view is missing");
+      return Array.from(view.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")).map(
+        (el) => el.dataset.blockId as string
+      );
+    },
+    { client }
+  );
+}
+
+/** Select the block by a press on its wrapper / hit path (the real pointer). */
+async function selectItem(page: Page, id: string, viaHitPath = false): Promise<void> {
+  const selector = viaHitPath
+    ? `[data-connector-id="${id}"]`
+    : `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`;
+  const box = (await page.locator(`[data-testid="doc-a"] ${selector}`).boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect
+    .poll(
+      async () =>
+        (await page.evaluate(
+          ({ client, id }) => {
+            const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
+            if (view === null) return null;
+            return (
+              view.querySelector<HTMLElement>(
+                `[data-slot="docblocks/canvas-item"][data-selected][data-block-id="${id}"]`
+              ) !== null
+            );
+          },
+          { client: "a", id }
+        )) === true,
+      SETTLE
+    )
+    .toBe(true);
+}
+
+/** The z-order menu's item disabled state (the Radix stand: data-disabled). */
+async function itemDisabled(page: Page, name: string): Promise<boolean> {
+  const el = page.getByRole("menuitem", { name });
+  return el.evaluate((node) => node.hasAttribute("data-disabled") || node.getAttribute("aria-disabled") === "true");
+}
+
+/** Pick a menu item by its label (the menu is open). */
+async function pickItem(page: Page, name: string): Promise<void> {
+  await page.getByRole("menuitem", { name }).click();
+}
+
+test("the connector's 'send to back' stands the line under the figures (the paint order over the wire)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-zorder-connector");
+  try {
+    await toCanvas(a, "a");
+    await toCanvas(b, "b");
+    const { surface, a: aId, b: bId, connector } = await seedConnectorScene(a, "a");
+
+    // The new connector stands on top (max + 1): the paint order's tail.
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([aId, bId, connector]);
+    expect(await zIndexOf(a, "a", connector)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([aId, bId, connector]);
+
+    // The menu over the selected line: "send to back" — the line stands
+    // under both figures.
+    await selectItem(a, connector, true);
+    await a.getByLabel("Arrange line").click();
+    await pickItem(a, "Send to back");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([connector, aId, bId]);
+    expect(await zIndexOf(a, "a", connector)).toBe(1);
+    expect(await zIndexOf(a, "a", aId)).toBe(2);
+    expect(await zIndexOf(a, "a", bId)).toBe(3);
+
+    // The paint order follows (the per-line wrapper reorders with the
+    // children — the line stands below the shapes), and the line stands
+    // still (the reorder is the z, not the geometry).
+    expect(await paintOrder(a, "a")).toEqual([connector, aId, bId]);
+    const line = a.locator(`[data-connector-id="${connector}"]`);
+    await expect(line).toHaveCount(1);
+
+    // The wire: the other pane's order / indices / paint stand.
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual([connector, aId, bId]);
+    expect(await zIndexOf(b, "b", connector)).toBe(1);
+    expect(await paintOrder(b, "b")).toEqual([connector, aId, bId]);
+
+    // The undo restores the order (one step — the reorder is one transact).
+    await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').focus();
+    await a.keyboard.press("Control+z");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([aId, bId, connector]);
+    expect(await zIndexOf(a, "a", connector)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([aId, bId, connector]);
+  } finally {
+    await close();
+  }
+});
+
+test("the container's arrange toolbar: the group's z-order over the wire", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-zorder-group");
+  try {
+    await toCanvas(a, "a");
+    await toCanvas(b, "b");
+    // The seed: the shape, the group (the member's container), the shape —
+    // the group stands at the middle's slot.
+    const { surface, ids } = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      const surface = doc.insertBlock("surface");
+      const a1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      const group = doc.insertBlock("group", { members: [a1] }, { parent: surface });
+      const b1 = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      doc.setGeometry(a1, { x: 0, y: 0, w: 80, h: 60 });
+      doc.setGeometry(group, { x: 0, y: 0, w: 160, h: 120 });
+      doc.setGeometry(b1, { x: 240, y: 0, w: 80, h: 60 });
+      return { surface, ids: [a1, group, b1] };
+    }, {});
+    const [a1, group, b1] = ids as [string, string, string];
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual(ids);
+    expect(await zIndexOf(a, "a", group)).toBe(2);
+
+    // The group's selection over the border's top edge (the interior's
+    // pointer-transparent stand — the member's center stands the member's
+    // selection).
+    const groupWrapper = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${group}"]`);
+    const box = (await groupWrapper.boundingBox())!;
+    await a.mouse.click(box.x + box.width / 2, box.y + 1);
+    expect(await groupWrapper.getAttribute("data-selected"), "the group's selection").not.toBeNull();
+
+    // The unified's toolbar stands (the z-order menu is the bar's whole
+    // content — the container carries no style attrs of its own).
+    const trigger = a.getByLabel("Arrange container");
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    expect(await itemDisabled(a, "Send backward")).toBe(false);
+    expect(await itemDisabled(a, "Bring to front")).toBe(false);
+
+    // "Send to back": the group stands under both figures — the paint
+    // order's head, the dense's indices, the other pane's parity over the
+    // wire.
+    await pickItem(a, "Send to back");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([group, a1, b1]);
+    expect(await zIndexOf(a, "a", group)).toBe(1);
+    expect(await zIndexOf(a, "a", b1)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([group, a1, b1]);
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual([group, a1, b1]);
+    expect(await zIndexOf(b, "b", group)).toBe(1);
+    expect(await paintOrder(b, "b")).toEqual([group, a1, b1]);
+  } finally {
+    await close();
+  }
+});
+
+test("the frame's arrange toolbar: the frame's z-order over the wire (the view-back's pin's stand off)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-zorder-frame");
+  try {
+    await toCanvas(a, "a");
+    await toCanvas(b, "b");
+    // The seed: the shape, the frame (the clear's region — no figure under
+    // the box's center), the shape.
+    const { surface, ids } = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane doc is missing");
+      const surface = doc.insertBlock("surface");
+      const a1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      const frame = doc.insertBlock("frame", { title: "F" }, { parent: surface });
+      const b1 = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      doc.setGeometry(a1, { x: -120, y: 0, w: 80, h: 60 });
+      doc.setGeometry(frame, { x: 60, y: 0, w: 160, h: 120 });
+      doc.setGeometry(b1, { x: 240, y: 0, w: 80, h: 60 });
+      return { surface, ids: [a1, frame, b1] };
+    }, {});
+    const [a1, frame, b1] = ids as [string, string, string];
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual(ids);
+    expect(await zIndexOf(a, "a", frame)).toBe(2);
+    // The frame stands its data's slot (the paint order's parity — no
+    // view-back's pin over the DOM).
+    expect(await paintOrder(a, "a")).toEqual([a1, frame, b1]);
+
+    // The frame's selection over the border's top edge (the interior's
+    // pointer-transparent stand — the interior's press stands the figure /
+    // the page card's press).
+    const frameWrapper = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
+    const box = (await frameWrapper.boundingBox())!;
+    await a.mouse.click(box.x + box.width / 2, box.y + 1);
+    expect(await frameWrapper.getAttribute("data-selected"), "the frame's selection").not.toBeNull();
+
+    // The unified's toolbar stands over the frame (the parity over the
+    // shapes' mechanism).
+    const trigger = a.getByLabel("Arrange frame");
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    expect(await itemDisabled(a, "Bring to front")).toBe(false);
+    expect(await itemDisabled(a, "Send to back")).toBe(false);
+
+    // "Bring to front": the frame stands over both figures — the paint
+    // order's tail (the region marker's border / the chip stand over the
+    // figures), the dense's indices, the other pane's parity over the
+    // wire.
+    await pickItem(a, "Bring to front");
+    await expect.poll(async () => await surfaceOrder(a, "a", surface), SETTLE).toEqual([a1, b1, frame]);
+    expect(await zIndexOf(a, "a", frame)).toBe(3);
+    expect(await paintOrder(a, "a")).toEqual([a1, b1, frame]);
+    await expect.poll(async () => await surfaceOrder(b, "b", surface), SETTLE).toEqual([a1, b1, frame]);
+    expect(await zIndexOf(b, "b", frame)).toBe(3);
+    expect(await paintOrder(b, "b")).toEqual([a1, b1, frame]);
+  } finally {
+    await close();
+  }
+});

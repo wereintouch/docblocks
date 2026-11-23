@@ -7,6 +7,7 @@
  */
 import type { Block, BlockId, CanvasRef, ConnectorAttrs, Doc } from "docblocks-core";
 
+import { CanvasPasteError } from "../../shared/errors";
 import { endpointBoxOf, endpointPointOf, portOfNormal } from "../geometry";
 import { findParentSurface } from "../insert";
 import { autoMembership } from "../membership";
@@ -186,8 +187,8 @@ function insertNonConnector(
   if (item.type === "canvas-text") {
     return doc.insertBlock("canvas-text", item.attrs, at);
   }
-  // The shape (the connector stands the paste's phase two — never here).
-  if (item.type !== "shape") throw new Error("the connector stands the paste's phase two");
+  // The shape (the connector stands the paste's follow-up pass — never here).
+  if (item.type !== "shape") throw new CanvasPasteError("the connector stands the paste's follow-up pass");
   return doc.insertBlock("shape", item.attrs, at);
 }
 

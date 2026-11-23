@@ -9,7 +9,7 @@
  */
 import { toBridgeError } from "../bridge";
 import type { RowOpsContext, UseDatabaseTable } from "./models";
-import { newMutationContext } from "./utils";
+import { newMutationContext, rowOf } from "./utils";
 
 interface RowStructureOps {
   removeRow: UseDatabaseTable["removeRow"];
@@ -17,15 +17,21 @@ interface RowStructureOps {
 }
 
 function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
-  const { bridge, tableId, rowsRef, capabilitiesRef, setRows, setPendingRow } = ctx;
-  const { pushUndo, refresh, noteError, casOf } = ctx;
+  const { bridge, tableId, rowsRef, pendingRowRef, capabilitiesRef, setRows, setPendingRow } = ctx;
+  const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
   const removeRow = async (rowId: string): Promise<void> => {
     const snapshot = rowsRef.current;
-    const row = snapshot.find((entry) => entry.rowId === rowId);
+    // The effective stand (the committed page row, else the pending row):
+    // the pending row's removal is undoable over the rowRestore gate —
+    // the inverse's undelete stands the row the page holds no reference to.
+    const row = rowOf(rowsRef, pendingRowRef, rowId);
     setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
     try {
       await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId, ...casOf(rowId) }] }, newMutationContext());
+      // The relink's drop: the commit landed on the previous table — the
+      // pending row, the entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       setPendingRow((current) => (current?.rowId === rowId ? null : current));
       // Without the `rowRestore` capability the removal is NOT undoable:
       // it never enters the stack (a destructing removal stands no data to restore).
@@ -46,9 +52,13 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
       }
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };
@@ -72,6 +82,9 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
         { ops: [{ op: "move", rowId, beforeRowId, ...casOf(rowId) }] },
         newMutationContext()
       );
+      // The relink's drop: the commit landed on the previous table — the
+      // entry and the refetch belong to it.
+      if (!sameIdentity()) return;
       pushUndo(
         {
           label: `move row ${rowId}`,
@@ -96,9 +109,13 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
       );
       refresh();
     } catch (operationError) {
-      setRows(snapshot);
-      noteError(operationError);
-      refresh();
+      // The relink's drop: the rollback + the note stand the previous
+      // table's failure, not the fresh grid's state.
+      if (sameIdentity()) {
+        setRows(snapshot);
+        noteError(operationError);
+        refresh();
+      }
       throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
     }
   };

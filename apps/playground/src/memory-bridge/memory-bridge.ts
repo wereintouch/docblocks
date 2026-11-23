@@ -88,7 +88,7 @@ import {
 } from "./constants";
 import { queryFingerprintOf, randomKeyBytes, signCursor, verifyCursor } from "./cursor";
 import type { MemoryBridgeOptions, MemoryIdempotencyEntry, MemoryRow, MemoryTable } from "./models";
-import { deepEqual, physicalCompare, tableIdFor } from "./utils";
+import { deepEqual, jsonSizeOf, physicalCompare, tableIdFor } from "./utils";
 
 /** The reference bridge's public surface (the contract + the GC test stand). */
 interface MemoryDatabaseBridge extends DatabaseBridge {
@@ -642,6 +642,12 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       if (value !== null && typeof value === "object" && !Array.isArray(value)) {
         fail("validation", `The column "${column.name}" holds scalar values (or an id array for a many reference).`);
       }
+      // The wire's JSON stand: a non-JSON value (function / symbol / BigInt)
+      // would stand silently dropped over the JSON round-trip — it is
+      // rejected, not stored (the receipt stands the full data).
+      if (value !== null && (typeof value === "function" || typeof value === "symbol" || typeof value === "bigint")) {
+        fail("validation", `The column "${column.name}" holds a non-JSON value (the wire's JSON stand).`);
+      }
       // The wire's JSON stand: a non-finite number stands the null over the
       // JSON round-trip (the silent corruption) — it is rejected, not
       // stored (the top-level value or the many-reference array's element).
@@ -871,7 +877,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
 
     async snapshotTable(tableId: string, query: PageQuery): Promise<TableSnapshot> {
       const table = tableOf(tableId);
-      if (JSON.stringify(query ?? null).length > MAX_REQUEST_BYTES) {
+      if (jsonSizeOf(query ?? null) > MAX_REQUEST_BYTES) {
         throw new BridgeError(
           "payload_too_large",
           `The query exceeds the request limit of ${MAX_REQUEST_BYTES} bytes.`
@@ -1136,7 +1142,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       if (ops.length > MAX_BATCH_OPS) {
         throw new BridgeError("limit_exceeded", `The batch exceeds the limit of ${MAX_BATCH_OPS} operations.`);
       }
-      if (JSON.stringify(ops).length > MAX_REQUEST_BYTES) {
+      if (jsonSizeOf(ops) > MAX_REQUEST_BYTES) {
         throw new BridgeError(
           "payload_too_large",
           `The batch exceeds the request limit of ${MAX_REQUEST_BYTES} bytes.`
@@ -1163,7 +1169,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
             }
             switch (op.op) {
               case "create": {
-                if (JSON.stringify(op.row).length > MAX_REQUEST_BYTES) {
+                if (jsonSizeOf(op.row) > MAX_REQUEST_BYTES) {
                   fail("payload_too_large", "The row exceeds the request limit.");
                 }
                 validateCells(table, op.row, fail);
