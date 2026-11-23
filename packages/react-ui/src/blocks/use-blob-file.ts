@@ -81,6 +81,9 @@ function useBlobFile(
   options: BlobFileOptions = {}
 ): BlobFileResult {
   const { blobStore } = useEditorContext();
+  // The store's optional head lookup (captured for the effect's closure —
+  // its presence narrows the member type once, not per read).
+  const getMeta = blobStore.getMeta;
   const [ref, setRef] = useState<BlobRef | null>(null);
   const [metaView, setMetaView] = useState<BlobMetaView | null>(null);
   /** The head's metadata (the loading stand's aspect-ratio input). */
@@ -119,6 +122,9 @@ function useBlobFile(
     /** The head's resolved stand over this resolution's lifetime: the
      *  band's entry reuses it (the store's change re-reads it fresh). */
     let head: BlobMeta | null = null;
+    /** The head's in-flight request: a non-fresh load joins it instead of
+     *  issuing a second lookup while one is pending. */
+    let headRequest: Promise<BlobMeta> | null = null;
     /** The head decided the meta-only card (no bytes stand over any band). */
     let metaOnly = false;
 
@@ -132,9 +138,13 @@ function useBlobFile(
         // the download's URL (otherwise the bytes' phase stands). The band's
         // entry reuses the head the mount's phase resolved; a store change
         // re-reads it (the store's metadata is the source of truth).
-        if (blobStore.getMeta !== undefined) {
+        if (getMeta !== undefined) {
           if (freshHead || head === null) {
-            const meta = await blobStore.getMeta(fileId);
+            // A non-fresh load joins a pending lookup: the head stands once
+            // per resolution (a store change starts a fresh one).
+            const pending = freshHead || headRequest === null ? getMeta(fileId) : headRequest;
+            headRequest = pending;
+            const meta = await pending;
             if (!current()) return;
             head = meta;
             setHeadMeta(meta);
