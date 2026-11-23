@@ -12,10 +12,11 @@ import { validateDoc } from "../src/schema";
  * Y.Text with mark attributes), a concurrently moved block keeps a single
  * CRDT-resolved owner, concurrent shape inserts into an empty surface yield
  * a reloadable snapshot, concurrent table column inserts keep the grid
- * consistent (the column set is the shared `columnOrder` array), and
- * concurrent inline database row moves keep the row order unique (the
- * rowOrder's first-occurrence deduplication picks the single position on
- * every peer).
+ * consistent (the column set is the shared `columnOrder` array), concurrent
+ * table column moves keep the column order unique (the `columnOrder`'s
+ * first-occurrence deduplication over the read path), and concurrent inline
+ * database row moves keep the row order unique (the `rowOrder`'s
+ * first-occurrence deduplication picks the single position on every peer).
  *
  * The two peers load the settled state (`loadDoc` of the first peer's
  * bytes), so they are independent Y.Docs of the same content, not a
@@ -97,5 +98,23 @@ describe("concurrent text and block edits keep the data valid", () => {
     b.moveRow(database, row, 2);
     merge(a, b);
     expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+
+  it("concurrent table column moves keep the column order unique and reloadable", () => {
+    const a = createDoc({ id: "pin" });
+    const table = a.insertBlock("table", { cols: 4 });
+    a.insertTableRow(table);
+    const b = fork(a);
+    a.moveTableColumn(table, 0, 2);
+    b.moveTableColumn(table, 0, 3);
+    merge(a, b);
+    // The raw residue (both re-inserts) is deduplicated first-occurrence on
+    // the read path: the export is valid in both postures and re-imports.
+    const block = a.getBlock(table)!;
+    if (block.type !== "table") throw new Error("unreachable: the table block");
+    const orderA = block.columnOrder;
+    expect(new Set(orderA).size).toBe(orderA.length);
+    expect(validateDoc(a.toJSON())).toEqual([]);
+    expect(() => loadDoc(a.encode())).not.toThrow();
   });
 });

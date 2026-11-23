@@ -137,12 +137,16 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
   // like the database's rowOrder). Always emitted for table blocks (possibly
   // empty). The tokens are the column ids (stable); a dangling id (no cells)
   // is kept (the column exists even if a race dropped its cells — the strict
-  // validator flags it, the lenient reader stands the set).
+  // validator flags it, the lenient reader stands the set). Two concurrent
+  // moveTableColumn calls of the same column leave both re-inserts in the raw
+  // array (the same residue as the database's rowOrder above); the reader
+  // deduplicates first-occurrence so `toJSON` stays valid on every peer (the
+  // raw layer keeps the residue).
   if (spec.columnOrder) {
     const columnOrder = yblock.get("columnOrder");
     block.columnOrder =
       columnOrder instanceof Y.Array
-        ? columnOrder.toArray().filter((columnId): columnId is string => typeof columnId === "string")
+        ? dedupeOrder(columnOrder.toArray().filter((columnId): columnId is string => typeof columnId === "string"))
         : [];
 
     // The columnWidths stand positional in the JSON, derived from the
