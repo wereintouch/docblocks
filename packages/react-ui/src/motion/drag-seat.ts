@@ -8,6 +8,9 @@ import type { BlockId } from "docblocks-core";
 
 import { caretOffsetIn, restoreSelection, textBlockOfNode } from "../editing/dom-offset";
 
+/** The release's click guard's window (the moved drag's browser click's lifetime). */
+const RELEASE_CLICK_GUARD_MS = 2000;
+
 type PreDragSeat = {
   blockId: BlockId;
   from: number;
@@ -59,7 +62,7 @@ function installReleaseClickGuard(moved: RefObject<boolean>): void {
     click.stopPropagation();
   };
   window.addEventListener("click", suppress, { capture: true, once: true });
-  window.setTimeout(() => window.removeEventListener("click", suppress, true), 2000);
+  window.setTimeout(() => window.removeEventListener("click", suppress, true), RELEASE_CLICK_GUARD_MS);
 }
 
 /**

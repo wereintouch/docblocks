@@ -38,6 +38,9 @@ import { textOf } from "../TextBlock";
 import { requestCodeCaption } from "./CodeCaption";
 import { codeBlockHtmlOf } from "./code-clipboard";
 
+/** The copy feedback's indicator reset (the circle-check's display window). */
+const COPY_RESET_MS = 1500;
+
 interface CodeHeaderActionsProps {
   id: BlockId;
   block: CodeBlock;
@@ -85,7 +88,7 @@ function CodeHeaderActions({ id, block, open, onOpenChange }: CodeHeaderActionsP
         }
         setCopied(true);
         if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
-        copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
+        copyTimer.current = window.setTimeout(() => setCopied(false), COPY_RESET_MS);
       } catch {
         // A refused clipboard (the no-permission / the non-secure context): the indicator stands off.
       }
