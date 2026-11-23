@@ -198,6 +198,17 @@ describe("the sequence-structure stamp", () => {
     expect(store.getState().seqStamp).toBe(stamp + 1);
   });
 
+  it("bumps on a sequence block's type flip (the surface-filter's membership stand)", () => {
+    const { doc, store } = setup();
+    doc.insertBlock("paragraph");
+    const surface = doc.insertBlock("surface");
+    const stamp = store.getState().seqStamp;
+
+    doc.changeBlockType(surface, "paragraph");
+
+    expect(store.getState().seqStamp).toBe(stamp + 1);
+  });
+
   it("bumps on a root-level insert and removal (the sequence's stand)", () => {
     const { doc, store } = setup();
     doc.insertBlock("paragraph");

@@ -67,8 +67,8 @@ interface EditorState {
   /**
    * The sequence-structure stamp: bumped only when the entry sequence's
    * structure changes (a rootChildren change, or a sequence block's
-   * `indent` / `list` kind changing) — never on a text/mark change of an
-   * unchanged structure. The motion view's row derivation keys on it, so a
+   * `type` / `indent` / `list` kind changing) — never on a text/mark
+   * change of an unchanged structure. The motion view's row derivation keys on it, so a
    * text-only edit re-renders the edited row through its own subscription
    * only (the origin is irrelevant — every change flows through
    * `applyChange`).
