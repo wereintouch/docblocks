@@ -207,6 +207,24 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows).toEqual([]);
     expect(unsubscribed).toBe(1);
   });
+  it("the fatal forbidden over the bootstrap stands the death (the not_found's parity)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        if (tableId === seeded.tableId) throw new BridgeError("forbidden", "The access to the table was revoked.");
+        return bridge.snapshotTable(tableId, query);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
+    // The `forbidden` code stands the table-level fatal stand: the death
+    // (the sensitive cache's clear, the broken phase — the not_found's
+    // parity over the read's path).
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("forbidden");
+    expect(result.current.rows).toEqual([]);
+  });
   it("the re-entrant undo stands the drop (the inverse stands once, not twice)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);
