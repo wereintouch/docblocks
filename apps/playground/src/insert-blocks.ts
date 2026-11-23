@@ -1,5 +1,5 @@
 import { createMemoryBlobStore } from "docblocks-react-ui";
-import type { BlobRef, BlobStore, CellMap, Column, DatabaseBridge } from "docblocks-react-ui";
+import type { BlobMeta, BlobRef, BlobStore, CellMap, Column, DatabaseBridge } from "docblocks-react-ui";
 
 import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
@@ -416,7 +416,7 @@ const BLOB_REFS: Record<string, BlobRef> = {
       ],
       { type: "image/svg+xml" }
     ),
-    meta: { name: "catalog.svg", mimeType: "image/svg+xml" },
+    meta: { name: "catalog.svg", mimeType: "image/svg+xml", width: 120, height: 80 },
   },
   [CATALOG_FILE_KEY]: {
     blob: new Blob(["Catalog attachment"], { type: "text/plain" }),
@@ -519,14 +519,34 @@ const coverPresets = {
 /** The in-memory half of the harness's blob store (the slash Image uploads). */
 const memoryBlobs = createMemoryBlobStore();
 
+/** The harness's blob `get` calls, in order (the lazy loading's e2e probe:
+ *  which file ids resolved). */
+const blobGets: string[] = [];
+if (typeof window !== "undefined") window.__blobGets = blobGets;
+
+/** The fixed key's ref (the harness store's own-key read). */
+function fixedRef(fileId: string): BlobRef | undefined {
+  return Object.hasOwn(BLOB_REFS, fileId) ? BLOB_REFS[fileId] : undefined;
+}
+
 /**
  * The harness's blob store: the fixed keys above (the catalog image),
- * then the in-memory uploads (one per page — the A/B panes share it).
+ * then the in-memory uploads (one per page — the A/B panes share it). The
+ * metadata's lookup (`getMeta`) is wired so the blocks stand the
+ * placeholder's reserved aspect ratio; the `get` calls land in
+ * `window.__blobGets` for the lazy loading's e2e probes.
  */
 const blobStore: BlobStore = {
   get: async (fileId): Promise<BlobRef> => {
+    blobGets.push(fileId);
     if (fileId === ALPHA_COVER_ID) return alphaPng();
-    return BLOB_REFS[fileId] ?? memoryBlobs.get(fileId);
+    return fixedRef(fileId) ?? memoryBlobs.get(fileId);
+  },
+  getMeta: async (fileId): Promise<BlobMeta> => {
+    if (fileId === ALPHA_COVER_ID) return (await alphaPng()).meta;
+    const fixed = fixedRef(fileId);
+    if (fixed !== undefined) return fixed.meta;
+    return (await memoryBlobs.get(fileId)).meta;
   },
   upload: (file) => memoryBlobs.upload(file),
   rename: (fileId, name) => memoryBlobs.rename(fileId, name),

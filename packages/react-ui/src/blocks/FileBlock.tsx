@@ -7,7 +7,7 @@ import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
 import { Card, CardContent } from "../shared/ui/Card";
 import { File as FileIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
-import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
+import { BLOB_PLACEHOLDER_CLASS, BLOB_PLACEHOLDER_SPACING } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
 /** The file block's renderable MIME (the bytes' stand): the PDF stands the
@@ -20,9 +20,15 @@ const FILE_RENDERS_BYTES = (mimeType: string): boolean => mimeType === "applicat
 /** A consumer-owned file: the document carries only its file id. */
 function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
   const { t } = useTranslation("blocks");
-  const { pdfPreview } = useEditorContext();
+  const { pdfPreview, blobLoading } = useEditorContext();
   const fileId = block.attrs.fileId;
-  const view = useBlobFile(fileId, FILE_RENDERS_BYTES);
+  // The lazy stand: the bytes resolve once the block enters the viewport's
+  // preload band; the eager policy skips the gate.
+  const { state: view, ref: placeholderRef } = useBlobFile(
+    fileId,
+    FILE_RENDERS_BYTES,
+    blobLoading === "eager" ? { eager: true } : {}
+  );
 
   if (view.status === "loading" || view.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
@@ -30,12 +36,13 @@ function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
     // (the id stands no blob in this store).
     return (
       <Card
+        ref={placeholderRef}
         data-slot="docblocks/file-placeholder"
         data-block-type="file"
         data-block-id={id}
         data-state={view.status}
         aria-busy={view.status === "loading"}
-        className={BLOB_PLACEHOLDER_CLASS}
+        className={`${BLOB_PLACEHOLDER_CLASS} ${BLOB_PLACEHOLDER_SPACING}`}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
           {view.status === "loading" ? (

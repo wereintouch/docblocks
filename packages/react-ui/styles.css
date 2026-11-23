@@ -117,6 +117,10 @@
      (the block content's width + the two gutter paddings — the token
      stands on the blocks, the paddings stand outside it). */
   --docblocks-page-column-max-width: calc(var(--docblocks-page-max-width) + 2 * var(--docblocks-page-padding-x));
+  /* The image blocks' preload band: the lazy blob resolution starts this
+     far outside the viewport (the IntersectionObserver's root margin), so
+     the bytes land before the block enters the frame. */
+  --docblocks-image-preload-margin: 200%;
 
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);

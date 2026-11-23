@@ -14,7 +14,7 @@ export type { CoverPresetSets, DocDescription, DocTag, DocTags } from "./panels"
 export type { PdfPreview, PdfPreviewProps } from "./pdf";
 export type { PresenceConfig } from "./presence";
 export type { EditorProviderAccessProps } from "./props-access";
-export type { EditorProviderBaseProps } from "./props-base";
+export type { BlobLoading, EditorProviderBaseProps } from "./props-base";
 export type { EditorProviderCustomizationProps } from "./props-customization";
 export type { EditorProviderProps } from "./props";
 export type { SelectionRef } from "./selection";

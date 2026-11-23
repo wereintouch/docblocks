@@ -8,7 +8,7 @@ import { Card, CardContent } from "../shared/ui/Card";
 import { Image as ImageIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
 import { ImageFigure } from "./ImageFigure";
-import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
+import { BLOB_PLACEHOLDER_CLASS, blobPlaceholderAspect } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
 /** The image block's renderable MIME (the bytes' stand): the image stands
@@ -29,23 +29,32 @@ const IMAGE_RENDERS_BYTES = (mimeType: string): boolean =>
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
-  const { pdfPreview } = useEditorContext();
+  const { pdfPreview, blobLoading } = useEditorContext();
   const src = block.attrs.src;
-  const file = useBlobFile(src, IMAGE_RENDERS_BYTES);
+  // The lazy stand: the bytes resolve once the block enters the viewport's
+  // preload band; the eager policy skips the gate.
+  const { state: file, ref: placeholderRef } = useBlobFile(
+    src,
+    IMAGE_RENDERS_BYTES,
+    blobLoading === "eager" ? { eager: true } : {}
+  );
 
   if (file.status === "loading" || file.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
     // unknown pre-resolution — the pdf / file's payloads stand their own
     // renderers over the ready state); the missing's stand keeps the
-    // static card (the id stands no blob in this store).
+    // static card (the id stands no blob in this store). The metadata's
+    // dimensions reserve the aspect ratio while the bytes wait.
     return (
       <Card
+        ref={placeholderRef}
         data-slot="docblocks/image-placeholder"
         data-block-type="image"
         data-block-id={id}
         data-state={file.status}
         aria-busy={file.status === "loading"}
         className={BLOB_PLACEHOLDER_CLASS}
+        style={file.status === "loading" ? blobPlaceholderAspect(file.meta) : undefined}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
           {file.status === "loading" ? (
@@ -98,7 +107,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   if (!meta.mimeType.startsWith("image/")) {
     return <FileCard id={id} fileId={src} blockType="image" url={url} name={name} subtype="file" />;
   }
-  return <ImageFigure id={id} block={block} url={url} name={name} />;
+  return <ImageFigure id={id} block={block} url={url} name={name} width={meta.width} height={meta.height} />;
 }
 
 export { ImageBlock };

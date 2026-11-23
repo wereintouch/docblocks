@@ -53,6 +53,7 @@ function EditorProviderStand({
   provider,
   blockRenderers,
   blobStore,
+  blobLoading,
   databaseBridge,
   syncEmbedResolver,
   pdfPreview,
@@ -140,6 +141,10 @@ function EditorProviderStand({
     [blobStore, parentContext]
   );
 
+  // The effective blob loading policy: the explicit prop wins, else the
+  // enclosing one, else the lazy default.
+  const effectiveBlobLoading = blobLoading ?? parentContext?.blobLoading ?? "lazy";
+
   // The effective database bridge: the explicit bridge wins, else the
   // enclosing one; without a bridge the external-form database blocks
   // render the disconnected placeholder (the inline form stands
@@ -157,6 +162,7 @@ function EditorProviderStand({
       selection: selectionRef.current,
       renderers: blockRenderers ?? parent?.renderers ?? {},
       blobStore: effectiveBlobStore,
+      blobLoading: effectiveBlobLoading,
       databaseBridge: effectiveDatabaseBridge,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
@@ -183,6 +189,7 @@ function EditorProviderStand({
     doc,
     blockRenderers,
     effectiveBlobStore,
+    effectiveBlobLoading,
     effectiveDatabaseBridge,
     syncEmbedResolver,
     rootId,

@@ -11,6 +11,12 @@ interface BlobMeta {
   name: string;
   /** The MIME type; application/octet-stream stands for an unknown type. */
   mimeType: string;
+  /** Optional intrinsic width in CSS px (the image blocks' placeholder
+   *  reserves the aspect ratio from it — no layout shift on the lazy
+   *  resolution's landing). */
+  width?: number;
+  /** Optional intrinsic height in CSS px (the width's pair). */
+  height?: number;
 }
 
 /** A blob payload returned by the consumer's store. */

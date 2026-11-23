@@ -6,6 +6,7 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  BlobLoading,
   CoverPresetSets,
   DocDescription,
   DocTag,

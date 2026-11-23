@@ -49,6 +49,7 @@ function App() {
   const role = params.get("role") === "viewer" ? "viewer" : "editor";
   const syncUrl = params.get("syncUrl") ?? (heavy ? HEAVY_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
+  const blobEager = params.get("blobEager") === "1";
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
   const tables = params.get("tables") === "1";
@@ -65,6 +66,7 @@ function App() {
       cycle={cycle}
       role={role}
       attrDemo={attrDemo}
+      blobEager={blobEager}
     />
   );
 }

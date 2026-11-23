@@ -38,7 +38,7 @@ function CoverPresetCell({
   busy: boolean;
   onPick: () => void;
 }) {
-  const file = useBlobFile(fileId, COVER_RENDERS_BYTES);
+  const { state: file } = useBlobFile(fileId, COVER_RENDERS_BYTES, { eager: true });
   return (
     <button
       type="button"

@@ -56,6 +56,8 @@ declare global {
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
     /** Harness-only: re-reads the room's published snapshot from the shared stand (the publish.ts's localStorage) and applies it to the pane's published stand (the e2e's A/B flow: the editor's pane publishes, the viewer's pane re-reads); true when a stand was applied. */
     __reloadPublished?: (client: "a" | "b") => boolean;
+    /** Harness-only: the blob store's `get` calls in order (the lazy loading's e2e probe — which file ids resolved); the array stands from module load. */
+    __blobGets?: string[];
   }
 }
 
@@ -146,6 +148,7 @@ function SyncPane({
   cycle,
   role,
   attrDemo,
+  blobEager,
 }: {
   client: "a" | "b";
   syncUrl: string;
@@ -155,6 +158,7 @@ function SyncPane({
   cycle: boolean;
   role: "editor" | "viewer";
   attrDemo: boolean;
+  blobEager: boolean;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -187,6 +191,11 @@ function SyncPane({
   const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
+  /** The provider's blob loading policy: the catalog pane stands eager (the
+   *  visual goldens capture the whole page — the lazy band would leave the
+   *  off-screen images as placeholders); `?blobEager=1` flips the dev
+   *  harness's stand; the package's default is lazy. */
+  const blobLoading: "eager" | "lazy" = catalog || blobEager ? "eager" : "lazy";
   /** The cover preset's gallery's stand (the consumer's `coverPresets` prop's demo): on by default (the feature's visible stand), the toggle's off stands the no-preset's layout. */
   const [coverPresetsOn, setCoverPresetsOn] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
@@ -536,6 +545,7 @@ function SyncPane({
               key={publishedSeq}
               doc={publishedDoc ?? undefined}
               blobStore={blobStore}
+              blobLoading={blobLoading}
               databaseBridge={databaseBridge}
               blockRenderers={BLOCK_RENDERERS}
               pdfPreview={PdfFirstPage}
@@ -557,6 +567,7 @@ function SyncPane({
                 doc={runtime.doc}
                 provider={runtime.provider}
                 blobStore={blobStore}
+                blobLoading={blobLoading}
                 databaseBridge={databaseBridge}
                 blockRenderers={BLOCK_RENDERERS}
                 syncEmbedResolver={syncEmbedResolver}

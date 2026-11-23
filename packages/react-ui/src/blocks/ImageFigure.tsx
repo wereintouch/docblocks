@@ -43,7 +43,23 @@ import { IMAGE_PORT_CORNERS, useImageResize } from "./use-image-resize";
  * keeps the aspect ratio (the width only) and the editor's content width
  * is the upper bound (the figure never stretches past the editor).
  */
-function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockType; url: string; name?: string }) {
+function ImageFigure({
+  id,
+  block,
+  url,
+  name,
+  width,
+  height,
+}: {
+  id: BlockId;
+  block: ImageBlockType;
+  url: string;
+  name?: string;
+  /** The store's intrinsic width/height (the image's box reservation — no
+   *  layout shift over the decode). */
+  width?: number;
+  height?: number;
+}) {
   const { t } = useTranslation("blocks");
   const { doc, store, selection: selectionRef } = useEditorContext();
   const blockContext = useContext(BlockContext);
@@ -138,6 +154,15 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
           data-subtype="image"
           src={url}
           alt=""
+          // The intrinsic dimensions reserve the box before the decode (the
+          // CSS width's 100% and the height's auto keep the rendered scale).
+          width={width}
+          height={height}
+          // The bytes are library-resolved (the object URL exists before the
+          // element mounts), so the native lazy loading defers the decode,
+          // not the fetch; the async decode keeps it off the main thread.
+          loading="lazy"
+          decoding="async"
           draggable={false}
           className="block h-auto max-w-full rounded-(--docblocks-image-radius)"
           style={{ width: widthValue }}
