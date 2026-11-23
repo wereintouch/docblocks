@@ -40,6 +40,9 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
       let blocks = state.blocks;
       let blocksChanged = false;
       const removed = new Set<BlockId>();
+      // The entry sequence's membership over the O(1) set (the per-id
+      // `includes` over the array stands the O(N·M) scan).
+      const rootChildIds = new Set(state.rootChildren);
       for (const id of new Set(change.blockIds)) {
         const fresh = doc.getBlock(id);
         const prev = blocks[id];
@@ -69,7 +72,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
             if (!deepEqual(prevRest, freshRest)) chromeChanged = true;
           }
         }
-        if (prev !== undefined && fresh !== null && state.rootChildren.includes(id)) {
+        if (prev !== undefined && fresh !== null && rootChildIds.has(id)) {
           const prevAttrs = ("attrs" in prev ? prev.attrs : undefined) as
             { indent?: unknown; list?: unknown } | undefined;
           const freshAttrs = ("attrs" in fresh ? fresh.attrs : undefined) as
