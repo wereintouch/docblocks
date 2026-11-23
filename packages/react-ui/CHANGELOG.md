@@ -1,5 +1,59 @@
 # docblocks-react-ui
 
+## 0.19.0
+
+### Minor Changes
+
+- f5c22cd: The image and file blocks resolve their bytes lazily: the metadata's lookup
+  (the store's `getMeta`) runs at mount and the bytes (`get` + the object URL)
+  wait for the block to enter the viewport's preload band (the viewport grown
+  by the `--docblocks-image-preload-margin` token, 200% by default; the blocks
+  above the fold on mount and the cover resolve eagerly). The new optional
+  `EditorProvider.blobLoading` prop (`"lazy"` by default, `"eager"` for the
+  previous behavior, inherited by nested providers) sets the policy. The new
+  optional `BlobMeta.width` / `BlobMeta.height` let the placeholder reserve the
+  image's aspect ratio, so the resolution never shifts the page. The resolved
+  `<img>` carries `loading="lazy"`, `decoding="async"`, and the metadata's
+  `width`/`height` (the box reserved before the decode).
+
+### Patch Changes
+
+- bcb06c3: The code block's clipboard `text/html` payload now escapes the double quote
+  in the language's `class` attribute (and in the code's body). A hostile
+  `language` value (a free data string, reachable through a raw document
+  write or a markdown fence's info) could otherwise open a new HTML attribute
+  in the serialized payload and reach the clipboard of a third-party paste
+  target.
+- b195fb8: The code block's language lookup uses the own-key stand only: a language value
+  standing on an `Object.prototype` key (such as `constructor` — reachable over
+  `updateBlock`, a markdown fence, or a peer write, since the attr is a plain
+  string) renders plain (no highlight layer) instead of resolving to the
+  inherited non-grammar value that crashed the block's render to its error
+  placeholder.
+- 8c10428: The external-form database grid's write-tails over a pending row (the row
+  filtered out of the page) build their undo entries over the pre-operation
+  state seeded from the pending stand: the pending row's edit and its removal
+  are undoable (the removal's inverse is the row-restore over the `rowRestore`
+  capability), and the insert's entry no longer strands over a removed pending
+  row — undoing such a removal restores the row, and the following undo deletes
+  it over the restored row.
+- 074f982: The enum column's edit form no longer deletes options added concurrently
+  over the open form. The commit's delete set is now the form's prefill (the
+  options the user saw) minus the kept, so an option an other client adds
+  while the form is open survives the save; the user's own removals over the
+  form still stand.
+- 917abf8: The callout icon catalog and the canvas connector port lookup now use own-key
+  membership instead of the prototype-chain lookup. A prototype-key value kept
+  by the lenient reader over the wire data (`constructor`, `__proto__`, ...)
+  used to resolve through `Object.prototype`: the callout block crashed into
+  its error placeholder, and the connector endpoint resolved to NaN geometry.
+- ad4696d: The standalone's `useTableList` catalog hook now re-reads the catalog over a
+  bridge identity change (a relink to a fresh bridge instance), in parity with
+  the `useDatabaseTable`'s re-bootstrap — the stale catalog over the previous
+  bridge no longer stands while mutations land on the new one.
+- Updated dependencies [d58429f]
+  - docblocks-core@0.8.2
+
 ## 0.18.1
 
 ### Patch Changes
