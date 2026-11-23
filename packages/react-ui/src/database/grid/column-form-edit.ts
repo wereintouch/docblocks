@@ -61,6 +61,13 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
             : null,
       }));
       const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
+      // The seen's set (the form's open's snapshot — the options the user
+      // saw over the prefill): the delete set is the seen minus the
+      // kept, so an option added concurrently over the open form (in
+      // `current`, not in the seen) survives the save (the user never
+      // saw it — its removal would stand the silent-loss's stand). The
+      // absent seen set (no prefill) stands the legacy full-replace.
+      const seenRowIds = draft.enumSeenRowIds !== undefined ? new Set(draft.enumSeenRowIds) : null;
       const keptRowIds = new Set<string>();
       const cellOf = (option: { rowId?: string; name: string; color: string | null }): Record<string, unknown> => {
         // The cell's keys stand the bridge's column ids (the data's
@@ -103,7 +110,9 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           }
         }
         for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) ops.push({ op: "delete", rowId: entry.rowId });
+          if (!keptRowIds.has(entry.rowId) && (seenRowIds === null || seenRowIds.has(entry.rowId))) {
+            ops.push({ op: "delete", rowId: entry.rowId });
+          }
         }
         if (ops.length > 0) {
           const created = await bridge.batchRows(refTableId, { ops }, newMutationContext());
@@ -144,7 +153,7 @@ function commitColumnFormEdit(ctx: ColumnFormEditContext, draft: AddColumnFormDr
           }
         }
         for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) {
+          if (!keptRowIds.has(entry.rowId) && (seenRowIds === null || seenRowIds.has(entry.rowId))) {
             await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
           }
         }

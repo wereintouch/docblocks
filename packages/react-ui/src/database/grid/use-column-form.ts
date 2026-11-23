@@ -105,6 +105,10 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
       refPick: column.refTableId,
       newTableName: "",
       enumOptions: options,
+      // The seen's set (the form's open's snapshot): the commit's delete
+      // set never touches an option added concurrently over the open
+      // form (the user never saw it — the silent-loss's stand).
+      enumSeenRowIds: options.map((option) => option.rowId),
       editColumnId: column.id,
     });
     setColumnFormError(null);
