@@ -24,7 +24,12 @@ import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply }
  * the state through a ref, so query changes do not re-render the block
  * tree).
  */
-function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuApi; menuNode: ReactNode } {
+function useSlashMenu(rootRef: RefObject<HTMLElement | null>): {
+  api: SlashMenuApi;
+  menuNode: ReactNode;
+  /** Closes the menu and its pending pickers (the caller's view switch). */
+  close: () => void;
+} {
   const { t } = useTranslation("slash");
   const { doc, store, blobStore, databaseBridge } = useEditorContext();
   // The `database` slash command stands only while a bridge is available —
@@ -274,7 +279,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     />
   );
 
-  return { api, menuNode };
+  return { api, menuNode, close };
 }
 
 export { useSlashMenu };

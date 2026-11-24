@@ -79,6 +79,18 @@ function useLinkPopover(rootRef: RefObject<HTMLElement | null>): LinkPopoverHand
     parkFocusRef.current = true;
   }, [rootRef, selectionRef]);
 
+  // The close over a foreign focus owner (the caller's view switch): the
+  // surfaces drop, nothing else. The park and the reseat window belong to
+  // the editor's own close (the input's unmount's focus/selection
+  // residue): a view switch unmounts the page itself, and the window would
+  // suppress the NEXT view's selection mapping for its length (the
+  // canvas-text's edit session's caret never reached the store, so its
+  // Escape took the blocks-selection branch).
+  const dismiss = useCallback(() => {
+    setPopover(null);
+    setMenu(null);
+  }, []);
+
   useEffect(() => {
     if (!parkFocusRef.current) return;
     parkFocusRef.current = false;
@@ -232,7 +244,7 @@ function useLinkPopover(rootRef: RefObject<HTMLElement | null>): LinkPopoverHand
     </>
   );
 
-  return { api, handleKeyDown, onContextMenu, node };
+  return { api, handleKeyDown, onContextMenu, node, close: dismiss };
 }
 
 export { useLinkPopover };

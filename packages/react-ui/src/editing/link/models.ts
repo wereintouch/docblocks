@@ -60,6 +60,10 @@ interface LinkPopoverHandle {
    * root's own handler's stand is off). */
   handleKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => boolean;
   node: ReactNode;
+  /** Closes the popover and the context menu with no focus park and no
+   *  selection-reseat window — the caller's view switch (the page it
+   *  belonged to is unmounting; the next view's mapping must stay live). */
+  close: () => void;
 }
 
 export type { LinkMenuState, LinkPopoverApi, LinkPopoverHandle, LinkPopoverOpen, LinkPopoverState };

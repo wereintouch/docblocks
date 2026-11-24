@@ -20,7 +20,12 @@ import { deriveMention } from "./utils";
  * the picker; the blocks get the stable api (the key handling reads the
  * state through a ref, so query changes do not re-render the block tree).
  */
-function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionMenuApi; menuNode: ReactNode } {
+function useMentionMenu(rootRef: RefObject<HTMLElement | null>): {
+  api: MentionMenuApi;
+  menuNode: ReactNode;
+  /** Closes the picker (the caller's view switch). */
+  close: () => void;
+} {
   const { doc, store, mentionProvider: provider } = useEditorContext();
   const [state, setState] = useState<MentionMenuState | null>(null);
   const stateRef = useRef<MentionMenuState | null>(null);
@@ -228,7 +233,7 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
       />
     ) : null;
 
-  return { api, menuNode };
+  return { api, menuNode, close };
 }
 
 export { useMentionMenu };

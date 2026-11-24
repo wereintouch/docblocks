@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { RELAY, switchPaneView } from "./helpers";
+import { RELAY, expectStays, switchPaneView } from "./helpers";
 
 const ROOT = '[data-testid="doc-a"]';
 
@@ -295,4 +295,78 @@ test("the mode switcher's pill stands the back-out settle (the easing stand, the
   await pillOverButton(page, pill, pageButton);
   await canvasButton.click();
   await pillOverButton(page, pill, canvasButton);
+});
+
+test("the view switch closes the page's transient surfaces (the slash menu, the mention picker, the format toolbar, the link editor)", async ({
+  page,
+}) => {
+  const room = `view-popovers-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+  const headerView = page.locator(`[data-slot="docblocks/doc-header-view"]`);
+  const toCanvas = () => headerView.getByRole("button", { name: "Canvas view" }).click();
+  const toPage = () => headerView.getByRole("button", { name: "Page view" }).click();
+  const inner = page.locator(`${ROOT} [data-slot="docblocks/block-content"]`).first();
+
+  // The slash menu: a standing menu is a page affordance — the canvas view
+  // drops it, and the page view does not resurrect the stale one.
+  await inner.click();
+  await page.keyboard.type("/div");
+  const slashMenu = page.locator('[data-slot="docblocks/slash-menu"]');
+  await expect(slashMenu).toHaveCount(1);
+  await toCanvas();
+  await expectStays(async () => {
+    expect(await slashMenu.count()).toBe(0);
+  });
+  await toPage();
+  await expectStays(async () => {
+    expect(await slashMenu.count()).toBe(0);
+  });
+
+  // The mention picker: the same stand over the `@` phrase.
+  await inner.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" @Ad");
+  const mentionMenu = page.locator('[data-slot="docblocks/mention-menu"]');
+  await expect(mentionMenu).toHaveCount(1);
+  await toCanvas();
+  await expectStays(async () => {
+    expect(await mentionMenu.count()).toBe(0);
+  });
+  await toPage();
+
+  // The format toolbar (a text range's affordance): it renders over the
+  // page view only.
+  await inner.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type("abc");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Shift+ArrowLeft");
+  const formatToolbar = page.locator('[data-slot="docblocks/format-toolbar"]');
+  await expect(formatToolbar).toHaveCount(1);
+  await toCanvas();
+  await expectStays(async () => {
+    expect(await formatToolbar.count()).toBe(0);
+  });
+  await toPage();
+
+  // The link editor (mod+k over a fresh selection): closes with the view
+  // too. The canvas round-trip dropped the page's selection, so the range
+  // is re-seated first.
+  await inner.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type("xyz");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("Control+k");
+  const linkPopover = page.locator('[data-slot="docblocks/link-popover"]');
+  await expect(linkPopover).toHaveCount(1);
+  await toCanvas();
+  await expectStays(async () => {
+    expect(await linkPopover.count()).toBe(0);
+  });
+  await toPage();
+  await expectStays(async () => {
+    expect(await linkPopover.count()).toBe(0);
+  });
 });

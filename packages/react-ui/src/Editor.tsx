@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { type KeyboardEvent as ReactKeyboardEvent, useMemo, useRef } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef } from "react";
 
 import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { AttributesPanel, CoverBanner } from "./attributes";
@@ -103,6 +103,30 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   const mention = useMentionMenu(rootRef);
   const mentionCard = useMentionCard(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
+  // The transient surfaces (the slash menu, the mention picker and its hover
+  // card, the link editor) are page-view affordances: the hooks' state
+  // outlives the page's unmount (they live here), so the switch to the
+  // canvas closes them — a standing menu over the canvas would be a ghost
+  // anchored to the page text it no longer shows. The close runs on the
+  // transition only (a mount into the canvas stands nothing to close, and
+  // the link editor's close parks the focus — it must not fire over an
+  // unmounted page). The format toolbar's visibility derives from the
+  // selection: it renders over the page view only.
+  const pageView = view === "page";
+  const previousViewRef = useRef(view);
+  const closeSlash = slash.close;
+  const closeMention = mention.close;
+  const closeMentionCard = mentionCard.close;
+  const closeLink = linkPopover.close;
+  useEffect(() => {
+    const previous = previousViewRef.current;
+    previousViewRef.current = view;
+    if (previous !== "page" || pageView) return;
+    closeSlash();
+    closeMention();
+    closeMentionCard();
+    closeLink();
+  }, [view, pageView, closeSlash, closeMention, closeMentionCard, closeLink]);
   useTypingFlag(rootRef);
   const enterGate = useEnterAnimationGate(rootRef);
 
@@ -226,13 +250,13 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                 </FormatPaletteContext.Provider>
               </SlashMenuContext.Provider>
             </MentionMenuContext.Provider>
-            {slash.menuNode}
-            {mention.menuNode}
-            {mentionCard}
+            {pageView ? slash.menuNode : null}
+            {pageView ? mention.menuNode : null}
+            {pageView ? mentionCard.node : null}
             <LinkPopoverContext.Provider value={linkPopover.api}>
-              {viewMode ? null : format.toolbarNode}
+              {viewMode || !pageView ? null : format.toolbarNode}
             </LinkPopoverContext.Provider>
-            {linkPopover.node}
+            {pageView ? linkPopover.node : null}
           </EditorErrorBoundary>
         </div>
       </EnumOptionsMotionSlot.Provider>
