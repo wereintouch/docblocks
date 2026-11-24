@@ -7,10 +7,10 @@
  * 1:1 (no fit/zoom controls — the v1 boundary). The canvas frame stands the
  * boundary only (a region marker) — this page block is the sole renderer
  * of the frame's content. The box's height is the
- * referenced frame's 1:1; the width is the frame's width clipped to the
- * row's measured width (the window's center stays at the frame's center —
- * a narrow row clips the wide window horizontally, the offset and the dot
- * grid's phase re-derive over the clipped width). The reference is a weak
+ * referenced frame's 1:1; a frame wider than the row is drawn uniformly
+ * downscaled to the row's width (the WHOLE frame area stands — a clipped
+ * window would hide the frame's edges), the 1:1 stand otherwise. The
+ * reference is a weak
  * one: the absent / gone / surface-less reference stands the lenient
  * placeholder (the dangling stand — the render never throws). The
  * window's content is inert (the copies' pointer-transparent stand — the
@@ -23,7 +23,6 @@ import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 
 import type { Block, BlockId, FrameBlock } from "docblocks-core";
 
@@ -131,21 +130,18 @@ function FramePageWindow({
   // The referenced frame's effective geometry (the committed box or the
   // default stand): the window's 1:1 center and span.
   const box = effectiveGeometry(referenced);
-  const boxW = rowWidth > 0 ? Math.min(box.w, rowWidth) : box.w;
-  const boxH = box.h;
-  // The window's offset over the clipped width: the window's center stays
-  // at the frame's center (a narrow row clips the wide window
-  // horizontally, the vertical's stand is 1:1).
-  const offset = frameWindowOffset({ x: box.x, y: box.y, w: boxW, h: boxH });
-  // The dot grid's phase over the box's world top-left (the clipped
-  // width's stand — the box's center stays at the frame's center).
-  const boxStyle: CSSProperties = {
-    backgroundColor: "var(--docblocks-canvas-background)",
-    ...frameDotBackground(box.x - boxW / 2, box.y - boxH / 2),
-    boxShadow: "inset 0 0 0 1px var(--docblocks-canvas-group-border-color)",
-    width: boxW,
-    height: boxH,
-  };
+  // The fit's stand: a frame wider than the row is drawn uniformly
+  // downscaled to the row's width (the whole frame area stands — the
+  // frame's edges are never clipped), 1:1 otherwise.
+  const scale = rowWidth > 0 && box.w > rowWidth ? rowWidth / box.w : 1;
+  const winW = box.w * scale;
+  const winH = box.h * scale;
+  // The window's offset over the box (the frame's world origin at the
+  // box-local point): the scaled inner keeps the frame's own coordinates.
+  const offset = frameWindowOffset({ x: box.x, y: box.y, w: box.w, h: box.h });
+  // The dot grid's phase over the box's world top-left (the canvas view's
+  // grid's alignment — the scaled inner keeps the grid's step).
+  const dotStyle = frameDotBackground(box.x - box.w / 2, box.y - box.h / 2);
   const title = referenced.attrs?.title ?? "";
   // The referenced frame's box stands out of its own page window
   // (excludedIds): a frame does not render its own boundary inside the
@@ -175,15 +171,32 @@ function FramePageWindow({
         role="img"
         aria-label={title !== "" ? t("page.windowTitle", { title }) : t("page.windowLabel")}
         className="relative mx-auto overflow-hidden rounded-(--docblocks-radius)"
-        style={boxStyle}
+        style={{
+          width: winW,
+          height: winH,
+          boxShadow: "inset 0 0 0 1px var(--docblocks-canvas-group-border-color)",
+        }}
       >
-        <FrameWindowContent
-          surfaceId={surfaceId}
-          offset={offset}
-          // The page-frame block's stand: the referenced frame does not
-          // render its own box inside its own page window (excludedIds).
-          excludedIds={excludedIds}
-        />
+        {/* The frame's own box (the unscaled coordinates), scaled down to
+            the window: the dot grid and the content shrink together. */}
+        <div
+          className="absolute top-0 left-0 origin-top-left"
+          style={{
+            width: box.w,
+            height: box.h,
+            backgroundColor: "var(--docblocks-canvas-background)",
+            ...dotStyle,
+            transform: scale === 1 ? undefined : `scale(${scale})`,
+          }}
+        >
+          <FrameWindowContent
+            surfaceId={surfaceId}
+            offset={offset}
+            // The page-frame block's stand: the referenced frame does not
+            // render its own box inside its own page window (excludedIds).
+            excludedIds={excludedIds}
+          />
+        </div>
       </div>
     </div>
   );

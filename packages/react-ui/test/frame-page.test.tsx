@@ -31,12 +31,17 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
     const copyA = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)!;
     expect(copyA.style.left).toBe("calc(50% + 10px)");
     expect(copyA.style.top).toBe("calc(50% + 20px)");
-    // The box's chrome: the canvas's own background + the dot grid's phase
-    // over the box's world top-left (-50, -50) + the container's border.
-    expect(box.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
-    expect(box.style.backgroundPosition).toBe("14px 14px");
+    // The box's chrome: the container's border on the window's box, the
+    // canvas's own background + the dot grid's phase over the frame's
+    // world top-left (-50, -50) on the frame's own 1:1 box inside it.
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-group-border-color)");
     expect(box.className).toContain("overflow-hidden");
+    const inner = box.firstElementChild as HTMLElement;
+    expect(inner.style.width).toBe("300px");
+    expect(inner.style.height).toBe("200px");
+    expect(inner.style.transform).toBe("");
+    expect(inner.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
+    expect(inner.style.backgroundPosition).toBe("14px 14px");
   });
 
   it("stands the shape outside the window's region at its world's point (the overflow's clip's stand)", () => {
@@ -61,31 +66,37 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
   });
 });
 
-describe("the box's width's stand (the row's clip over the frame's center)", () => {
-  it("clips the wide window center-wise over the narrow row (the offset re-stands)", () => {
+describe("the box's width's stand (the frame's fit over the row)", () => {
+  it("downscales a frame wider than the row to the row's width (the whole area stands)", () => {
     const { pageFrame } = renderScene();
     const box = windowOf(pageFrame);
-    // The narrow row (200 over the 300's frame): the box clips to the
-    // row's width, the center stays at the frame's center (x = 100) — the
-    // offset re-stands (100 - 100, 100 - 50) = (0, 50).
+    // The narrow row (200 over the 300's frame): the box fits the row's
+    // width and the WHOLE frame area stands — a uniform downscale (the
+    // frame's aspect kept), not a clip. The inner keeps the frame's own
+    // 1:1 box (the offset and the dot grid stand in the frame's
+    // coordinates) and scales down to the window.
     standRowWidth(200);
     expect(box.style.width).toBe("200px");
-    expect(box.style.height).toBe("200px");
+    expect(Number.parseFloat(box.style.height)).toBeCloseTo((200 * 200) / 300, 2);
+    const inner = box.firstElementChild as HTMLElement;
+    expect(inner.style.width).toBe("300px");
+    expect(inner.style.height).toBe("200px");
+    expect(inner.style.transform).toBe(`scale(${200 / 300})`);
     const content = box.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
     const anchor = content.firstElementChild as HTMLElement | null;
-    expect(anchor?.style.left).toBe("0px");
+    expect(anchor?.style.left).toBe("50px");
     expect(anchor?.style.top).toBe("50px");
-    // The dot grid's phase re-stands over the clipped top-left (0, -50):
-    // the origin's phase 0 → the dot's half-step 12; -50's phase 22 →
-    // 12 - 22 + 24 = 14.
-    expect(box.style.backgroundPosition).toBe("12px 14px");
+    // The dot grid's phase over the frame's world top-left (-50, -50).
+    expect(inner.style.backgroundPosition).toBe("14px 14px");
   });
 
-  it("stands the frame's width over the wide row (no clip)", () => {
+  it("stands the frame's 1:1 width over the wide row (no downscale)", () => {
     const { pageFrame } = renderScene();
     const box = windowOf(pageFrame);
     standRowWidth(800);
     expect(box.style.width).toBe("300px");
+    expect(box.style.height).toBe("200px");
+    expect((box.firstElementChild as HTMLElement).style.transform).toBe("");
   });
 });
 
