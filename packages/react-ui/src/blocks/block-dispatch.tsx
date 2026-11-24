@@ -116,7 +116,7 @@ function dispatchBuiltIn(
           data-block-id={id}
           contentEditable={false}
           className="
-            m-(--docblocks-divider-margin) border-0 border-t-(length:--docblocks-divider-border-width)
+            m-(--docblocks-divider-margin) border-t-(length:--docblocks-divider-border-width)
             border-t-(--docblocks-divider-border-color)
           "
         />
