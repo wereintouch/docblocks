@@ -72,7 +72,7 @@ test("the page/canvas view toggle (the DocHeader's switcher — the pane's singl
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`)).toHaveCount(4);
 });
 
-test("the page's content column stands the centered max width (the narrow stand full width; the wide stand's block zone 900 px + the symmetric margins; the token's override stands on the blocks; the gutter follows the content)", async ({
+test("the page's content column stands the centered max width (the narrow stand full width; the wide stand's block zone 900 px + the symmetric margins; the token's override stands on the blocks; the `none`'s override stands the full width; the gutter follows the content)", async ({
   browser,
 }) => {
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
@@ -149,6 +149,21 @@ test("the page's content column stands the centered max width (the narrow stand 
       overridden.r.x + overridden.r.width - (overridden.c.x + overridden.c.width),
       0
     );
+
+    // The FULL WIDTH stand (the consumer's `none` override over the token —
+    // the column's max width stands unconstrained, the block zone spans the
+    // whole available width): the column stands the editor root's full width
+    // (no margins), and the block zone stands the column's box minus the two
+    // gutter paddings.
+    await a.evaluate(() => {
+      document
+        .querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!
+        .style.setProperty("--docblocks-page-max-width", "none");
+    });
+    const fullWidth = await boxes();
+    expect(fullWidth.c.width).toBeCloseTo(fullWidth.r.width, 0);
+    expect(Math.abs(fullWidth.c.x - fullWidth.r.x)).toBeLessThan(2);
+    expect(fullWidth.content.width).toBeCloseTo(fullWidth.c.width - 2 * fullWidth.paddingLeft, 0);
   } finally {
     await context.close();
   }
