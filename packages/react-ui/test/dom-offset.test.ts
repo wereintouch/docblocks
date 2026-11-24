@@ -40,16 +40,12 @@ describe("the mention chip's atomic stand (the flat offset's mapping)", () => {
     expect(at(1)).toEqual({ node: root.firstChild, offset: 1 });
     // The chip's start boundary: the end of the preceding text.
     expect(at(2)).toEqual({ node: root.firstChild, offset: 2 });
-    // Strictly inside the chip: the nearer boundary (the slot before /
-    // after the chip in its own parent — never the chip's text).
-    const before = at(3);
-    expect(before.node).toBe(root);
-    expect((before as { offset: number }).offset).toBe(1);
-    // The chip's end boundary (the pick's seat — after the chip, the type's
-    // continuation keeps the editable).
-    const after = at(4);
-    expect(after.node).toBe(root);
-    expect((after as { offset: number }).offset).toBe(2);
+    // Strictly inside the chip: the nearer boundary (the adjacent text's
+    // edge — never the chip's text).
+    expect(at(3)).toEqual({ node: root.firstChild, offset: 2 });
+    // The chip's end boundary (the pick's seat — the following text's
+    // start: the island's adjacent text node, the engines' native path).
+    expect(at(4)).toEqual({ node: root.childNodes[2], offset: 0 });
     // Over the following text: the text node's seat (unchanged).
     const ef = root.childNodes[2];
     expect(at(5)).toEqual({ node: ef, offset: 1 });
@@ -60,17 +56,26 @@ describe("the mention chip's atomic stand (the flat offset's mapping)", () => {
     root.remove();
   });
 
-  it("a text that leads with the chip stands the slot before it over offset 0", () => {
+  it("a text that leads with the chip stands the slot before it over offset 0 (no text precedes the chip)", () => {
     // The chip "cd" [0,2) + "ef" [2,4).
     const root = containerOf(chipOf("cd"), "ef");
     const start = locatePosition(root, 0);
     expect(start.node).toBe(root);
     expect((start as { offset: number }).offset).toBe(0);
     expect(caretOffsetIn(root, root, 0)).toBe(0);
-    // The chip's end over the slot after it.
-    const end = locatePosition(root, 2);
+    // The chip's end stands the following text's start (the adjacent
+    // text node — not the island's element slot).
+    expect(locatePosition(root, 2)).toEqual({ node: root.childNodes[1], offset: 0 });
+    root.remove();
+  });
+
+  it("stands the island's element slot when no text stands on the boundary's side", () => {
+    // "ab" [0,2) + the chip "cd" [2,4): nothing follows the chip.
+    const root = containerOf("ab", chipOf("cd"));
+    const end = locatePosition(root, 4);
     expect(end.node).toBe(root);
-    expect((end as { offset: number }).offset).toBe(1);
+    expect((end as { offset: number }).offset).toBe(2);
+    expect(caretOffsetIn(root, root, 2)).toBe(4);
     root.remove();
   });
 

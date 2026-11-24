@@ -239,4 +239,52 @@ test.describe("the page-frame block (the slash /frame command)", () => {
       await close();
     }
   });
+
+  test("a frame wider than the page column stands whole (uniformly downscaled, no edge clipping)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "page-frame-wide");
+    try {
+      // A wide frame with a figure near each side edge: the whole area must
+      // stand in the page window (a clipped window would hide the edges).
+      await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const surface = doc.insertBlock("surface");
+        const frame = doc.insertBlock("frame", { title: "wide" }, { parent: surface });
+        doc.setGeometry(frame, { x: 0, y: 0, w: 1600, h: 400 });
+        const left = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        doc.setGeometry(left, { x: -700, y: 0, w: 100, h: 100 });
+        const right = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        doc.setGeometry(right, { x: 700, y: 0, w: 100, h: 100 });
+        doc.insertBlock("frame", { frameId: frame }, { parent: doc.meta.id });
+      });
+      const win = pageFrameWindow(a, "a");
+      await expect(win).toHaveCount(1);
+      // The window fits the row's width (the frame's 1600 px downscaled) and
+      // keeps the frame's aspect ratio.
+      await expect
+        .poll(async () => {
+          const winBox = (await win.boundingBox()) ?? null;
+          const rowBox = (await a.locator('[data-slot="docblocks/frame-page"]').boundingBox()) ?? null;
+          if (winBox === null || rowBox === null) return null;
+          return Math.abs(winBox.width - rowBox.width) <= 1 && Math.abs(winBox.height - rowBox.width / 4) <= 2;
+        }, SETTLE)
+        .toBe(true);
+      // Both edge figures stand inside the window's box (the downscaled
+      // copies: 100 px * the fit's scale) — neither is clipped away.
+      await expect
+        .poll(async () => {
+          const winBox = (await win.boundingBox()) ?? null;
+          const copies = await win.locator('[data-slot="docblocks/shape"]').all();
+          if (winBox === null || copies.length !== 2) return null;
+          const boxes = await Promise.all(copies.map(async (copy) => await copy.boundingBox()));
+          if (boxes.some((box) => box === null)) return null;
+          return boxes.every((box) => box!.x >= winBox.x - 1 && box!.x + box!.width <= winBox.x + winBox.width + 1);
+        }, SETTLE)
+        .toBe(true);
+    } finally {
+      await close();
+    }
+  });
 });

@@ -48,8 +48,11 @@ describe("the move preview on a legacy-rotated item", () => {
     if (view === null || wrapper === null) throw new Error("the canvas view / the item is missing");
 
     // The stored rotation stands no transform term (the render ignores
-    // it): the resting transform is the centering translate only.
+    // it): the resting transform is the centering translate only. The
+    // rested item stands no composited-layer hint (a layer is the drag's
+    // own — the ring's repaint over the WebKit family).
     expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
+    expect(wrapper.style.willChange).toBe("");
 
     // The in-flight drag (the press over the block's own zone, the moves
     // on the view — the pointer is captured on the view): the preview
@@ -58,10 +61,15 @@ describe("the move preview on a legacy-rotated item", () => {
     fireEvent.pointerDown(view, { clientX: p.x, clientY: p.y });
     fireEvent.pointerMove(view, { clientX: p.x + 40, clientY: p.y + 20, buttons: 1 });
     expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px)");
+    // The in-flight drag's own composited layer (the ring moves with the
+    // painted item instead of being repainted).
+    expect(wrapper.style.willChange).toBe("transform");
 
     // The release commits the canvas-axis delta (the commit writes
     // x/y/w/h only; the stored rotation survives the core's merge).
     fireEvent.pointerUp(view);
     expect(doc.getBlock(id)?.geometry).toEqual({ x: 40, y: 20, w: 100, h: 50, rotation: 90 });
+    // The layer's hint drops with the session.
+    expect(wrapper.style.willChange).toBe("");
   });
 });

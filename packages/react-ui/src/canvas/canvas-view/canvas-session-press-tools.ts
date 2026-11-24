@@ -107,6 +107,15 @@ function connectorToolPress(
   point: { x: number; y: number }
 ): boolean {
   if (ctx.viewport.activeTool !== "connector") return false;
+  // The compatibility mousedown's default stands suppressed over the whole
+  // connector gesture (the press, the hover of the two-click pick, the
+  // press-drag): the press lands on any surface — the page miniature's text
+  // included — and an unprevented mousedown starts the native caret / text
+  // selection there (the drag would paint a selection over the document's
+  // text under the pointer). The focus parks on the container (the
+  // keydown's reach).
+  ctx.cardPressRef.current = true;
+  ctx.containerRef.current?.focus();
   const item = ctx.standItemAt(event.target);
   const id = item?.getAttribute("data-block-id") ?? null;
   const hasStand = ctx.viewport.pendingConnector !== null || ctx.viewport.pendingFree !== null;

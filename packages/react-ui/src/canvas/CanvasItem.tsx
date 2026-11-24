@@ -159,6 +159,11 @@ const CanvasItem = memo(
       const parts = ["translate(-50%, -50%)"];
       if (moveActive) parts.push(`translate(${movePreview.dx}px, ${movePreview.dy}px)`);
       style.transform = parts.join(" ");
+      // The drag's own composited layer: the WebKit family repaints the
+      // moved item's selection ring unreliably over a transform-only change
+      // (the ring trails the drag). A layer moves the painted item — the
+      // ring included — without a repaint.
+      style.willChange = "transform";
     }
     if (block.type === "canvas-text") {
       // The font attrs are data (not theme): the inline styles stand the

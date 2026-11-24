@@ -101,6 +101,10 @@ function pageCardDisplayStyleOf(
   const parts = ["translate(-50%, -50%)"];
   if (isMoving) parts.push(`translate(${viewport.movePreview!.dx}px, ${viewport.movePreview!.dy}px)`);
   style.transform = parts.join(" ");
+  // The drag's own composited layer (the CanvasItem's parity): the
+  // WebKit family repaints the moved card's selection ring unreliably
+  // over a transform-only change.
+  style.willChange = "transform";
   return style;
 }
 

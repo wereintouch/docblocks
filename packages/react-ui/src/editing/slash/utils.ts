@@ -64,10 +64,11 @@ function sameAttrs(block: Block, command: SlashCommand): boolean {
  * its whole text. The replace path needs both an empty result and a type
  * change — and a block that owns a derived segment cannot be removed (the
  * removal cascades its followers), so it converts in place instead. The
- * divider over a phrase-only block is a no-op close when the block owns a
- * derived segment (a removal would cascade its followers) — the replace
- * path stands only for a phrase-only block without followers (a divider
- * insert is contentless, nothing is lost).
+ * divider over a phrase-only block without followers takes the replace
+ * path (a contentless insert loses nothing); over any block whose text
+ * survives the strip it is an insert after the block instead — the
+ * divider cannot take the block's text (the core rejects the type change),
+ * nor replace a segment-owning block (the removal cascades).
  */
 function planSlashApply(
   command: SlashCommand,
@@ -84,11 +85,10 @@ function planSlashApply(
   if (command.type === "table") return { kind: "update", deleteFrom: slashOffset, deleteTo: queryEnd };
   const stripped = text.slice(0, slashOffset) + text.slice(queryEnd);
   if (stripped === "" && !hasFollowers && command.type !== block.type) return { kind: "replace" };
-  // A divider cannot stand the block's text (the core rejects the type
-  // change) nor replace a segment-owning block (the removal cascades):
-  // the replace check above stands only for the phrase-only case, so any
-  // other divider pick is a no-op close.
-  if (command.type === "divider") return { kind: "noop" };
+  // The divider over surviving text (or over a block that owns a derived
+  // segment) is an insert after the caret block, like the table: the
+  // block keeps its text, the phrase strips, the divider lands next.
+  if (command.type === "divider") return { kind: "update", deleteFrom: slashOffset, deleteTo: queryEnd };
   if (command.type === block.type) return { kind: "update", deleteFrom: slashOffset, deleteTo: queryEnd };
   return { kind: "convert", deleteFrom: slashOffset, deleteTo: queryEnd };
 }
@@ -239,10 +239,14 @@ function applySlashPlan(
             doc.updateBlock(blockId, attrs);
           }
           doc.deleteText(blockId, plan.deleteFrom, plan.deleteTo);
-          // The table command is an insert, not a convert: the table stands
-          // after the caret block (a 2×2 at the trigger's attach level).
+          // The table and the divider are inserts, not converts: the block
+          // lands after the caret block (a 2×2 at the trigger's attach
+          // level / a contentless divider); the caret block keeps its text
+          // (the trigger phrase stripped).
           if (command.type === "table") {
             tableId = insertCommand(doc, command, { parent: parentId, after: blockId }, indent);
+          } else if (command.type === "divider") {
+            insertCommand(doc, command, { parent: parentId, after: blockId }, indent);
           }
         });
       } catch (error) {

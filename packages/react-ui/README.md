@@ -1054,6 +1054,36 @@ dark set, so the swatch follows the theme flip). Override them on
 of hex or `var(…)` entries) to replace the swatches outright; a picked
 swatch always commits a concrete hex to the document.
 
+### Page width
+
+The page view renders the document's blocks in a centered column: the block
+content zone defaults to a 900 px maximum width (the `--docblocks-page-max-width`
+token), and the column's box adds the two gutter paddings around it (the derived
+`--docblocks-page-column-max-width`). A narrower viewport renders at the full
+available width — the maximum never over-constrains. The gutter (the row grip and
+its quick-insert) follows the column's edge, so it stays clear of the blocks at
+any width. The canvas view ignores the token: it owns its own full-bleed
+viewport.
+
+Change the width by overriding the token on the editor root (the "Overriding
+individual values" pattern) — any length or percentage stands for a custom
+width:
+
+```css
+[data-slot="docblocks/editor"] {
+  --docblocks-page-max-width: 1200px; /* a wider content zone */
+}
+```
+
+`none` stands for the full available width (the blocks span the editor's whole
+width, the gutter at the viewport's edge):
+
+```css
+[data-slot="docblocks/editor"] {
+  --docblocks-page-max-width: none;
+}
+```
+
 ### Structure
 
 Structural styling hooks are `data-slot` attributes (`docblocks/editor`,

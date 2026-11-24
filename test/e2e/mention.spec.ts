@@ -111,6 +111,52 @@ test("the space stands the query (the picker over the @word phrase) and the Ente
   await close();
 });
 
+test("a mid-line pick seats the caret in the following text (not the block's end)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "mention-midline");
+  const blockId = await insertBlockType(a, "a", "paragraph");
+  const inner = a.locator(`[data-testid="doc-a"] [data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+  await inner.click();
+  await a.keyboard.type("hello world");
+  // The caret before "world": the mention lands mid-line and the trailing
+  // text survives the pick.
+  for (let i = 0; i < 5; i += 1) await a.keyboard.press("ArrowLeft");
+  await a.keyboard.type("@Ada");
+  const picker = a.locator('[data-slot="docblocks/mention-menu"]');
+  await expect.poll(async () => picker.getByText("Ada Lovelace").isVisible(), SETTLE).toBe(true);
+  await picker.getByText("Ada Lovelace").click();
+  await expect.poll(async () => editorOf(a, "a").locator('[data-slot="docblocks/mention"]').count(), SETTLE).toBe(1);
+
+  // The seat: the chip's adjacent trailing text's start (the island's
+  // element slot is the last resort — engines place a caret next to a
+  // contenteditable=false island unreliably).
+  const seat = await a.evaluate((id) => {
+    const selection = window.getSelection();
+    const el = document.querySelector<HTMLElement>(
+      `[data-testid="doc-a"] [data-block-id="${id}"][data-slot="docblocks/block-content"]`
+    );
+    if (selection === null || selection.rangeCount === 0 || el === null) return null;
+    const range = selection.getRangeAt(0);
+    if (!el.contains(range.startContainer)) return null;
+    const text = range.startContainer.textContent ?? "";
+    return { text, offset: range.startOffset };
+  }, blockId);
+  expect(seat).toEqual({ text: "world", offset: 0 });
+
+  // The continuation stands mid-line (not appended to the block's end).
+  await a.keyboard.type("X");
+  const text = await a.evaluate((id) => {
+    const docs = window.__paneDocs;
+    const doc = docs?.a ?? null;
+    const block = doc?.getBlock(id);
+    return block === null || block === undefined || !("content" in block)
+      ? ""
+      : block.content?.map((run) => run.text).join("");
+  }, blockId);
+  expect(text).toBe("hello Ada LovelaceXworld");
+
+  await close();
+});
+
 test("a doc pick stands the doc kind and the query filters the sections", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "mention-doc");
   const blockId = await insertBlockType(a, "a", "paragraph");

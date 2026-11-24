@@ -260,6 +260,61 @@ test.describe("the connector arrows", () => {
     }
   });
 
+  test("the press over the page card's text stands no native selection during the drag", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-cardpress");
+    try {
+      // The page miniature is centered on the world origin and is taller than
+      // the canvas view: the seeded text fills the card so the visible band
+      // holds real page text under the press point.
+      await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) return;
+        doc.transact(() => {
+          for (let index = 0; index < 40; index++) {
+            const id = doc.insertBlock("paragraph");
+            doc.insertText(id, 0, `seed paragraph ${index}`);
+          }
+        });
+      });
+      await toCanvas(a, "a");
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+
+      // The press lands on the page miniature's text (the editable content
+      // under the canvas): the compatibility mousedown's default stands
+      // suppressed, so the drag paints no text selection over the document.
+      // The point is the first one inside the canvas view whose element is
+      // a page-text block (the card's scroll port may push some blocks out
+      // of the visible window).
+      const from = await a.evaluate(() => {
+        const view = document.querySelector<HTMLElement>('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]');
+        if (view === null) return null;
+        const box = view.getBoundingClientRect();
+        for (let y = box.top + 8; y < box.bottom - 8; y += 8) {
+          for (let x = box.left + 8; x < box.right - 8; x += 8) {
+            const el = document.elementFromPoint(x, y);
+            const inner = el?.closest('[data-slot="docblocks/block-content"]');
+            if (inner !== null && inner !== undefined && view.contains(inner) && (inner.textContent ?? "") !== "") {
+              return { x, y };
+            }
+          }
+        }
+        return null;
+      });
+      expect(from).not.toBeNull();
+      await a.mouse.move(from!.x, from!.y);
+      await a.mouse.down();
+      await a.mouse.move(from!.x + 120, from!.y + 90, { steps: 10 });
+      expect(await a.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+      // The stand itself landed (the press resolved the page block as the
+      // connector's first endpoint): the dashed preview follows the drag.
+      await expect(a.locator('[data-slot="docblocks/canvas-connector-preview"]')).toBeVisible();
+      await a.mouse.up();
+    } finally {
+      await close();
+    }
+  });
+
   test("the ports' visibility: the four edge dots stand while the connector tool is active (and only then)", async ({
     browser,
   }) => {

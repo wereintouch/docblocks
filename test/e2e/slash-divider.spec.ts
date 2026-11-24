@@ -131,6 +131,47 @@ test("a divider in the middle of the document gets no trailing paragraph", async
   await close();
 });
 
+test("a divider picked over a non-empty block lands after it (the block keeps its text, the caret stays)", async ({
+  browser,
+}) => {
+  const { a, close } = await openPanes(browser, "slash-divider-text");
+  const target = inner(a, "a");
+  await target.click();
+
+  // The trigger over surviving text: the divider cannot take the block's
+  // text, so it lands after the caret block (the phrase strips).
+  await a.keyboard.type("keep me/divider");
+  await expect(menu(a)).toBeVisible();
+  await a.keyboard.press("Enter");
+
+  const placed = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const ids = doc.getChildren(doc.meta.id);
+    const at = ids.findIndex((id) => doc.getBlock(id)?.type === "divider");
+    if (at < 1) return null;
+    const before = ids[at - 1]!;
+    return { beforeType: doc.getBlock(before)?.type ?? null, beforeText: doc.getText(before) };
+  });
+  expect(placed).toEqual({ beforeType: "paragraph", beforeText: "keep me" });
+
+  // The caret stays in the caret block (the strip's offset): the input
+  // continues there — no trailing paragraph is synthesized for a
+  // mid-sequence divider.
+  await expect.poll(() => caretIn(a, `[data-slot="docblocks/block-content"]`), SETTLE).toBe(true);
+  await a.keyboard.type("!");
+  const text = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const ids = doc.getChildren(doc.meta.id);
+    const at = ids.findIndex((id) => doc.getBlock(id)?.type === "divider");
+    const before = at < 1 ? "" : ids[at - 1]!;
+    return before === "" ? null : doc.getText(before);
+  });
+  expect(text).toBe("keep me!");
+  await close();
+});
+
 test("a trailing divider deletes through its row's gutter (the blocks selection's Delete)", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "slash-divider-delete");
   const target = inner(a, "a");

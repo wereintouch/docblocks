@@ -13,6 +13,30 @@ import { chipSlot, isLineAnchor, lineAnchorOf, mentionChipOf, textLengthOf } fro
  */
 
 /**
+ * The caret's seat at a mention chip's boundary over the ADJACENT editable
+ * text: a text node's boundary where one stands on that side and reads
+ * back at the same flat offset. The island's element slot (the chip's
+ * parent) is the seat of last resort: the WebKit family handles a caret
+ * next to a contenteditable=false inline island poorly (the seat collapses
+ * toward the block's end), while a text node's boundary is every engine's
+ * native path. A text that does not read back at the boundary (another
+ * island stands in between) is not adjacent — the element slot stands then.
+ */
+function chipTextSeat(root: HTMLElement, chipText: Node, after: boolean, boundary: number): DomPosition | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  walker.currentNode = chipText;
+  for (let node = after ? walker.nextNode() : walker.previousNode(); node !== null;) {
+    if (node instanceof Text && !isLineAnchor(node) && mentionChipOf(node) === null) {
+      const seat = { node, offset: after ? 0 : (node.nodeValue?.length ?? 0) };
+      if (caretOffsetIn(root, seat.node, seat.offset) === boundary) return seat;
+      return null;
+    }
+    node = after ? walker.nextNode() : walker.previousNode();
+  }
+  return null;
+}
+
+/**
  * The flat character offset of a DOM position (node + offset) inside the
  * block root. The node may be a text node (offset in characters) or an
  * element (offset in child slots). A caret on the line anchor (the final
@@ -111,11 +135,14 @@ function locatePosition(root: HTMLElement, flatOffset: number): DomPosition {
       if (chip !== null) {
         // The atomic island: a caret cannot stand inside the chip's text.
         // A flat offset over the chip snaps to the nearest boundary (the
-        // element slot before / after the chip — the pick's seat stands
-        // after the chip, the type's continuation keeps the editable).
+        // pick's seat stands after the chip, the type's continuation keeps
+        // the editable) — the adjacent text node's boundary where one
+        // stands on that side, the element slot otherwise.
         if (flatOffset <= total + length) {
           const after = flatOffset - total > length / 2 || flatOffset === total + length;
-          return chipSlot(chip, after && flatOffset > total);
+          const past = after && flatOffset > total;
+          const seat = chipTextSeat(root, current, after, past ? total + length : total);
+          return seat ?? chipSlot(chip, past);
         }
         total += length;
         return null;

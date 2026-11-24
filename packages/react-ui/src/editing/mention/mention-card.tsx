@@ -15,7 +15,7 @@
  */
 import { createPortal } from "react-dom";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import type { MentionMark } from "docblocks-core";
@@ -62,8 +62,10 @@ function mentionMarkOf(chip: HTMLElement): MentionMark | null {
 
 /** The editor root's mention card layer (the provider's `mentionInteractions`'
  *  stand; the null's stand renders nothing). The returned node is the
- *  portaled host (or null) — the caller renders it over the root. */
-function useMentionCard(rootRef: RefObject<HTMLElement | null>): ReactNode {
+ *  portaled host (or null) — the caller renders it over the root. `close`
+ *  drops a standing card (and its pending open) — the caller's view
+ *  switch's stand. */
+function useMentionCard(rootRef: RefObject<HTMLElement | null>): { node: ReactNode; close: () => void } {
   const { mentionInteractions } = useEditorContext();
   const [open, setOpen] = useState<OpenStand | null>(null);
   const openRef = useRef<OpenStand | null>(null);
@@ -82,6 +84,13 @@ function useMentionCard(rootRef: RefObject<HTMLElement | null>): ReactNode {
       closeTimerRef.current = null;
     }
   };
+
+  // The standing card's (and the pending open's) drop — the caller's view
+  // switch closes the surface.
+  const close = useCallback(() => {
+    cancelTimers();
+    setOpen(null);
+  }, []);
 
   // The hover's machine + the click's delivery + the Escape/scroll's close.
   // The listeners stand over the document (the root element's stand at
@@ -240,8 +249,8 @@ function useMentionCard(rootRef: RefObject<HTMLElement | null>): ReactNode {
   // nothing (an empty host would be an invisible 0x0 stand).
   let content: ReactNode = null;
   if (open !== null && mentionInteractions !== null) content = mentionInteractions.renderCard(open.mention);
-  if (open === null || mentionInteractions === null || content === null) return null;
-  return createPortal(
+  if (open === null || mentionInteractions === null || content === null) return { node: null, close };
+  const node = createPortal(
     <div
       ref={hostRef}
       data-slot="docblocks/mention-card"
@@ -261,6 +270,7 @@ function useMentionCard(rootRef: RefObject<HTMLElement | null>): ReactNode {
     </div>,
     document.body
   );
+  return { node, close };
 }
 
 export { useMentionCard };
