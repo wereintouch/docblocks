@@ -1,5 +1,33 @@
 # docblocks-react-ui
 
+## 0.19.1
+
+### Patch Changes
+
+- a093e2f: The canvas connector tool's press no longer starts a native text selection over
+  the page miniature's text under the pointer: the press's default stands
+  suppressed for the whole gesture, like the move and resize sessions.
+- 89f6cf0: A dragged canvas item (and the page card) now gets its own composited layer
+  while the move or resize session is live: the WebKit family repaints the moved
+  item's selection ring unreliably over a transform-only change, leaving the ring
+  trailing behind the drag.
+- 33cc913: A page-frame block whose canvas frame is wider than the page column is now
+  drawn uniformly downscaled to the column's width instead of being clipped at
+  its left and right edges; a frame that fits keeps its 1:1 scale.
+- 9c9f55f: The caret seat at a mention chip's boundary now prefers the adjacent editable
+  text node over the chip's parent element slot: the WebKit family places a caret
+  next to a `contenteditable="false"` inline island unreliably and collapsed the
+  pick's caret to the block's end. The element slot stays the fallback when no
+  text stands on that side.
+- 18386b1: The divider picked from the slash menu over a block with text no longer does
+  nothing: it lands right after the caret block (the trigger phrase strips, the
+  block keeps its text, the caret stays in it). A phrase-only block without
+  followers still takes the divider's slot.
+- eed613c: The page view's transient surfaces no longer hang over the canvas: the slash
+  menu (with its pickers), the mention picker and its hover card, the link editor,
+  and the floating format toolbar close on the switch to the canvas view and are
+  not resurrected by switching back.
+
 ## 0.19.0
 
 ### Minor Changes
