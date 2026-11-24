@@ -1,7 +1,7 @@
 import { DsPanel } from "./DsPanel";
 import { SyncPane } from "./SyncPane";
 import { TablesSection } from "./TablesSection";
-import { LONGDOC_DEFAULT_COUNT, parseLongdocCount } from "./longdoc-seed";
+import { parseLongdocCount } from "./longdoc-seed";
 
 /** The in-process dev relay (see vite.config.ts). */
 const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
@@ -54,12 +54,15 @@ function App() {
   const client = params.get("client") === "b" ? "b" : "a";
   const canvas = params.get("canvas") === "1";
   const heavy = params.get("heavy") === "1";
-  const longdoc = params.get("longdoc") === null ? null : parseLongdocCount(params.get("longdoc"));
-  const longdocCount = longdoc ?? LONGDOC_DEFAULT_COUNT;
+  const longdocParam = params.get("longdoc");
+  // The longdoc seed is opt-in: an absent flag or `?longdoc=0` keeps the
+  // pane's default seed (the starter paragraph's stand); the bare flag or
+  // a malformed value seeds the default count (200) over its own room.
+  const longdocCount = longdocParam === null || longdocParam === "0" ? 0 : parseLongdocCount(longdocParam);
   const role = params.get("role") === "viewer" ? "viewer" : "editor";
   const syncUrl =
     params.get("syncUrl") ??
-    (heavy ? HEAVY_SYNC_URL : longdoc !== null ? LONGDOC_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
+    (heavy ? HEAVY_SYNC_URL : longdocCount > 0 ? LONGDOC_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
   const blobEager = params.get("blobEager") === "1";
   const cycle = params.get("cycle") === "1";
