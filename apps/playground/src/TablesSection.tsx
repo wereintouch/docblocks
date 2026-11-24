@@ -11,7 +11,7 @@ import type { TableRef } from "docblocks-react-ui";
 
 import { useEffect, useState } from "react";
 
-import { databaseBridge } from "./insert-blocks";
+import { databaseBridge } from "./database-seed";
 
 function TablesSection() {
   const list = useTableList(databaseBridge);
