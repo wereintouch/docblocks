@@ -41,15 +41,18 @@
  * (remove + insert, the caret seated in the new block) unless it owns a
  * derived segment (deeper followers) — a removal would cascade them, so
  * such a block converts in place. A no-op close (the command equals the
- * block's current shape, or a contentless target like the divider over
- * surviving text) issues no command.
+ * block's current shape) issues no command. The divider is an insert, not
+ * a convert: over a block whose text survives the trigger strip it lands
+ * after the block (the block keeps its text); only a phrase-only block
+ * without followers takes the replace path (the divider takes its slot).
  *
  * The command list (v1): the page block types creatable from default
  * attrs — text, headings 1-3, the three list kinds, callout, code (plain
- * and mermaid), divider, and table. The table is the only insert
- * command: it lands after the caret block (2×2, the default widths), the
- * caret block stands, and the caret seats in the table's first cell (the
- * empty-cell activation). The image is an upload insert (the blob bridge):
+ * and mermaid), divider, and table. The table and the divider are the
+ * insert commands: they land after the caret block (the table 2×2, the
+ * default widths; the divider contentless), the caret block stands, and
+ * the caret seats in the table's first cell (the empty-cell activation);
+ * after the divider the caret stays in the caret block. The image is an upload insert (the blob bridge):
  * the caret block stands (the trigger phrase stripped), the file picker
  * opens over the open menu, and the image lands after the caret block in
  * one transact once the upload resolved — the doc holds only the committed

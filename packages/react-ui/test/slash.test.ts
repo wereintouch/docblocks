@@ -168,9 +168,13 @@ describe("planSlashApply", () => {
     expect(plan).toEqual({ kind: "update", deleteFrom: 2, deleteTo: 4 });
   });
 
-  it("is a no-op close for the divider over surviving text (the content cannot survive the type change)", () => {
+  it("lands the divider after a block whose text survives the strip (the caret block keeps its text)", () => {
     const block = textBlock("paragraph", "note/div");
-    expect(planSlashApply(command("Divider"), block, "note/div", 4, false)).toEqual({ kind: "noop" });
+    expect(planSlashApply(command("Divider"), block, "note/div", 4, false)).toEqual({
+      kind: "update",
+      deleteFrom: 4,
+      deleteTo: 8,
+    });
   });
 
   it("stands the divider's replace for a phrase-only block (a contentless insert loses nothing)", () => {
@@ -178,9 +182,13 @@ describe("planSlashApply", () => {
     expect(planSlashApply(command("Divider"), block, "/div", 0, false)).toEqual({ kind: "replace" });
   });
 
-  it("is a no-op close for the divider over a phrase-only block that owns a derived segment (the removal would cascade it — the phrase stays)", () => {
+  it("lands the divider after a phrase-only block that owns a derived segment (the removal would cascade it — the insert after the block stands)", () => {
     const block = textBlock("paragraph", "/div");
-    expect(planSlashApply(command("Divider"), block, "/div", 0, true)).toEqual({ kind: "noop" });
+    expect(planSlashApply(command("Divider"), block, "/div", 0, true)).toEqual({
+      kind: "update",
+      deleteFrom: 0,
+      deleteTo: 4,
+    });
   });
 
   it("updates a phrase-only same-type block with followers: the phrase is stripped, the followers stand", () => {
