@@ -14,7 +14,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   await expect(page.getByTestId("status-a")).toHaveText("connected");
   // The harness loads dark by default; clear the `.dark` class (a light pin).
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
   // Wait for the self-hosted Inter to resolve so the computed font-family
   // reflects the real font, not the FOUT fallback.
   await page.evaluate(() =>

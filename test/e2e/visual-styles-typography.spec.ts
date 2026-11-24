@@ -18,7 +18,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   // value, so clear the `.dark` class explicitly.
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
   // The catalog is built locally on mount; the divider lands with it.
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
 }
 
 /** The pane's editor root. */

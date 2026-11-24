@@ -36,11 +36,53 @@ test("structurally inserted blocks render in the other pane", async ({ browser }
     .toBe("oklch(0.922 0 0)");
 
   // Divider and image (the src resolved from the harness's blob map).
-  await expect(doc.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
   const img = doc.locator('img[data-slot="docblocks/image"]');
   await expect(img).toHaveCount(1);
   expect(await img.getAttribute("src")).toMatch(/^blob:/);
   await expect(img).toBeVisible();
+
+  await close();
+});
+
+test("the divider's row stands the line over the row's center (the gutter controls on the line's axis)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "divider-row-geometry");
+
+  const dividerId = await insertBlockType(a, "a", "divider");
+  const row = a.locator(`[data-slot="docblocks/row"]:has([data-block-id="${dividerId}"])`);
+
+  const geometryOf = () =>
+    row.evaluate((el) => {
+      const box = el.querySelector('[data-slot="docblocks/divider"]');
+      if (box === null) return null;
+      const line = box.querySelector("hr");
+      const grip = el.querySelector('button[data-slot="docblocks/gutter"]');
+      const remove = el.querySelector('button[data-slot="docblocks/gutter-delete"]');
+      if (line === null || grip === null || remove === null) return null;
+      const center = (rect: DOMRect) => rect.top + rect.height / 2;
+      const rowRect = el.getBoundingClientRect();
+      return {
+        rowHeight: rowRect.height,
+        rowCenter: center(rowRect),
+        lineCenter: center(line.getBoundingClientRect()),
+        gripCenter: center(grip.getBoundingClientRect()),
+        removeCenter: center(remove.getBoundingClientRect()),
+      };
+    });
+
+  // The row's box is the divider's box (the hover zone's stand — no
+  // collapse over the 1px line).
+  await expect.poll(async () => (await geometryOf().catch(() => null))?.rowHeight ?? 0, SETTLE).toBeCloseTo(41, 0);
+
+  const geometry = await geometryOf();
+  if (geometry === null) throw new Error("the divider's row has no geometry");
+  // The line over the row's center (the box's min-height's stand).
+  expect(Math.abs(geometry.lineCenter - geometry.rowCenter)).toBeLessThan(0.5);
+  // The gutter's controls on the line's axis.
+  expect(Math.abs(geometry.gripCenter - geometry.lineCenter)).toBeLessThan(0.5);
+  expect(Math.abs(geometry.removeCenter - geometry.lineCenter)).toBeLessThan(0.5);
 
   await close();
 });

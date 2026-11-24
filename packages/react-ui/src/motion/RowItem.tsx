@@ -135,6 +135,9 @@ const RowItem = memo(
         ref={rowRef}
         data-slot="docblocks/row"
         data-selected={selected ? "true" : undefined}
+        // The divider's row marker: the row's gutter controls center over
+        // the row's box (the line's axis) instead of the first line's box.
+        data-divider={block !== undefined && block.type === "divider" ? "true" : undefined}
         value={node.id}
         // No tabIndex: the row stands inside the page's single editable —
         // a focusable row would stand the mousedown's focus fallback's

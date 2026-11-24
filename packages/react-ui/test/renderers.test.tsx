@@ -47,7 +47,7 @@ describe("block renderer registry", () => {
     });
 
     expect(screen.getByTestId("custom-divider")).toBeDefined();
-    expect(document.querySelector('hr[data-slot="docblocks/divider"]')).toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/divider"]')).toBeNull();
   });
 
   it("a type without a consumer renderer keeps its built-in", () => {

@@ -16,7 +16,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   // mermaid block stands in its default code mode (no async diagram render
   // to wait for — the modes are exclusive, the preview render is pinned by
   // the mermaid spec).
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
   // Wait for the self-hosted UI font (Inter) to resolve: the page text renders
   // in Inter (the UI default font), so the golden must capture the real font,
   // not the FOUT fallback. Load the faces the catalog's text uses (the regular
