@@ -147,8 +147,11 @@ function EditorProviderStand({
   const effectiveBlobLoading = blobLoading ?? parentContext?.blobLoading ?? "lazy";
 
   // The lazy resolution's band frame: the consumer's own scroll container,
-  // else the enclosing one, else the window's scroll.
-  const effectiveScrollContainer = scrollContainer ?? parentContext?.scrollContainer ?? null;
+  // else the enclosing one, else the window's scroll. An explicit `null`
+  // frames the window over an inherited container (the nested stand's
+  // opt-out); only an absent prop inherits.
+  const effectiveScrollContainer =
+    scrollContainer === undefined ? (parentContext?.scrollContainer ?? null) : scrollContainer;
 
   // The effective database bridge: the explicit bridge wins, else the
   // enclosing one; without a bridge the external-form database blocks

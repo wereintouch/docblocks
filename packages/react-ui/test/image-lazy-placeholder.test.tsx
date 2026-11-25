@@ -2,12 +2,15 @@
 // The lazy image placeholder: the aspect-ratio reservation from the
 // metadata's dimensions, the read-only modes' resolution, and the resolved
 // image element's native loading attributes.
-import { act, cleanup } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Editor } from "../src/Editor";
+import { EditorProvider } from "../src/editor-provider";
 import {
   enterBand,
   image,
+  imageDoc,
   makeStore,
   observers,
   placeholder,
@@ -63,6 +66,45 @@ describe("the lazy image placeholder", () => {
     // The window-rooted observer never sees a box clipped by the inner
     // scroller: the band and the above-the-fold measure take the root.
     expect(observers[0]?.options?.root).toBe(scroller);
+  });
+
+  it("inherits the enclosing scroll container over the absent own prop", async () => {
+    standObservers();
+    standBelowFold();
+    const scroller = document.createElement("div");
+    scroller.getBoundingClientRect = () => ({ top: 0, bottom: 400 }) as DOMRect;
+    const { store } = makeStore({ meta: { name: "pic.png", mimeType: "image/png" }, getMeta: true });
+    const outer = imageDoc();
+
+    render(
+      <EditorProvider doc={outer.doc} blobStore={store} scrollContainer={scroller}>
+        <EditorProvider doc={imageDoc().doc} blobStore={store}>
+          <Editor />
+        </EditorProvider>
+      </EditorProvider>
+    );
+    await act(async () => {});
+
+    expect(observers[0]?.options?.root).toBe(scroller);
+  });
+
+  it("frames an explicit null scroll container on the window (the nested opt-out)", async () => {
+    standObservers();
+    standBelowFold();
+    const scroller = document.createElement("div");
+    scroller.getBoundingClientRect = () => ({ top: 0, bottom: 400 }) as DOMRect;
+    const { store } = makeStore({ meta: { name: "pic.png", mimeType: "image/png" }, getMeta: true });
+
+    render(
+      <EditorProvider doc={imageDoc().doc} blobStore={store} scrollContainer={scroller}>
+        <EditorProvider doc={imageDoc().doc} blobStore={store} scrollContainer={null}>
+          <Editor />
+        </EditorProvider>
+      </EditorProvider>
+    );
+    await act(async () => {});
+
+    expect(observers[0]?.options?.root).toBeNull();
   });
 
   it("resolves the bytes over the read-only (view) mode", async () => {

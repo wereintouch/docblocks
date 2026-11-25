@@ -64,7 +64,8 @@ interface EditorProviderBaseProps {
    *
    * `null` (the default) stands the window — the page scroll. The value is
    * read per render into the provider context: pass a stable reference. A
-   * nested provider that supplies none inherits the enclosing container.
+   * nested provider that passes nothing inherits the enclosing container;
+   * an explicit `null` frames its own subtree on the window.
    */
   scrollContainer?: Element | null;
   /**

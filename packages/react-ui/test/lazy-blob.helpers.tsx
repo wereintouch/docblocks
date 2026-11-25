@@ -146,6 +146,7 @@ export {
   IMAGE_ID,
   enterBand,
   image,
+  imageDoc,
   makeStore,
   observers,
   placeholder,
