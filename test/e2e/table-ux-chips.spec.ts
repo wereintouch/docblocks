@@ -3,7 +3,7 @@
 // updates).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, openPane, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -115,6 +115,9 @@ async function seedTable(
 }
 
 const tableEl = (page: Page) => page.locator('table[data-slot="docblocks/table"]');
+
+/** The pane A root (the single-pane specs' selector). */
+const paneSelector = '[data-testid="doc-a"]';
 
 /** The last row's measured height (the add-row drag's step — the live geometry). */
 async function rowStepOf(page: Page): Promise<number> {
@@ -261,4 +264,29 @@ test("the add-column chip's drag appends / removes several columns (the ghosts s
   } finally {
     await close();
   }
+});
+
+test("the add-row chip stands centered under the table (the handle band's offset included)", async ({ page }) => {
+  await openPane(page, "a", `tbl-chip-center-${Math.random().toString(36).slice(2, 8)}`);
+  await page.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) throw new Error("the pane's doc is not mounted");
+    const tableId = doc.insertBlock("table", { cols: 3 });
+    for (let row = 0; row < 2; row += 1) {
+      const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+      for (let col = 0; col < 3; col += 1) doc.insertBlock("table-cell", undefined, { parent: rowId });
+    }
+  });
+  // The chip stands pointer-events-none until the frame's hover.
+  await page.locator(`${paneSelector} td[data-slot="docblocks/table-cell"]`).first().hover();
+  await expect(page.locator('[data-slot="docblocks/table-add-row"]')).toBeVisible();
+  const stand = await page.evaluate((selector) => {
+    const table = document.querySelector<HTMLElement>(`${selector} table[data-slot="docblocks/table"]`);
+    const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/table-add-row"]');
+    if (table === null || chip === null) throw new Error("the table / the chip is absent");
+    const tableBox = table.getBoundingClientRect();
+    const chipBox = chip.getBoundingClientRect();
+    return { tableCenter: tableBox.left + tableBox.width / 2, chipCenter: chipBox.left + chipBox.width / 2 };
+  }, paneSelector);
+  expect(Math.abs(stand.chipCenter - stand.tableCenter)).toBeLessThanOrEqual(1);
 });

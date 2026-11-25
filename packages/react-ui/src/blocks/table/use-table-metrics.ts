@@ -6,7 +6,7 @@
  * ResizeObserver — the metrics keep their initial stand. */
 import { useLayoutEffect, useState } from "react";
 
-import { ADD_BUTTON_SIZE, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
+import { ADD_BUTTON_SIZE, GHOST_ROW_HEIGHT, HANDLE_ZONE, TABLE_ELEMENT_QUERY } from "./constants";
 
 interface UseTableMetricsArgs {
   scrollRef: { current: HTMLDivElement | null };
@@ -29,11 +29,16 @@ function useTableMetrics({ scrollRef, tableWidth, rows }: UseTableMetricsArgs): 
 
   // The add-row chip's left offset: the center of the visible part of the
   // table (no scroll listeners — the chip is pinned to the frame, not the
-  // scrolled content).
+  // scrolled content). The chip stands in the FRAME's coordinates while the
+  // table's box starts a handle band inside them (`HANDLE_ZONE`): the center
+  // reads from the table's box, not from the frame's edge.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (el === null) return;
-    const update = () => setRowButtonLeft(Math.max(0, Math.min(tableWidth, el.clientWidth) / 2 - ADD_BUTTON_SIZE / 2));
+    const update = () => {
+      const visible = Math.max(0, Math.min(tableWidth, el.clientWidth - HANDLE_ZONE));
+      setRowButtonLeft(HANDLE_ZONE + visible / 2 - ADD_BUTTON_SIZE / 2);
+    };
     update();
     if (typeof ResizeObserver === "function") {
       const observer = new ResizeObserver(update);
