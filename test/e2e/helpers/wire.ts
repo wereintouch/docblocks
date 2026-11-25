@@ -1,7 +1,7 @@
 import { type Page } from "@playwright/test";
 
-/** The in-process relay the dev server hosts (the playwright config's webServer; the strict port). */
-const RELAY = "ws://localhost:5199";
+/** The in-process relay the dev server hosts (the playwright config's webServer; the strict port). The port follows DOCBLOCKS_RELAY_PORT per shard. */
+const RELAY = `ws://localhost:${process.env.DOCBLOCKS_RELAY_PORT ?? "5199"}`;
 
 /** The slow-machine settle window for the wire/log polls. */
 const SETTLE: { timeout: number } = { timeout: 15_000 };

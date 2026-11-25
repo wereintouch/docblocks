@@ -12,7 +12,7 @@
 // warm yet).
 import { type FullConfig, chromium } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
+const RELAY = `ws://localhost:${process.env.DOCBLOCKS_RELAY_PORT ?? "5199"}`;
 
 export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = (config.projects?.[0]?.use?.baseURL as string | undefined) ?? "http://localhost:5173";

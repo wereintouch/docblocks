@@ -22,6 +22,7 @@
     "test": "npm run test --workspaces --if-present",
     "test:packaging": "node test/packaging/packaging.test.mjs",
     "test:e2e": "playwright test --project=chromium --reporter=dot",
+    "test:e2e:shard": "node scripts/e2e-shard.mjs",
     "test:e2e:firefox": "playwright test --project=firefox --reporter=dot",
     "test:e2e:webkit": "playwright test --project=webkit --reporter=dot",
     "test:e2e:all": "playwright test --reporter=dot",

@@ -60,7 +60,7 @@ test("the edit's mode: the plain click opens the new tab (the main page's stand 
 
     // The main page's stand (no navigation, the focus over the page's
     // editable, the text's no-write's stand — over the wire's parity too).
-    expect(a.url()).toContain("localhost:5173");
+    expect(a.url()).toContain(`localhost:${process.env.DOCBLOCKS_PORT ?? "5173"}`);
     expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/page");
     await expect(firstInner(a, "a")).toContainText(TEXT);
     await expect(firstInner(b, "b")).toContainText(TEXT);
@@ -111,7 +111,7 @@ test("the view's mode stands the same open (the parity — the same-tab's carry-
     const [popup] = await Promise.all([context.waitForEvent("page"), linkAnchor(a, "a").click()]);
     expect(popup.url()).toBe(HREF);
     // The same-tab's carry-away's off (the main page's stand).
-    expect(a.url()).toContain("localhost:5173");
+    expect(a.url()).toContain(`localhost:${process.env.DOCBLOCKS_PORT ?? "5173"}`);
   } finally {
     await close();
   }
