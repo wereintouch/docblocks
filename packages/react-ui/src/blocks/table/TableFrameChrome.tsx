@@ -22,6 +22,12 @@ import type { HandleKind } from "./models";
 
 interface TableCellMenuStand {
   ctx: { x: number; y: number; cellId: BlockId } | null;
+  /** The merge stands over a selected rectangle of at least two cells. */
+  canMerge: boolean;
+  /** The split stands over a merged cell. */
+  canSplit: boolean;
+  onMergeCells: () => void;
+  onSplitCells: () => void;
   onOpenChange: (open: boolean) => void;
   onCopy: () => void;
   onPaste: () => void;
@@ -106,6 +112,12 @@ function TableFrameChrome({
           sideOffset={4}
           onFocusOutside={preventDefault}
         >
+          <DropdownMenuItem disabled={!cellMenu.canMerge} onSelect={cellMenu.onMergeCells}>
+            {t("cell.merge")}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!cellMenu.canSplit} onSelect={cellMenu.onSplitCells}>
+            {t("cell.split")}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onCopy}>{t("common:copy")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onPaste}>{t("common:paste")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onClear}>{t("common:clear")}</DropdownMenuItem>

@@ -21,8 +21,7 @@
  * preview's math over `table-drag-transforms`, the live DOM's metrics
  * over `use-table-metrics`.
  */
-import { useLayoutEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState } from "react";
 
 import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
@@ -37,12 +36,16 @@ import { TableSeams } from "./TableSeams";
 import { EMPTY_IDS, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleKind, TableHandleSession } from "./models";
 import { columnCentersOf, columnDragTransformOf, rowDragTransformOf, seamXsOf } from "./table-drag-transforms";
+import { TableCellRangeContext } from "./table-range-context";
 import { useTableAddChips } from "./use-table-add-chips";
 import { useTableCellMenu } from "./use-table-cell-menu";
+import { useTableCellRangeWiring } from "./use-table-cell-range";
 import { useTableHandleActions } from "./use-table-handle-actions";
 import { useTableHandleDrag } from "./use-table-handle-drag";
+import { useTableHover } from "./use-table-hover";
 import { useTableMetrics } from "./use-table-metrics";
 import { useTableSeamResize } from "./use-table-seam-resize";
+import { useTableStructureGuard } from "./use-table-structure-guard";
 
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const { doc, viewMode } = useEditorContext();
@@ -67,7 +70,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       : docWidths;
   const tableWidth = widths.reduce((sum, width) => sum + width, 0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [hover, setHover] = useState<{ row: number; col: number } | null>(null);
   const [menu, setMenu] = useState<{ kind: HandleKind; index: number } | null>(null);
   const sessionRef = useRef<TableHandleSession | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -106,27 +108,22 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // The table element (the live DOM — the commit and the hover math read it).
   const tableEl = () => scrollRef.current?.querySelector<HTMLTableElement>(TABLE_ELEMENT_QUERY) ?? null;
 
+  // The pointer hover's grid coordinate (the handle zones read it).
+  const { hover, onContentPointerMove, setHover } = useTableHover({ doc, tableId: id });
+
   const { preview, onHandlePointerDown, onHandlePointerMove, onHandlePointerUp, onHandlePointerCancel } =
     useTableHandleDrag({ sessionRef, setHover, setMenu, tableEl, doc, rows, block, id });
 
-  // The hovered cell under the pointer (the handle hover zone is the whole
-  // row and column); a pointer over the handle zone / the padding keeps the
-  // current hover.
-  const onContentPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    const cell = target.closest<HTMLTableCellElement>("td[data-block-id]");
-    if (cell === null) return;
-    const row = cell.closest<HTMLTableRowElement>("tr[data-block-id]");
-    if (row === null) return;
-    const next = { row: row.rowIndex, col: cell.cellIndex };
-    setHover((prev) => (prev !== null && prev.row === next.row && prev.col === next.col ? prev : next));
-  };
+  // The cell range's grip session (the merge / split gesture's stand).
+  const { rangeHandlers } = useTableCellRangeWiring({ doc, tableId: id });
 
-  const { ctx, closeCtx, onCellClear, onCellCopy, onCellPaste, onTableContextMenu } = useTableCellMenu({
-    doc,
-    viewMode,
-    frameRef,
-  });
+  const { ctx, closeCtx, onCellClear, onCellCopy, onCellPaste, onTableContextMenu, ...cellMenuRange } =
+    useTableCellMenu({
+      doc,
+      tableId: id,
+      viewMode,
+      frameRef,
+    });
   const { onColumnHandleAction, onColumnHandleColor, onRowHandleAction, onRowHandleColor } = useTableHandleActions({
     doc,
     rows,
@@ -140,16 +137,9 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const columnCenters = columnCentersOf(widths);
   const seamXs = seamXsOf(widths);
 
-  // A structural change (a peer insert/remove/move) while a menu is open
-  // invalidates its index-based anchor: the menu closes (a re-anchored chip
-  // would act on the wrong target; local actions close before the doc
-  // changes, so this fires on concurrent changes only).
-  const structureKey = `${block.columnOrder.length}:${rows.join(",")}`;
-  const prevStructureKey = useRef(structureKey);
-  useLayoutEffect(() => {
-    if (menu !== null && prevStructureKey.current !== structureKey) setMenu(null);
-    prevStructureKey.current = structureKey;
-  }, [structureKey, menu]);
+  // The open menu's structural guard (a concurrent restructure closes it).
+  const closeMenuRef = (): void => setMenu(null);
+  useTableStructureGuard(`${block.columnOrder.length}:${rows.join(",")}`, menu !== null, closeMenuRef);
 
   // The table's rendered height (the row metrics' last bottom) — the
   // add-column chip centers on the table, not the content (the 20 px handle
@@ -193,36 +183,38 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               ))}
             </colgroup>
             <tbody>
-              <BlockContext.Provider value={contextValue}>
-                {rows.map((rowId, rowIndex) => (
-                  <TableRow
-                    key={rowId}
-                    id={rowId}
-                    rowTransform={rowDragTransformOf(preview, rowIndex)}
-                    columnTransforms={columnTransforms}
-                    dimmed={
-                      addPreview !== null &&
-                      addPreview.kind === "row" &&
-                      addPreview.count < 0 &&
-                      rowIndex >= rows.length + addPreview.count
-                    }
-                  />
-                ))}
-                {addPreview !== null && addPreview.kind === "row" && addPreview.count > 0
-                  ? Array.from({ length: addPreview.count }, (_, i) => (
-                      <tr key={`ghost-row-${i}`} aria-hidden data-slot="docblocks/table-ghost-row">
-                        <td
-                          colSpan={block.columnOrder.length}
-                          className="
-                            border-(length:--docblocks-table-border-width) border-dashed
-                            border-(--docblocks-table-border-color) bg-muted/40
-                          "
-                          style={{ height: GHOST_ROW_HEIGHT }}
-                        />
-                      </tr>
-                    ))
-                  : null}
-              </BlockContext.Provider>
+              <TableCellRangeContext.Provider value={rangeHandlers}>
+                <BlockContext.Provider value={contextValue}>
+                  {rows.map((rowId, rowIndex) => (
+                    <TableRow
+                      key={rowId}
+                      id={rowId}
+                      rowTransform={rowDragTransformOf(preview, rowIndex)}
+                      columnTransforms={columnTransforms}
+                      dimmed={
+                        addPreview !== null &&
+                        addPreview.kind === "row" &&
+                        addPreview.count < 0 &&
+                        rowIndex >= rows.length + addPreview.count
+                      }
+                    />
+                  ))}
+                  {addPreview !== null && addPreview.kind === "row" && addPreview.count > 0
+                    ? Array.from({ length: addPreview.count }, (_, i) => (
+                        <tr key={`ghost-row-${i}`} aria-hidden data-slot="docblocks/table-ghost-row">
+                          <td
+                            colSpan={block.columnOrder.length}
+                            className="
+                              border-(length:--docblocks-table-border-width) border-dashed
+                              border-(--docblocks-table-border-color) bg-muted/40
+                            "
+                            style={{ height: GHOST_ROW_HEIGHT }}
+                          />
+                        </tr>
+                      ))
+                    : null}
+                </BlockContext.Provider>
+              </TableCellRangeContext.Provider>
             </tbody>
           </table>
           {/* The read-only stand (view / published): the table's editing
@@ -286,6 +278,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         rowCount={rows.length}
         cellMenu={{
           ctx,
+          canMerge: cellMenuRange.canMerge,
+          canSplit: cellMenuRange.canSplit,
+          onMergeCells: cellMenuRange.onMergeCells,
+          onSplitCells: cellMenuRange.onSplitCells,
           onOpenChange: closeCtx,
           onCopy: onCellCopy,
           onPaste: onCellPaste,

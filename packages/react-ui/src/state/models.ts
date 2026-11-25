@@ -51,6 +51,34 @@ interface FileUploadStand {
  * slice is not involved in, so a component selecting one block re-renders
  * only when that block actually changed.
  */
+/** A rectangular cell range over one table (the grid coordinates, inclusive). */
+interface TableCellRange {
+  tableId: BlockId;
+  /** The rectangle's top grid row (inclusive). */
+  top: number;
+  /** The rectangle's left grid column (inclusive). */
+  left: number;
+  /** The rectangle's bottom grid row (inclusive). */
+  bottom: number;
+  /** The rectangle's right grid column (inclusive). */
+  right: number;
+  /** The anchor cells standing in the rectangle (a covered cell stands no cell). */
+  cellIds: readonly BlockId[];
+  /**
+   * The anchors' own grid rectangles (a merged anchor stands its region) —
+   * the per-cell frame edges read from it, so a cell needs no grid math.
+   */
+  cells: Readonly<Record<BlockId, TableCellRangeRect>>;
+}
+
+/** One anchor's grid rectangle inside the range (the frame edges' source). */
+interface TableCellRangeRect {
+  row: number;
+  col: number;
+  colspan: number;
+  rowspan: number;
+}
+
 interface EditorState {
   /** Block snapshots keyed by id; a block keeps its reference while its JSON is unchanged. */
   blocks: Record<BlockId, Block>;
@@ -90,6 +118,13 @@ interface EditorState {
    * A separate slice so a grant change never re-renders blocks.
    */
   sharing: PresenceSharingMode;
+  /**
+   * The table cell range: the rectangular selection of cells over one table
+   * (the merge / split gesture's stand). View state — never document data,
+   * no wire traffic; a separate slice so a range move re-renders only its
+   * cells.
+   */
+  tableRange: TableCellRange | null;
   /**
    * The canvas clipboard: the deep copy of
    * the copied canvas items — the view state per editor (not doc data, no
@@ -139,6 +174,8 @@ interface EditorActions {
   setSelection: (selection: Selection) => void;
   /** Sets the collapsed state of one list item (view state, no doc command). */
   setCollapsed: (id: BlockId, collapsed: boolean) => void;
+  /** Replaces the table cell range (the gesture's move / the clear). */
+  setTableCellRange: (range: TableCellRange | null) => void;
   /** Replaces the canvas clipboard slice (the copy / the clear). */
   setCanvasClipboard: (clipboard: CanvasClipboard | null) => void;
   /** Replaces the pending file upload stand (the set / the clear). */
@@ -148,4 +185,4 @@ interface EditorActions {
 /** The per-instance vanilla store created by `createEditorStore`. */
 type EditorStore = StoreApi<EditorState & EditorActions>;
 
-export type { EditorActions, EditorState, EditorStore, FileUploadStand };
+export type { EditorActions, EditorState, EditorStore, FileUploadStand, TableCellRange, TableCellRangeRect };

@@ -64,4 +64,21 @@ interface AddChipSession {
   widths: number[] | null;
 }
 
-export type { AddChipSession, ColumnResizeSession, HandleAction, HandleKind, TableDragPreview, TableHandleSession };
+/**
+ * The in-flight cell-range grip press: the pointer that owns the session and
+ * the anchor cell's grid coordinate the drag extends from.
+ */
+interface CellRangeSession {
+  pointerId: number;
+  origin: { row: number; col: number };
+}
+
+export type {
+  AddChipSession,
+  CellRangeSession,
+  ColumnResizeSession,
+  HandleAction,
+  HandleKind,
+  TableDragPreview,
+  TableHandleSession,
+};

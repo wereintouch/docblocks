@@ -206,6 +206,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     presence: [],
     sharing: "off",
     canvasClipboard: null,
+    tableRange: null,
     fileUpload: null,
     changeStamp: 0,
     chromeStamp: 0,
@@ -220,6 +221,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
       });
     },
     setCanvasClipboard: (clipboard) => store.setState({ canvasClipboard: clipboard }),
+    setTableCellRange: (range) => store.setState({ tableRange: range }),
     setFileUpload: (stand) => store.setState({ fileUpload: stand }),
   }));
 

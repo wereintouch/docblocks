@@ -9,10 +9,13 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import type { BlockId, Doc } from "docblocks-core";
 
 import { focusCaretIn } from "../../editing/block-commands";
+import { anchorOfId, useSetTableCellRange, useTableRangeOf } from "./use-table-cell-range";
 import { cellPlainText, pasteCellText, readClipboardText } from "./utils";
 
 interface UseTableCellMenuArgs {
   doc: Doc;
+  /** The owning table (the range's commands stand over it). */
+  tableId: BlockId;
   /** The read-only stand (view / published): the cell's context menu's
    * stand is off (the copy/paste/clear's items are the cell's editing's
    * paths). */
@@ -20,7 +23,7 @@ interface UseTableCellMenuArgs {
   frameRef: { current: HTMLDivElement | null };
 }
 
-function useTableCellMenu({ doc, viewMode, frameRef }: UseTableCellMenuArgs) {
+function useTableCellMenu({ doc, tableId, viewMode, frameRef }: UseTableCellMenuArgs) {
   // The cell context menu (the right-click): the anchor point (frame-relative)
   // and the cell; the menu's content carries the copy/paste/clear items.
   const [ctx, setCtx] = useState<{ x: number; y: number; cellId: BlockId } | null>(null);
@@ -91,6 +94,45 @@ function useTableCellMenu({ doc, viewMode, frameRef }: UseTableCellMenuArgs) {
 
   const cellScope = () => frameRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]') ?? document;
 
+  // The cell range (the merge gesture's stand) and its clear.
+  const range = useTableRangeOf(tableId);
+  const setRange = useSetTableCellRange();
+  /** The clicked cell's merged region stand (`colspan`/`rowspan` over 1). */
+  const clicked = ctx === null ? null : doc.getBlock(ctx.cellId);
+  const clickedSpan =
+    clicked !== null && clicked.type === "table-cell"
+      ? Math.max(clicked.attrs?.colspan ?? 1, clicked.attrs?.rowspan ?? 1)
+      : 1;
+  /** The merge stands over a selected rectangle of at least two cells. */
+  const canMerge = range !== null && range.tableId === tableId && range.cellIds.length > 1;
+  /** The split stands over a merged cell (the clicked one or the range's). */
+  const canSplit = clickedSpan > 1 || (range !== null && range.cellIds.length === 1 && clickedSpan > 1);
+
+  /** The merge: the selected rectangle folds into its top-left cell (one undo step); the range clears. */
+  const onMergeCells = () => {
+    if (!canMerge || range === null) return;
+    try {
+      doc.mergeTableCells(range.tableId, { row: range.top, col: range.left }, { row: range.bottom, col: range.right });
+    } catch {
+      // A rejected rectangle (a gap / a partial region — the menu's stand
+      // read a stale grid): no-op.
+    }
+    setRange(null);
+  };
+
+  /** The split: the merged region containing the clicked cell (or the range's cell) expands. */
+  const onSplitCells = () => {
+    if (ctx === null) return;
+    const anchor = anchorOfId(doc, tableId, ctx.cellId);
+    if (anchor === null) return;
+    try {
+      doc.splitTableCells(tableId, anchor.row, anchor.col);
+    } catch {
+      // A rejected coordinate (the cell moved mid-gesture): no-op.
+    }
+    setRange(null);
+  };
+
   /** The copy: the cell's plain text to the clipboard (the blocks joined
    * with the line break); an unreadable clipboard stands a no-op (v1). */
   const onCellCopy = async () => {
@@ -147,7 +189,18 @@ function useTableCellMenu({ doc, viewMode, frameRef }: UseTableCellMenuArgs) {
     []
   );
 
-  return { ctx, closeCtx, onCellClear, onCellCopy, onCellPaste, onTableContextMenu };
+  return {
+    ctx,
+    canMerge,
+    canSplit,
+    onMergeCells,
+    onSplitCells,
+    closeCtx,
+    onCellClear,
+    onCellCopy,
+    onCellPaste,
+    onTableContextMenu,
+  };
 }
 
 export { useTableCellMenu };
