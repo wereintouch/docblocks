@@ -103,6 +103,12 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       // automatically by the insert path (the cell's position in the row's
       // columnOrder); the strict validator still checks the binding.
       columnId: { kind: "string", nonEmpty: true },
+      // The merged region's spans (default 1): the anchor cell covers the
+      // rectangle; the covered cells are absent from their rows (the grid's
+      // resolver stands the coordinates). The table-level bounds and the
+      // overlap stand the doc validator's check (the table's shape).
+      colspan: { kind: "number", integer: true, min: 1 },
+      rowspan: { kind: "number", integer: true, min: 1 },
       align: ALIGN,
       // The two background layers: the column color (set column-wide) is
       // the priority layer, the row color stands underneath it.

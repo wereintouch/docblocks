@@ -11,12 +11,14 @@ import { useEditorContext } from "../../editor-provider";
 import { segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
+import { applySlashPlan } from "./apply";
+import { indentOf } from "./helpers";
 import type { SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import { SlashMenuNode } from "./slash-menu-node";
 import { useSlashCommitPaths } from "./use-slash-commit-paths";
 import { useSlashMenuKeys } from "./use-slash-menu-keys";
 import { useSlashPickers } from "./use-slash-pickers";
-import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
+import { deriveSlash, filterCommands, planSlashApply } from "./utils";
 
 /**
  * The editor-level slash menu state and UI. The root owns the state and

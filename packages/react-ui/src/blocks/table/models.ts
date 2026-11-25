@@ -2,6 +2,8 @@
  * add-chip press states — the view's live drag state, the doc's untouched
  * until the release commit).
  */
+import type { GridAnchor } from "docblocks-core";
+
 type HandleKind = "row" | "column";
 type HandleAction = "insert-after" | "insert-before" | "move-next" | "move-prev" | "duplicate" | "clear" | "remove";
 /**
@@ -64,4 +66,21 @@ interface AddChipSession {
   widths: number[] | null;
 }
 
-export type { AddChipSession, ColumnResizeSession, HandleAction, HandleKind, TableDragPreview, TableHandleSession };
+/**
+ * The in-flight cell-range grip press: the pointer that owns the session and
+ * the anchor cell (its whole grid rectangle) the drag extends from.
+ */
+interface CellRangeSession {
+  pointerId: number;
+  origin: GridAnchor;
+}
+
+export type {
+  AddChipSession,
+  CellRangeSession,
+  ColumnResizeSession,
+  HandleAction,
+  HandleKind,
+  TableDragPreview,
+  TableHandleSession,
+};

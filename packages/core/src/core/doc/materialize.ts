@@ -10,6 +10,7 @@ import {
   attributeOrderNormalized,
   flattenDoc,
   isReservedId,
+  normalizeMerges,
   normalizeZOrder,
   validateDoc,
 } from "@docblocks-core/schema";
@@ -95,7 +96,11 @@ function materializeLoad(bytes: Uint8Array): DocInit {
   // stand. The strict validator is the writer's stand (the public
   // validateDoc, the command paths).
   const json = toDocJSON(ydoc);
-  const errors = validateDoc(json, true);
+  // The table spans are a derived stand like the canvas z-order: a racing
+  // merge can leave a span past the table's edge, and the read-path
+  // normalization re-derives what fits BEFORE the snapshot is validated.
+  const normalized = normalizeMerges(json);
+  const errors = validateDoc(normalized, true);
   if (errors.length > 0) {
     throw new InvalidSnapshotError(
       `loadDoc expects a full document snapshot; got an incomplete or invalid state: ${formatValidationErrors(errors)}`
@@ -103,8 +108,9 @@ function materializeLoad(bytes: Uint8Array): DocInit {
   }
   // Eager normalization of the legacy nesting form: the live document is
   // always flat, so a legacy snapshot is rewritten (depth -> indent) as a
-  // fresh load step; a flat snapshot loads as-is (byte-identical state).
-  const flat = flattenDoc(json);
+  // fresh load step; a flat snapshot loads as-is (byte-identical state). The
+  // table spans re-derive the same way (a concurrent merge's stale span).
+  const flat = flattenDoc(normalized);
   if (JSON.stringify(flat) !== JSON.stringify(json)) {
     const normalized = new Y.Doc();
     writeDocument(normalized, flat);
@@ -122,7 +128,7 @@ function materializeFromJSON(json: DocJSON): DocInit {
   // The z-order mirror (the canvas elements' dense `zIndex`) can be stale
   // in a saved snapshot after a concurrent merge; re-derive it from the
   // children order before validation (the single source of the z-order).
-  const normalized = attributeOrderNormalized(normalizeZOrder(json));
+  const normalized = normalizeMerges(attributeOrderNormalized(normalizeZOrder(json)));
   // The JSON import is a reader boundary like the snapshot load: the
   // cross-minor (lenient) posture tolerates the additive unknowns (the
   // structural invariants and the known-data checks stand).

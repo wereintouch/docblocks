@@ -18,6 +18,15 @@ import { useTextInner } from "../../text/text-inner";
 import { BlockGroups } from "../BlockView";
 import { CellActivation } from "./CellActivation";
 import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
+import { useTableCellRangeHandlers } from "./table-range-context";
+import {
+  RANGE_EDGE_BOTTOM,
+  RANGE_EDGE_LEFT,
+  RANGE_EDGE_RIGHT,
+  RANGE_EDGE_TOP,
+  RANGE_SELECTED,
+  useTableCellRangeMask,
+} from "./use-table-cell-range";
 
 /** One cell: its flat content sequence renders through the flat sequence renderer. */
 const TableCell = memo(function TableCell({
@@ -38,6 +47,11 @@ const TableCell = memo(function TableCell({
   // The read-only stand (view / published): the cell's activation layer's
   // stand is off (the cell is not editable there).
   const { viewMode } = useEditorContext();
+  // The cell range's stand: the cell's corner grip (the rectangle's drag) and
+  // the cell's highlight inside the range.
+  const rangeHandlers = useTableCellRangeHandlers();
+  const rangeMask = useTableCellRangeMask(id);
+  const selected = (rangeMask & RANGE_SELECTED) !== 0;
   const children = cell !== undefined && cell.type === "table-cell" ? (cell.children ?? EMPTY_IDS) : EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children, "table-cell");
   if (cell === undefined || cell.type !== "table-cell") return null;
@@ -52,6 +66,7 @@ const TableCell = memo(function TableCell({
   const dragged = hasDrag && !dragShifted && !rowShifted;
   const style: CSSProperties = {
     ...(background !== undefined ? { background } : {}),
+    ...(selected && !dragged ? { background: "var(--docblocks-table-range-background)" } : {}),
     ...(dragged && background === undefined
       ? { background: "var(--docblocks-table-drag-background, transparent)" }
       : {}),
@@ -74,16 +89,45 @@ const TableCell = memo(function TableCell({
         }
       : {}),
   };
+  // The range's frame: the rectangle's boundary stands the selection border
+  // over the cells the edges touch (the other edges stay the cell's own
+  // border) — one inset shadow per boundary side, merged with the drag's.
+  const frameEdges = [
+    ...((rangeMask & RANGE_EDGE_TOP) !== 0
+      ? [`inset 0 var(--docblocks-table-range-border-width) 0 0 var(--docblocks-table-range-border-color)`]
+      : []),
+    ...((rangeMask & RANGE_EDGE_BOTTOM) !== 0
+      ? [`inset 0 calc(-1 * var(--docblocks-table-range-border-width)) 0 0 var(--docblocks-table-range-border-color)`]
+      : []),
+    ...((rangeMask & RANGE_EDGE_LEFT) !== 0
+      ? [`inset var(--docblocks-table-range-border-width) 0 0 0 var(--docblocks-table-range-border-color)`]
+      : []),
+    ...((rangeMask & RANGE_EDGE_RIGHT) !== 0
+      ? [`inset calc(-1 * var(--docblocks-table-range-border-width)) 0 0 0 var(--docblocks-table-range-border-color)`]
+      : []),
+  ];
+  if (frameEdges.length > 0) {
+    style.boxShadow = [style.boxShadow, ...frameEdges].filter((part) => part !== undefined && part !== "").join(", ");
+  }
+
   // The cell's own content (the text-cell shape: the runs stand in
   // addition to the children blocks) renders as an editable layer above
   // the children; a wholly empty cell takes the activation layer.
   const hasOwnText = (cell.content ?? []).some((run) => run.text !== "");
+  // The merged region's spans: the anchor cell stands the region's rectangle
+  // over the grid columns and rows (the covered cells are absent from their
+  // rows — the browser's own table layout carries the geometry).
+  const colspan = cell.attrs?.colspan;
+  const rowspan = cell.attrs?.rowspan;
   return (
     <td
       data-slot="docblocks/table-cell"
       data-block-id={id}
+      colSpan={colspan !== undefined && colspan > 1 ? colspan : undefined}
+      rowSpan={rowspan !== undefined && rowspan > 1 ? rowspan : undefined}
+      data-range={selected ? "true" : undefined}
       className="
-        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
+        group/cell relative border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
         p-(--docblocks-table-cell-padding) align-top
       "
       style={style}
@@ -110,6 +154,23 @@ const TableCell = memo(function TableCell({
         ) : (
           <BlockGroups ids={children} />
         )}
+        {/* The range's corner grip (the cell rectangle's drag): the editing
+            stand only — the read-only modes keep the grid inert. */}
+        {rangeHandlers !== null && !viewMode ? (
+          <span
+            aria-hidden
+            data-slot="docblocks/table-cell-range-grip"
+            className="
+              absolute top-1 right-1 size-2 cursor-crosshair rounded-full bg-(--docblocks-table-border-color) opacity-0
+              transition-opacity
+              group-hover/cell:opacity-100
+            "
+            onPointerDown={rangeHandlers.onGripPointerDown(id)}
+            onPointerMove={rangeHandlers.onGripPointerMove}
+            onPointerUp={rangeHandlers.onGripPointerUp}
+            onPointerCancel={rangeHandlers.onGripPointerUp}
+          />
+        ) : null}
       </BlockContext.Provider>
     </td>
   );

@@ -23,11 +23,19 @@ export {
   UnknownRowError,
 } from "./errors";
 export { DEFAULT_TABLE_COLUMN_WIDTH } from "./commands";
-export type { ChangeBlockTypeArgs, InsertBlockArgs, InsertBlockPosition, MarkInput, ZOrderAction } from "./commands";
+export type {
+  ChangeBlockTypeArgs,
+  InsertBlockArgs,
+  InsertBlockPosition,
+  MarkInput,
+  TableGridPoint,
+  ZOrderAction,
+} from "./commands";
 export type { Change } from "./events";
 export { localOriginOf } from "./layout";
 export { undoManagerOf } from "./history";
 export { Doc, createDoc, fromJSON, loadDoc } from "./doc";
+export { resolveTableGrid } from "./read";
 export type { CreateDocOptions } from "./doc";
 export { SelectionView, createSelection } from "./selection";
 export type { Selection, TextPoint } from "./selection";

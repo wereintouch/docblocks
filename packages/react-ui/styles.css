@@ -232,6 +232,16 @@
      colors do not differ). */
   --docblocks-table-drag-background: var(--card, #ffffff);
   --docblocks-table-drag-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  /* The dragged cell range (the merge / split gesture's selection): the
+     canvas selection's cyan as the frame over a light tint of the same hue.
+     Declared once (the canvas selection's color follows the theme flip). */
+  --docblocks-table-range-background: color-mix(
+    in srgb,
+    var(--docblocks-canvas-selection-border-color) 22%,
+    transparent
+  );
+  --docblocks-table-range-border-color: var(--docblocks-canvas-selection-border-color);
+  --docblocks-table-range-border-width: 2px;
   /* The database grid's standard row height (the fixed row track: every
      column type stands the one height — the cell's trigger / the input fit
      the content box, the row never grows over its content). */

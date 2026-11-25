@@ -39,6 +39,7 @@ import {
   indentOfBlock,
   readCols,
 } from "./structure";
+import { standsInMergedRegion } from "./table/merges";
 import { CANVAS_ZORDER_TYPES, refreshSurfaceZIndex } from "./z-order";
 
 /** Inserts a new block under `at.parent` (default: root) after `at.after` (default: appended). */
@@ -173,6 +174,14 @@ function insertBlock(
     }
     if (cellCount >= cols) {
       throw new InvalidOperationError(`Row "${parentId}" already has ${cellCount} of ${cols} cells; the row is full.`);
+    }
+    // A merged region owns its rows' cells: the positional binding would
+    // land the new cell on a covered column (the region's cells come from
+    // splitTableCells, not the generic insert).
+    if (tableId !== null && standsInMergedRegion(ydoc, tableId, parentId)) {
+      throw new InvalidOperationError(
+        `Row "${parentId}" stands in a merged region; split the region before inserting a cell.`
+      );
     }
   }
 

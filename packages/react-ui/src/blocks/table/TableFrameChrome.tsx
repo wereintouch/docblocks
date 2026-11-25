@@ -17,11 +17,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
-import { ADD_BUTTON_CLASSES } from "./constants";
+import { ADD_BUTTON_CLASSES, HANDLE_ZONE } from "./constants";
 import type { HandleKind } from "./models";
 
 interface TableCellMenuStand {
   ctx: { x: number; y: number; cellId: BlockId } | null;
+  /** The merge stands over a selected rectangle of at least two cells. */
+  canMerge: boolean;
+  /** The split stands over a merged cell. */
+  canSplit: boolean;
+  onMergeCells: () => void;
+  onSplitCells: () => void;
   onOpenChange: (open: boolean) => void;
   onCopy: () => void;
   onPaste: () => void;
@@ -29,6 +35,10 @@ interface TableCellMenuStand {
 }
 
 interface TableFrameChromeProps {
+  /** The columns' total width (the removal overlay's span). */
+  tableWidth: number;
+  /** The rows' measured boxes (the removal overlay's stand). */
+  rowMetrics: { top: number; height: number }[];
   /** The read-only stand (view / published): the chrome stands no stand. */
   viewMode: boolean;
   insertTableRow: () => void;
@@ -44,6 +54,8 @@ interface TableFrameChromeProps {
 }
 
 function TableFrameChrome({
+  tableWidth,
+  rowMetrics,
   viewMode,
   insertTableRow,
   onAddChipPointerDown,
@@ -77,10 +89,34 @@ function TableFrameChrome({
           <Plus />
         </Button>
       )}
-      {/* The table's size stand (the columns x the rows' RESULTING size):
-          stands only during the add chips' drag (the add / remove's
-          preview — the count stands nonzero), the frame's top-left
-          corner (the handle band's free zone), muted. */}
+      {/* The rows a negative drag removes: the columns' stand (the muted
+          fill over the last rows) — the count rides the size stand. */}
+      {addPreview !== null && addPreview.kind === "row" && addPreview.count < 0
+        ? Array.from({ length: -addPreview.count }, (_, offset) => {
+            const metrics = rowMetrics[rowCount - 1 - offset];
+            if (metrics === undefined) return null;
+            return (
+              <div
+                key={`remove-row-${offset}`}
+                data-slot="docblocks/table-row-remove"
+                aria-hidden
+                className="pointer-events-none absolute bg-(--muted-foreground)/30"
+                style={{
+                  left: HANDLE_ZONE,
+                  top: HANDLE_ZONE + metrics.top,
+                  width: tableWidth,
+                  height: metrics.height,
+                }}
+              />
+            );
+          })
+        : null}
+      {/* The table's size stand (the columns x the rows' RESULTING size +
+          the drag's delta): stands only during the add chips' drag (the
+          add / remove's preview — the count stands nonzero), the frame's
+          top-left corner (the handle band's free zone), muted. The delta
+          makes the removal's count explicit (the dimmed rows stand which
+          ones go, the number stands how many). */}
       {addPreview !== null && addPreview.count !== 0 ? (
         <div
           data-slot="docblocks/table-size"
@@ -89,7 +125,9 @@ function TableFrameChrome({
         >
           {`${
             addPreview.kind === "column" ? columnCount + addPreview.count : columnCount
-          } × ${addPreview.kind === "row" ? rowCount + addPreview.count : rowCount}`}
+          } × ${addPreview.kind === "row" ? rowCount + addPreview.count : rowCount} ${
+            addPreview.count > 0 ? `+ ${addPreview.count}` : `− ${-addPreview.count}`
+          }`}
         </div>
       ) : null}
       <DropdownMenu modal={false} open={cellMenu.ctx !== null} onOpenChange={cellMenu.onOpenChange}>
@@ -106,6 +144,12 @@ function TableFrameChrome({
           sideOffset={4}
           onFocusOutside={preventDefault}
         >
+          <DropdownMenuItem disabled={!cellMenu.canMerge} onSelect={cellMenu.onMergeCells}>
+            {t("cell.merge")}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!cellMenu.canSplit} onSelect={cellMenu.onSplitCells}>
+            {t("cell.split")}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onCopy}>{t("common:copy")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onPaste}>{t("common:paste")}</DropdownMenuItem>
           <DropdownMenuItem onSelect={cellMenu.onClear}>{t("common:clear")}</DropdownMenuItem>

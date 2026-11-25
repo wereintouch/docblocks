@@ -32,6 +32,7 @@ export {
   duplicateTableRow,
   insertTableColumn,
   insertTableRow,
+  mergeTableCells,
   moveTableColumn,
   moveTableRow,
   removeTableColumn,
@@ -39,7 +40,9 @@ export {
   setTableColumnColor,
   setTableColumnWidth,
   setTableRowColor,
+  splitTableCells,
 } from "./table";
+export type { TableGridPoint } from "./table";
 export { deleteText, insertText } from "./text";
 export { deleteTextRange, setMarkRange } from "./text-range";
 export { changeBlockType } from "./types";

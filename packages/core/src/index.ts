@@ -30,6 +30,7 @@ export {
   UnknownColumnError,
   UnknownRowError,
   createSelection,
+  resolveTableGrid,
 } from "./core";
 export type {
   Change,
@@ -38,6 +39,7 @@ export type {
   InsertBlockPosition,
   MarkInput,
   Selection,
+  TableGridPoint,
   TextPoint,
   ZOrderAction,
 } from "./core";
@@ -61,6 +63,7 @@ export {
   PAGE_BLOCK_TYPES,
   flattenDoc,
   isHexColor,
+  isMergeableRect,
   isSafeEmbedSrc,
   isSafeLinkHref,
   linkHrefKindOf,
@@ -81,6 +84,9 @@ export type {
   BlockType,
   CalloutAttrs,
   CalloutBlock,
+  GridAnchor,
+  GridCellInput,
+  TableGrid,
   CanvasRef,
   CanvasTextAttrs,
   CanvasTextBlock,

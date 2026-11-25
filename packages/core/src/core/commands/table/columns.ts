@@ -40,6 +40,12 @@ import {
   tableOf,
   widthsMap,
 } from "./common";
+import {
+  assertColumnInsertAllowed,
+  assertColumnMoveAllowed,
+  columnRemovalStand,
+  shrinkColumnSpan,
+} from "./region-guards";
 
 /**
  * Inserts an empty column (a fresh column id, the default width, cells
@@ -56,6 +62,9 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
   const cols = columnOrder.length;
   if (at !== undefined) assertInsertIndex(at, cols, "Column");
   const index = at ?? cols;
+  // A column strictly inside a merged region's span would land a cell on a
+  // covered coordinate; the region's edges stay insertable.
+  assertColumnInsertAllowed(ydoc, tableId, index);
   const newColumnId = generateId();
   const rowIds = rows.toArray();
   localTransact(ydoc, () => {
@@ -101,8 +110,17 @@ function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
   assertIndex(index, cols, "Column");
   const columnId = columnOrder.toArray()[index]!;
   const rowIds = rows.toArray();
+  // A removed column inside a region's span shrinks the span; the region's
+  // own column (and any region's cell standing on it) rejects the removal.
+  const regions = columnRemovalStand(ydoc, tableId, index);
+  if (regions.blocking !== null) {
+    throw new InvalidOperationError(
+      `Column ${index} carries a merged region's cell (row ${regions.blocking.row}, columns ${regions.blocking.col}-${regions.blocking.col + regions.blocking.colspan - 1}); split the region before removing the column.`
+    );
+  }
   localTransact(ydoc, () => {
     const blocks = getBlocks(ydoc);
+    for (const region of regions.shrink) shrinkColumnSpan(ydoc, region);
     for (const rowId of rowIds) {
       const row = getBlockMap(ydoc, rowId);
       const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : undefined;
@@ -154,6 +172,10 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex > cols) {
     throw new InvalidRangeError(`toIndex must be an integer in [0, ${cols}] (got ${toIndex}).`);
   }
+  // A move through a merged region would silently shift the region's
+  // rectangle (the covered cells stand nowhere): the region locks its
+  // columns until it is split.
+  assertColumnMoveAllowed(ydoc, tableId, fromIndex, toIndex);
   const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
   const rowIds = rows.toArray();
   const columnId = columnOrder.toArray()[fromIndex]!;

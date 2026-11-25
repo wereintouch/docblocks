@@ -71,6 +71,8 @@ interface PaneDoc {
   clearTableColumn(tableId: string, index: number): void;
   setTableColumnColor(tableId: string, index: number, color: string | null): void;
   setTableColumnWidth(tableId: string, index: number, width: number): void;
+  mergeTableCells(tableId: string, first: { row: number; col: number }, second: { row: number; col: number }): void;
+  splitTableCells(tableId: string, row: number, col: number): void;
   removeBlock(id: string): void;
   undo(): void;
   redo(): void;

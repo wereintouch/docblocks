@@ -25,6 +25,8 @@
     "row": "Add row"
   },
   "cell": {
-    "options": "Cell options"
+    "options": "Cell options",
+    "merge": "Merge cells",
+    "split": "Split cells"
   }
 }

@@ -15,7 +15,7 @@ import type {
   TextRun,
 } from "@docblocks-core/schema";
 
-import type { ChangeBlockTypeArgs, InsertBlockArgs, MarkInput, ZOrderAction } from "../commands";
+import type { ChangeBlockTypeArgs, InsertBlockArgs, MarkInput, TableGridPoint, ZOrderAction } from "../commands";
 import type { Change } from "../events";
 import { undoManagerOf } from "../history";
 import type { TextPoint } from "../selection";
@@ -180,6 +180,14 @@ class Doc {
   }
   setTableColumnWidth(tableId: BlockId, index: number, width: number): void {
     table.setTableColumnWidth(this.#ydoc, tableId, index, width);
+  }
+  /** Merges the grid rectangle into its top-left cell (the covered cells and their content drop). */
+  mergeTableCells(tableId: BlockId, first: TableGridPoint, second: TableGridPoint): void {
+    table.mergeTableCells(this.#ydoc, tableId, first, second);
+  }
+  /** Splits the merged region containing the coordinate (the anchor keeps its content; the restored cells stand empty). */
+  splitTableCells(tableId: BlockId, row: number, col: number): void {
+    table.splitTableCells(this.#ydoc, this.#generateId, tableId, row, col);
   }
   setGeometry(id: BlockId, geometry: Partial<Geometry> | null): void {
     blocks.setGeometry(this.#ydoc, id, geometry);

@@ -13,6 +13,7 @@ import {
   duplicateTableRow as duplicateTableRowCommand,
   insertTableColumn as insertTableColumnCommand,
   insertTableRow as insertTableRowCommand,
+  mergeTableCells as mergeTableCellsCommand,
   moveTableColumn as moveTableColumnCommand,
   moveTableRow as moveTableRowCommand,
   removeTableColumn as removeTableColumnCommand,
@@ -20,7 +21,9 @@ import {
   setTableColumnColor as setTableColumnColorCommand,
   setTableColumnWidth as setTableColumnWidthCommand,
   setTableRowColor as setTableRowColorCommand,
+  splitTableCells as splitTableCellsCommand,
 } from "../commands";
+import type { TableGridPoint } from "../commands";
 
 /**
  * Inserts an empty row into a table at `at` (0 = the first row, the row
@@ -95,6 +98,20 @@ function setTableColumnWidth(ydoc: Y.Doc, tableId: BlockId, index: number, width
   setTableColumnWidthCommand(ydoc, tableId, index, width);
 }
 
+/**
+ * Merges the rectangle between the two grid corners into its top-left cell
+ * (the anchor carries the spans; the covered cells and their content are
+ * gone).
+ */
+function mergeTableCells(ydoc: Y.Doc, tableId: BlockId, first: TableGridPoint, second: TableGridPoint): void {
+  mergeTableCellsCommand(ydoc, tableId, first, second);
+}
+
+/** Splits the merged region containing the coordinate: the anchor keeps its content, the restored cells stand empty. */
+function splitTableCells(ydoc: Y.Doc, generateId: () => string, tableId: BlockId, row: number, col: number): void {
+  splitTableCellsCommand(ydoc, generateId, tableId, row, col);
+}
+
 export {
   clearTableColumn,
   clearTableRow,
@@ -102,6 +119,7 @@ export {
   duplicateTableRow,
   insertTableColumn,
   insertTableRow,
+  mergeTableCells,
   moveTableColumn,
   moveTableRow,
   removeTableColumn,
@@ -109,4 +127,5 @@ export {
   setTableColumnColor,
   setTableColumnWidth,
   setTableRowColor,
+  splitTableCells,
 };

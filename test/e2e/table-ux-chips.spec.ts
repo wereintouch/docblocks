@@ -3,7 +3,7 @@
 // updates).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, openPane, twoPanes } from "./helpers";
 
 // The two-pane's settle stands the default 30s budget at its edge (the 15s
 // SETTLE's panes + the page loads): the raised budget keeps the timeout
@@ -116,6 +116,19 @@ async function seedTable(
 
 const tableEl = (page: Page) => page.locator('table[data-slot="docblocks/table"]');
 
+/** The pane A root (the single-pane specs' selector). */
+const paneSelector = '[data-testid="doc-a"]';
+
+/** The last row's measured height (the add-row drag's step — the live geometry). */
+async function rowStepOf(page: Page): Promise<number> {
+  const heights = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="doc-a"] tbody > tr')].map((tr) => tr.getBoundingClientRect().height)
+  );
+  const last = heights[heights.length - 1];
+  if (last === undefined) throw new Error("the table's rows are absent");
+  return last;
+}
+
 /** The add chip's press + drag (the chip stands pointer-events-none until
  * the frame's hover — the first move over the chip's box seeds it). */
 async function dragAddChip(page: Page, slot: string, dx: number, dy: number): Promise<void> {
@@ -148,8 +161,9 @@ test("the add-row chip's drag appends / removes several rows (one undo step per 
     ]);
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
-    // The drag down 48 px = two rows (the step's 24 px): A and B.
-    await dragAddChip(a, "docblocks/table-add-row", 0, 48);
+    // The drag down two rows' heights (the step is the live row height): A and B.
+    const rowStep = await rowStepOf(a);
+    await dragAddChip(a, "docblocks/table-add-row", 0, rowStep * 2);
     await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.rows.length, SETTLE).toBe(4);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(4);
 
@@ -161,8 +175,19 @@ test("the add-row chip's drag appends / removes several rows (one undo step per 
     });
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(2);
 
-    // The drag up 24 px = one removal (the last row).
-    await dragAddChip(a, "docblocks/table-add-row", 0, -24);
+    // The drag up one row's height = one removal (the last row); the
+    // removal stands the columns' fill over the row it takes.
+    const rowChip = a.locator('[data-slot="docblocks/table-add-row"]');
+    const rowChipBox = await rowChip.boundingBox();
+    if (rowChipBox === null) throw new Error("the row chip has no box");
+    await a.mouse.move(rowChipBox.x + rowChipBox.width / 2, rowChipBox.y + rowChipBox.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(rowChipBox.x + rowChipBox.width / 2, rowChipBox.y + rowChipBox.height / 2 - rowStep, {
+      steps: 5,
+    });
+    await expect(a.locator('[data-slot="docblocks/table-row-remove"]')).toHaveCount(1);
+    await expect(a.locator('[data-slot="docblocks/table-size"]')).toHaveText("2 × 1 − 1");
+    await a.mouse.up();
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(1);
   } finally {
     await close();
@@ -196,10 +221,10 @@ test("the add-column chip's drag appends / removes several columns (the ghosts s
     await a.mouse.down();
     await a.mouse.move(cx + 100, cy);
     expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(1);
-    await expect(badge).toHaveText("3 × 2");
+    await expect(badge).toHaveText("3 × 2 + 1");
     await a.mouse.move(cx + 200, cy);
     expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(2);
-    await expect(badge).toHaveText("4 × 2");
+    await expect(badge).toHaveText("4 × 2 + 2");
     await a.mouse.up();
     await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.cols, SETTLE).toBe(4);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(4);
@@ -239,4 +264,29 @@ test("the add-column chip's drag appends / removes several columns (the ghosts s
   } finally {
     await close();
   }
+});
+
+test("the add-row chip stands centered under the table (the handle band's offset included)", async ({ page }) => {
+  await openPane(page, "a", `tbl-chip-center-${Math.random().toString(36).slice(2, 8)}`);
+  await page.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) throw new Error("the pane's doc is not mounted");
+    const tableId = doc.insertBlock("table", { cols: 3 });
+    for (let row = 0; row < 2; row += 1) {
+      const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+      for (let col = 0; col < 3; col += 1) doc.insertBlock("table-cell", undefined, { parent: rowId });
+    }
+  });
+  // The chip stands pointer-events-none until the frame's hover.
+  await page.locator(`${paneSelector} td[data-slot="docblocks/table-cell"]`).first().hover();
+  await expect(page.locator('[data-slot="docblocks/table-add-row"]')).toBeVisible();
+  const stand = await page.evaluate((selector) => {
+    const table = document.querySelector<HTMLElement>(`${selector} table[data-slot="docblocks/table"]`);
+    const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/table-add-row"]');
+    if (table === null || chip === null) throw new Error("the table / the chip is absent");
+    const tableBox = table.getBoundingClientRect();
+    const chipBox = chip.getBoundingClientRect();
+    return { tableCenter: tableBox.left + tableBox.width / 2, chipCenter: chipBox.left + chipBox.width / 2 };
+  }, paneSelector);
+  expect(Math.abs(stand.chipCenter - stand.tableCenter)).toBeLessThanOrEqual(1);
 });
