@@ -204,6 +204,17 @@ function useTableCellRangeWiring({ doc, tableId, tableEl }: UseCellRangeArgs) {
   );
   const range = useTableRangeOf(tableId);
   const { clearRange } = session;
+  // A structural change (a merge, a reorder, an insert) moves the cells the
+  // range's rectangles were read from: the selection resets rather than
+  // marking coordinates that no longer stand.
+  const { store } = useEditorContext();
+  const chromeStamp = useStore(store, (state) => state.chromeStamp);
+  const stampRef = useRef(chromeStamp);
+  useEffect(() => {
+    if (stampRef.current === chromeStamp) return;
+    stampRef.current = chromeStamp;
+    if (range !== null && range.tableId === tableId) clearRange();
+  }, [chromeStamp, range, tableId, clearRange]);
   useEffect(() => {
     if (range === null) return;
     const onKeyDown = (event: KeyboardEvent): void => {

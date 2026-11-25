@@ -17,6 +17,8 @@ interface UseTableMetricsArgs {
 interface TableMetrics {
   rowButtonLeft: number;
   rowMetrics: { top: number; height: number }[];
+  /** The table's rendered height (the last row's bottom) — the add-column chip centers on it. */
+  tableHeight: number;
 }
 
 function useTableMetrics({ scrollRef, tableWidth, rows }: UseTableMetricsArgs): TableMetrics {
@@ -61,7 +63,9 @@ function useTableMetrics({ scrollRef, tableWidth, rows }: UseTableMetricsArgs): 
     }
   }, [rows, tableWidth, scrollRef]);
 
-  return { rowButtonLeft, rowMetrics };
+  const tableHeight =
+    rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
+  return { rowButtonLeft, rowMetrics, tableHeight };
 }
 
 export { useTableMetrics };

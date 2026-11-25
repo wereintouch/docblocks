@@ -3,7 +3,7 @@
 // (a view-state slice — the doc stands untouched until a command), the cells
 // inside the range stand the selection tint, and the cell menu offers the
 // merge / split commands over the selection and the merged region.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDoc } from "docblocks-core";
@@ -225,6 +225,37 @@ describe("the merged regions over the range", () => {
     const editorRoot = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
     expect(editorRoot, "the editor root should render").not.toBeNull();
     fireEvent.pointerDown(editorRoot!);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(selectedCount()).toBe(0);
+  });
+});
+
+describe("the region's chrome stands", () => {
+  it("offers no reorder handle over a region's columns and rows", () => {
+    renderTable({ merge: true });
+    // The region covers columns 0..1 of the row 0: the handles stand for the
+    // free column 2 only.
+    const columnHandles = [...document.querySelectorAll('[data-slot="docblocks/table-col-handle"]')].map((el) =>
+      el.getAttribute("data-index")
+    );
+    expect(columnHandles).toEqual(["2"]);
+    // A rowspan region locks its rows: the plain row handles all stand here.
+    expect(document.querySelectorAll('[data-slot="docblocks/table-row-handle"]').length).toBe(3);
+  });
+
+  it("clears the range over a structural change (the rectangles go stale)", async () => {
+    const { doc, tableId } = renderTable();
+    standCellBoxes();
+    const drawn = drawnRows();
+    const grip = gripOf(drawn[0]![0]!);
+    fireEvent.pointerDown(grip, { pointerId: 31, ...pointOf(drawn[0]![0]!) });
+    fireEvent.pointerMove(grip, { pointerId: 31, ...pointOf(drawn[1]![0]!) });
+    fireEvent.pointerUp(grip, { pointerId: 31 });
+    expect(selectedCount()).toBeGreaterThan(1);
+    // An insert above the selection changes the grid under the range.
+    act(() => {
+      doc.insertTableRow(tableId, 0);
+    });
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(selectedCount()).toBe(0);
   });

@@ -37,7 +37,6 @@ import { EMPTY_IDS, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleKind, TableHandleSession } from "./models";
 import { columnCentersOf, columnDragTransformOf, rowDragTransformOf, seamXsOf } from "./table-drag-transforms";
 import { TableCellRangeContext } from "./table-range-context";
-import { useBlockedSeams } from "./use-blocked-seams";
 import { useTableAddChips } from "./use-table-add-chips";
 import { useTableCellMenu } from "./use-table-cell-menu";
 import { useTableCellRangeWiring } from "./use-table-cell-range";
@@ -45,6 +44,7 @@ import { useTableHandleActions } from "./use-table-handle-actions";
 import { useTableHandleDrag } from "./use-table-handle-drag";
 import { useTableHover } from "./use-table-hover";
 import { useTableMetrics } from "./use-table-metrics";
+import { useTableRegions } from "./use-table-regions";
 import { useTableSeamResize } from "./use-table-seam-resize";
 import { useTableStructureGuard } from "./use-table-structure-guard";
 
@@ -104,7 +104,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     id,
   });
 
-  const { rowButtonLeft, rowMetrics } = useTableMetrics({ scrollRef, tableWidth, rows });
+  const { rowButtonLeft, rowMetrics, tableHeight } = useTableMetrics({ scrollRef, tableWidth, rows });
 
   // The table element (the live DOM — the commit and the hover math read it).
   const tableEl = () => scrollRef.current?.querySelector<HTMLTableElement>(TABLE_ELEMENT_QUERY) ?? null;
@@ -137,18 +137,14 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // source — no DOM measurement for the columns) + the column seams' x.
   const columnCenters = columnCentersOf(widths);
   const seamXs = seamXsOf(widths);
-  // The interior column boundaries of a merged region (no seam there).
-  const blockedSeams = useBlockedSeams({ doc, tableId: id });
+  // The regions' chrome stands (no seam inside; no reorder handle over a
+  // spanned column / row).
+  const { blockedSeams, lockedColumns, lockedRows } = useTableRegions({ doc, tableId: id });
 
   // The open menu's structural guard (a concurrent restructure closes it).
   const closeMenuRef = (): void => setMenu(null);
   useTableStructureGuard(`${block.columnOrder.length}:${rows.join(",")}`, menu !== null, closeMenuRef);
 
-  // The table's rendered height (the row metrics' last bottom) — the
-  // add-column chip centers on the table, not the content (the 20 px handle
-  // band above would skew the content's center).
-  const tableHeight =
-    rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
   const columnTransforms = widths.map((_, index) => columnDragTransformOf(preview, index));
 
   const clearHover = () => setHover(null);
@@ -226,6 +222,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
           {!viewMode && (
             <>
               <TableHandles
+                lockedColumns={lockedColumns}
+                lockedRows={lockedRows}
                 tableId={id}
                 widths={widths}
                 rows={rows}

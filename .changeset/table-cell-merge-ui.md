@@ -18,3 +18,8 @@ The range's drag resolves the cell from the DOM boxes (never the top-most
 element — the table's chrome overlays the grid), selects whole regions (a
 rectangle never cuts a merged cell), stands no resize seam inside a region,
 and clears on a press over the document's content outside the table.
+
+A region's chrome offers nothing it cannot do: no resize seam inside the
+region, no reorder handle over a spanned column / row, and the cell range
+resets over a structural change (its rectangles were read from the cells'
+positions).

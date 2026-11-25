@@ -107,3 +107,44 @@ test("the read-only view renders the merged region without the editing chrome", 
   // the pin.
   await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-resize"]`)).toHaveCount(0);
 });
+
+test("a merged region locks its columns' handles and the range resets over a restructure", async ({ page }) => {
+  await openPane(page, "a", `table-merge-lock-${Math.random().toString(36).slice(2, 8)}`);
+  const tableId = await insertTable(page, "a");
+  const merge = await page.evaluate((id) => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) throw new Error("the pane's doc is not mounted");
+    doc.mergeTableCells(id, { row: 0, col: 0 }, { row: 0, col: 1 });
+    return doc.getChildren(doc.meta.id).length;
+  }, tableId);
+  expect(merge).toBeGreaterThan(0);
+
+  // The region covers the columns 0..1: no reorder handle stands there.
+  await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="0"]`)).toHaveCount(0);
+  await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="1"]`)).toHaveCount(0);
+  await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="2"]`)).toHaveCount(1);
+  // ...and no resize seam inside the region (its interior boundary).
+  await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-resize"][data-index="0"]`)).toHaveCount(0);
+
+  // The range over the region, then a structural change: the selection resets.
+  const anchor = page.locator(`${paneOf("a")} td[data-slot="docblocks/table-cell"]`).first();
+  await anchor.hover();
+  const grip = anchor.locator('[data-slot="docblocks/table-cell-range-grip"]');
+  const gripBox = await grip.boundingBox();
+  const below = await page
+    .locator(`${paneOf("a")} td[data-slot="docblocks/table-cell"]`)
+    .nth(1)
+    .boundingBox();
+  if (gripBox === null || below === null) throw new Error("the grip / the target box is absent");
+  await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(below.x + below.width / 2, below.y + below.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.locator(`${paneOf("a")} td[data-range="true"]`).first()).toBeVisible();
+
+  await page.evaluate((id) => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc !== null) doc.insertTableRow(id, 0);
+  }, tableId);
+  await expect(page.locator(`${paneOf("a")} td[data-range="true"]`)).toHaveCount(0, SETTLE);
+});
