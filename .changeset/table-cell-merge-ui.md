@@ -13,3 +13,8 @@ hover and the range read come from the resolver, not the DOM's
 `cellIndex`/`rowIndex`, so a merged cell's drawn position never lies. The
 read-only modes render the spans without the grip, the menu commands or the
 resizing chrome.
+
+The range's drag resolves the cell from the DOM boxes (never the top-most
+element — the table's chrome overlays the grid), selects whole regions (a
+rectangle never cuts a merged cell), stands no resize seam inside a region,
+and clears on a press over the document's content outside the table.

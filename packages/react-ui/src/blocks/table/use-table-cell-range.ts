@@ -33,19 +33,41 @@ function anchorOfId(doc: Doc, tableId: BlockId, cellId: BlockId): GridAnchor | n
   return null;
 }
 
-/** The grid rectangle between two cells' coordinates (the corners' stand). */
-function rangeBetween(
-  doc: Doc,
-  tableId: BlockId,
-  from: { row: number; col: number },
-  to: { row: number; col: number }
-): TableCellRange | null {
+/**
+ * The range between two anchor cells: their rectangles' union. A region the
+ * union touches joins it WHOLE (a selection never cuts a merged cell — a
+ * cut rectangle would show a frame in the middle of a region and a merge
+ * over it would take cells the reader did not select).
+ */
+function rangeOfAnchors(doc: Doc, tableId: BlockId, from: GridAnchor, to: GridAnchor): TableCellRange | null {
   const grid = resolveTableGrid(doc.raw, tableId);
   if (grid === null) return null;
-  const top = Math.min(from.row, to.row);
-  const bottom = Math.max(from.row, to.row);
-  const left = Math.min(from.col, to.col);
-  const right = Math.max(from.col, to.col);
+  let top = Math.min(from.row, to.row);
+  let left = Math.min(from.col, to.col);
+  let bottom = Math.max(from.row + from.rowspan - 1, to.row + to.rowspan - 1);
+  let right = Math.max(from.col + from.colspan - 1, to.col + to.colspan - 1);
+  for (let guard = 0; guard < 8; guard += 1) {
+    let grew = false;
+    for (const anchor of grid.anchorsIn(top, left, bottom, right)) {
+      if (anchor.row < top) {
+        top = anchor.row;
+        grew = true;
+      }
+      if (anchor.col < left) {
+        left = anchor.col;
+        grew = true;
+      }
+      if (anchor.row + anchor.rowspan - 1 > bottom) {
+        bottom = anchor.row + anchor.rowspan - 1;
+        grew = true;
+      }
+      if (anchor.col + anchor.colspan - 1 > right) {
+        right = anchor.col + anchor.colspan - 1;
+        grew = true;
+      }
+    }
+    if (!grew) break;
+  }
   const anchors = grid.anchorsIn(top, left, bottom, right);
   if (anchors.length === 0) return null;
   const cells: Record<BlockId, TableCellRangeRect> = {};
@@ -53,6 +75,24 @@ function rangeBetween(
     cells[anchor.id] = { row: anchor.row, col: anchor.col, colspan: anchor.colspan, rowspan: anchor.rowspan };
   }
   return { tableId, top, left, bottom, right, cellIds: anchors.map((anchor) => anchor.id), cells };
+}
+
+/**
+ * The cell whose BOX holds the point: the geometry's stand, never the
+ * top-most element — the table's chrome (the seams, the handles, the chips)
+ * overlays the grid, and a covered region's interior boundary stands no cell
+ * to hit. `null` when the point stands outside the cells.
+ */
+function cellAtPoint(table: HTMLTableElement | null, clientX: number, clientY: number): BlockId | null {
+  if (table === null) return null;
+  for (const td of table.querySelectorAll<HTMLTableCellElement>("td[data-block-id]")) {
+    const box = td.getBoundingClientRect();
+    if (box.width === 0 || box.height === 0) continue;
+    if (clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom) {
+      return td.dataset.blockId ?? null;
+    }
+  }
+  return null;
 }
 
 /** The table cell range's slice for one table (null when the range stands elsewhere / nowhere). */
@@ -98,10 +138,12 @@ function useSetTableCellRange(): (range: TableCellRange | null) => void {
 interface UseCellRangeArgs {
   doc: Doc;
   tableId: BlockId;
+  /** The live table element (the point hit-test's frame). */
+  tableEl: () => HTMLTableElement | null;
 }
 
 /** The grip's drag session over one table. */
-function useTableCellRange({ doc, tableId }: UseCellRangeArgs) {
+function useTableCellRange({ doc, tableId, tableEl }: UseCellRangeArgs) {
   const setRange = useSetTableCellRange();
   const sessionRef = useRef<CellRangeSession | null>(null);
 
@@ -112,8 +154,8 @@ function useTableCellRange({ doc, tableId }: UseCellRangeArgs) {
       event.preventDefault();
       event.stopPropagation();
       event.currentTarget.setPointerCapture(event.pointerId);
-      sessionRef.current = { pointerId: event.pointerId, origin: { row: anchor.row, col: anchor.col } };
-      setRange(rangeBetween(doc, tableId, sessionRef.current.origin, sessionRef.current.origin));
+      sessionRef.current = { pointerId: event.pointerId, origin: anchor };
+      setRange(rangeOfAnchors(doc, tableId, anchor, anchor));
     },
     [doc, tableId, setRange]
   );
@@ -122,15 +164,13 @@ function useTableCellRange({ doc, tableId }: UseCellRangeArgs) {
     (event: ReactPointerEvent<HTMLElement>) => {
       const session = sessionRef.current;
       if (session === null || session.pointerId !== event.pointerId) return;
-      const element = document.elementFromPoint(event.clientX, event.clientY);
-      const cell = element?.closest<HTMLElement>("td[data-block-id]");
-      const cellId = cell?.dataset.blockId;
-      if (cellId === undefined) return;
+      const cellId = cellAtPoint(tableEl(), event.clientX, event.clientY);
+      if (cellId === null) return; // outside the cells (the frame's padding): the range keeps its stand
       const anchor = anchorOfId(doc, tableId, cellId);
       if (anchor === null) return;
-      setRange(rangeBetween(doc, tableId, session.origin, { row: anchor.row, col: anchor.col }));
+      setRange(rangeOfAnchors(doc, tableId, session.origin, anchor));
     },
-    [doc, tableId, setRange]
+    [doc, tableId, setRange, tableEl]
   );
 
   const onGripPointerUp = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -152,8 +192,8 @@ function useTableCellRange({ doc, tableId }: UseCellRangeArgs) {
  * Escape cancel. The table component hands the handlers to the cells and
  * keeps the range's own read for the menu's stand.
  */
-function useTableCellRangeWiring({ doc, tableId }: UseCellRangeArgs) {
-  const session = useTableCellRange({ doc, tableId });
+function useTableCellRangeWiring({ doc, tableId, tableEl }: UseCellRangeArgs) {
+  const session = useTableCellRange({ doc, tableId, tableEl });
   const rangeHandlers = useMemo<TableCellRangeHandlers>(
     () => ({
       onGripPointerDown: session.onGripPointerDown,
@@ -169,16 +209,34 @@ function useTableCellRangeWiring({ doc, tableId }: UseCellRangeArgs) {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === "Escape") clearRange();
     };
+    // A press on the document's content outside the table's cells (an empty
+    // place, a paragraph, another table) clears the range. The portaled
+    // layers (the cell menu) and the consumer's chrome stand outside the
+    // editor root and never clear it — their own press is the menu's.
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const cell = target.closest("td[data-block-id]");
+      if (cell !== null && cell.closest(`[data-block-id="${tableId}"]`) !== null) return;
+      if (target.closest('[data-slot="docblocks/editor"]') === null) return;
+      if (cell === null && target.closest(`[data-block-id="${tableId}"]`) !== null) return;
+      clearRange();
+    };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [range, clearRange]);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [range, tableId, clearRange]);
   return { rangeHandlers, range };
 }
 
 export {
   anchorOfId,
+  cellAtPoint,
   clearTableRangeOnEscape,
-  rangeBetween,
+  rangeOfAnchors,
   useSetTableCellRange,
   RANGE_EDGE_BOTTOM,
   RANGE_EDGE_LEFT,

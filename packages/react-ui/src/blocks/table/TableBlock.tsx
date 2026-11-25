@@ -37,6 +37,7 @@ import { EMPTY_IDS, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleKind, TableHandleSession } from "./models";
 import { columnCentersOf, columnDragTransformOf, rowDragTransformOf, seamXsOf } from "./table-drag-transforms";
 import { TableCellRangeContext } from "./table-range-context";
+import { useBlockedSeams } from "./use-blocked-seams";
 import { useTableAddChips } from "./use-table-add-chips";
 import { useTableCellMenu } from "./use-table-cell-menu";
 import { useTableCellRangeWiring } from "./use-table-cell-range";
@@ -115,7 +116,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     useTableHandleDrag({ sessionRef, setHover, setMenu, tableEl, doc, rows, block, id });
 
   // The cell range's grip session (the merge / split gesture's stand).
-  const { rangeHandlers } = useTableCellRangeWiring({ doc, tableId: id });
+  const { rangeHandlers } = useTableCellRangeWiring({ doc, tableId: id, tableEl });
 
   const { ctx, closeCtx, onCellClear, onCellCopy, onCellPaste, onTableContextMenu, ...cellMenuRange } =
     useTableCellMenu({
@@ -136,6 +137,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // source — no DOM measurement for the columns) + the column seams' x.
   const columnCenters = columnCentersOf(widths);
   const seamXs = seamXsOf(widths);
+  // The interior column boundaries of a merged region (no seam there).
+  const blockedSeams = useBlockedSeams({ doc, tableId: id });
 
   // The open menu's structural guard (a concurrent restructure closes it).
   const closeMenuRef = (): void => setMenu(null);
@@ -244,6 +247,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 palette={palette}
               />
               <TableSeams
+                blockedSeams={blockedSeams}
                 widths={widths}
                 tableWidth={tableWidth}
                 tableHeight={tableHeight}

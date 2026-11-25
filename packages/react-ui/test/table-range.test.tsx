@@ -54,6 +54,32 @@ function drawnRows(): HTMLTableCellElement[][] {
   ]);
 }
 
+/** jsdom computes no layout: stand a unique box per drawn cell (the range's
+ *  hit test reads the boxes, not the top-most element). */
+function standCellBoxes(): void {
+  const cells = [...document.querySelectorAll<HTMLElement>("td[data-slot='docblocks/table-cell']")];
+  cells.forEach((cell, index) => {
+    cell.getBoundingClientRect = () =>
+      ({
+        left: index * 100,
+        right: index * 100 + 90,
+        top: index * 60,
+        bottom: index * 60 + 50,
+        width: 90,
+        height: 50,
+        x: index * 100,
+        y: index * 60,
+        toJSON: () => ({}),
+      }) as DOMRect;
+  });
+}
+
+/** The pointer point over the cell's box (the stubbed geometry). */
+function pointOf(cell: HTMLElement): { clientX: number; clientY: number } {
+  const box = cell.getBoundingClientRect();
+  return { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
+}
+
 function gripOf(cell: HTMLElement): HTMLElement {
   const grip = cell.querySelector<HTMLElement>('[data-slot="docblocks/table-cell-range-grip"]');
   expect(grip, "the cell's range grip should render").not.toBeNull();
@@ -94,12 +120,11 @@ describe("the table cell range", () => {
 
   it("selects the rectangle between the grip's cell and the pointer's cell", async () => {
     renderTable();
+    standCellBoxes();
     const drawn = drawnRows();
-    const target = drawn[1]![1]!;
     const grip = gripOf(drawn[0]![0]!);
-    document.elementFromPoint = () => target;
-    fireEvent.pointerDown(grip, { pointerId: 7, clientX: 10, clientY: 10 });
-    fireEvent.pointerMove(grip, { pointerId: 7, clientX: 80, clientY: 60 });
+    fireEvent.pointerDown(grip, { pointerId: 7, ...pointOf(drawn[0]![0]!) });
+    fireEvent.pointerMove(grip, { pointerId: 7, ...pointOf(drawn[1]![1]!) });
     await new Promise((resolve) => setTimeout(resolve, 10));
     // The 2x2 rectangle's cells stand the tint; the doc stands untouched.
     expect(selectedCount()).toBe(4);
@@ -118,11 +143,11 @@ describe("the table cell range", () => {
 
   it("merges the selected rectangle over the cell menu (one undo step) and splits it back", async () => {
     const { doc, tableId } = renderTable();
+    standCellBoxes();
     const drawn = drawnRows();
     const grip = gripOf(drawn[0]![0]!);
-    document.elementFromPoint = () => drawn[0]![1]!;
-    fireEvent.pointerDown(grip, { pointerId: 3 });
-    fireEvent.pointerMove(grip, { pointerId: 3 });
+    fireEvent.pointerDown(grip, { pointerId: 3, ...pointOf(drawn[0]![0]!) });
+    fireEvent.pointerMove(grip, { pointerId: 3, ...pointOf(drawn[0]![1]!) });
     fireEvent.pointerUp(grip, { pointerId: 3 });
 
     rightClick(drawn[0]![0]!);
@@ -154,5 +179,53 @@ describe("the table cell range", () => {
     expect(merge.getAttribute("aria-disabled")).toBe("true");
     const split = await menuItem("Split cells");
     expect(split.getAttribute("aria-disabled")).toBe("true");
+  });
+});
+
+describe("the merged regions over the range", () => {
+  it("stands no seam inside a region (the interior boundary is not resizable)", () => {
+    renderTable({ merge: true });
+    // The region covers the columns 0..1: the seam at its interior boundary
+    // (the right edge of column 0) is gone; the region's outer edge stays.
+    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="0"]')).toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="1"]')).not.toBeNull();
+  });
+
+  it("selects whole regions: a rectangle never cuts a merged cell", async () => {
+    renderTable({ merge: true });
+    standCellBoxes();
+    const drawn = drawnRows();
+    // The region's cell stands the first td; dragging from its grip over the
+    // cell below it selects the union of whole rectangles.
+    const grip = gripOf(drawn[0]![0]!);
+    fireEvent.pointerDown(grip, { pointerId: 11, ...pointOf(drawn[0]![0]!) });
+    fireEvent.pointerMove(grip, { pointerId: 11, ...pointOf(drawn[1]![0]!) });
+    fireEvent.pointerUp(grip, { pointerId: 11 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The region's two columns carry the rectangle: the region + both cells
+    // under it (the rect stands two grid columns wide, never cut).
+    expect(selectedCount()).toBe(3);
+    expect(drawn[0]![0]!.getAttribute("data-range")).toBe("true");
+    expect(drawn[1]![0]!.getAttribute("data-range")).toBe("true");
+    expect(drawn[1]![1]!.getAttribute("data-range")).toBe("true");
+    expect(drawn[0]![1]!.getAttribute("data-range")).toBeNull();
+  });
+
+  it("clears the range over a press outside the table's cells", async () => {
+    renderTable({ merge: true });
+    standCellBoxes();
+    const drawn = drawnRows();
+    const grip = gripOf(drawn[0]![0]!);
+    fireEvent.pointerDown(grip, { pointerId: 21, ...pointOf(drawn[0]![0]!) });
+    fireEvent.pointerMove(grip, { pointerId: 21, ...pointOf(drawn[2]![0]!) });
+    fireEvent.pointerUp(grip, { pointerId: 21 });
+    expect(selectedCount()).toBeGreaterThan(0);
+    // The press on the document's content outside the table (an empty place
+    // of the page) clears it; the portaled layers never do.
+    const editorRoot = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
+    expect(editorRoot, "the editor root should render").not.toBeNull();
+    fireEvent.pointerDown(editorRoot!);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(selectedCount()).toBe(0);
   });
 });

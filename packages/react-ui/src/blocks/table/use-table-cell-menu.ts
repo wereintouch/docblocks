@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
+import { isMergeableRect, resolveTableGrid } from "docblocks-core";
 import type { BlockId, Doc } from "docblocks-core";
 
 import { focusCaretIn } from "../../editing/block-commands";
@@ -103,8 +104,16 @@ function useTableCellMenu({ doc, tableId, viewMode, frameRef }: UseTableCellMenu
     clicked !== null && clicked.type === "table-cell"
       ? Math.max(clicked.attrs?.colspan ?? 1, clicked.attrs?.rowspan ?? 1)
       : 1;
-  /** The merge stands over a selected rectangle of at least two cells. */
-  const canMerge = range !== null && range.tableId === tableId && range.cellIds.length > 1;
+  /**
+   * The merge stands over a rectangle the command accepts — the same
+   * predicate the core reads, so the menu never offers a merge that would be
+   * rejected (or, worse, would take cells outside the selection).
+   */
+  const canMerge = ((): boolean => {
+    if (range === null || range.tableId !== tableId) return false;
+    const grid = resolveTableGrid(doc.raw, tableId);
+    return grid !== null && isMergeableRect(grid, range);
+  })();
   /** The split stands over a merged cell (the clicked one or the range's). */
   const canSplit = clickedSpan > 1 || (range !== null && range.cellIds.length === 1 && clickedSpan > 1);
 
