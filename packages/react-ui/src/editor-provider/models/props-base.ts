@@ -55,6 +55,19 @@ interface EditorProviderBaseProps {
    */
   blobLoading?: BlobLoading;
   /**
+   * The scroll container that scrolls the document, when the consumer
+   * renders the editor inside its own `overflow` box instead of the page
+   * scroll. The lazy blob resolution's preload band is measured against
+   * this element (an element clipped by an inner scroller never intersects
+   * a window-rooted observer, so the band would shrink to the visible
+   * area); the first screen's eager stand is measured against its box too.
+   *
+   * `null` (the default) stands the window — the page scroll. The value is
+   * read per render into the provider context: pass a stable reference. A
+   * nested provider that supplies none inherits the enclosing container.
+   */
+  scrollContainer?: Element | null;
+  /**
    * Optional database bridge: the consumer's implementation of the table
    * operations behind the external-form database blocks (the document
    * keeps only the `tableId` reference; the schema and the rows live in

@@ -9,6 +9,7 @@ import {
   enterBand,
   image,
   makeStore,
+  observers,
   placeholder,
   renderImage,
   resetLazyStand,
@@ -45,6 +46,23 @@ describe("the lazy image placeholder", () => {
     await act(async () => {});
 
     expect(placeholder()?.style.aspectRatio).toBe("");
+  });
+
+  it("frames the preload band on the consumer's scroll container", async () => {
+    standObservers();
+    standBelowFold();
+    const scroller = document.createElement("div");
+    // The scroller's visible box sits above the placeholder (the observer's
+    // path, not the first screen's).
+    scroller.getBoundingClientRect = () => ({ top: 0, bottom: 400 }) as DOMRect;
+    const { store } = makeStore({ meta: { name: "pic.png", mimeType: "image/png" }, getMeta: true });
+
+    renderImage(store, { scrollContainer: scroller });
+    await act(async () => {});
+
+    // The window-rooted observer never sees a box clipped by the inner
+    // scroller: the band and the above-the-fold measure take the root.
+    expect(observers[0]?.options?.root).toBe(scroller);
   });
 
   it("resolves the bytes over the read-only (view) mode", async () => {

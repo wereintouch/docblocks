@@ -54,6 +54,7 @@ function EditorProviderStand({
   blockRenderers,
   blobStore,
   blobLoading,
+  scrollContainer,
   databaseBridge,
   syncEmbedResolver,
   pdfPreview,
@@ -145,6 +146,10 @@ function EditorProviderStand({
   // enclosing one, else the lazy default.
   const effectiveBlobLoading = blobLoading ?? parentContext?.blobLoading ?? "lazy";
 
+  // The lazy resolution's band frame: the consumer's own scroll container,
+  // else the enclosing one, else the window's scroll.
+  const effectiveScrollContainer = scrollContainer ?? parentContext?.scrollContainer ?? null;
+
   // The effective database bridge: the explicit bridge wins, else the
   // enclosing one; without a bridge the external-form database blocks
   // render the disconnected placeholder (the inline form stands
@@ -163,6 +168,7 @@ function EditorProviderStand({
       renderers: blockRenderers ?? parent?.renderers ?? {},
       blobStore: effectiveBlobStore,
       blobLoading: effectiveBlobLoading,
+      scrollContainer: effectiveScrollContainer,
       databaseBridge: effectiveDatabaseBridge,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
@@ -190,6 +196,7 @@ function EditorProviderStand({
     blockRenderers,
     effectiveBlobStore,
     effectiveBlobLoading,
+    effectiveScrollContainer,
     effectiveDatabaseBridge,
     syncEmbedResolver,
     rootId,

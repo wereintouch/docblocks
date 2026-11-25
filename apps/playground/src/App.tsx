@@ -65,6 +65,7 @@ function App() {
     (heavy ? HEAVY_SYNC_URL : longdocCount > 0 ? LONGDOC_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
   const blobEager = params.get("blobEager") === "1";
+  const innerScroll = params.get("innerScroll") === "1";
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
   const tables = params.get("tables") === "1";
@@ -83,6 +84,7 @@ function App() {
       role={role}
       attrDemo={attrDemo}
       blobEager={blobEager}
+      innerScroll={innerScroll}
     />
   );
 }

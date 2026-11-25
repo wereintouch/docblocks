@@ -11,7 +11,7 @@ import {
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { PdfFirstPage } from "docblocks-react-ui/pdf";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 
 import type { Doc } from "docblocks-core";
@@ -105,6 +105,7 @@ function DocArea({
   syncEmbedResolver,
   catalog,
   blobEager,
+  innerScroll,
   coverPresetsOn,
   attrDemo,
   peerLetter,
@@ -121,6 +122,9 @@ function DocArea({
   syncEmbedResolver: SyncEmbedResolver | undefined;
   catalog: boolean;
   blobEager: boolean;
+  /** The pane's own box scrolls the document (the consumer's scroll
+   *  container — the provider's `scrollContainer`). */
+  innerScroll: boolean;
   coverPresetsOn: boolean;
   attrDemo: boolean;
   peerLetter: "a" | "b";
@@ -132,6 +136,18 @@ function DocArea({
    *  off-screen images as placeholders); `?blobEager=1` flips the dev
    *  harness's stand; the package's default is lazy. */
   const blobLoading: "eager" | "lazy" = catalog || blobEager ? "eager" : "lazy";
+
+  /** The inner-scroll stand's element: the pane's box lands at mount, so
+   *  the provider receives the scroll container over state (the prop is
+   *  read per render, not captured once). */
+  const [scrollContainer, setScrollContainer] = useState<Element | null>(null);
+  const areaRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      docAreaRef.current = node;
+      setScrollContainer(innerScroll ? node : null);
+    },
+    [docAreaRef, innerScroll]
+  );
 
   // The page flow's doc area: a fixed width over the wide window —
   // the box hugs the page column (the 1060 px's column — the 900 px
@@ -145,7 +161,7 @@ function DocArea({
   // utility CSS puts box-sizing: border-box on every element (the
   // preflight in the shipped styles.css's base layer): 702 content
   // + 2x1 border + 2x8 padding.
-  const docAreaStyle: CSSProperties =
+  const pageStyle: CSSProperties =
     view === "canvas"
       ? {
           // A definite height (not flex-derived: main is content-height, so a
@@ -171,8 +187,13 @@ function DocArea({
             minHeight: 40,
           };
 
+  // The pane's own scroll box (`?innerScroll=1`): the document scrolls inside
+  // the box instead of the page — the lazy resolution's band frames on it.
+  const docAreaStyle: CSSProperties =
+    innerScroll && view !== "canvas" ? { ...pageStyle, height: "calc(100vh - 72px)", overflowY: "auto" } : pageStyle;
+
   return (
-    <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle} className="cover-glow-host">
+    <div data-testid={`doc-${client}`} ref={areaRef} style={docAreaStyle} className="cover-glow-host">
       {role === "viewer" ? (
         // The viewer's security stand: the published snapshot is the
         // doc (the live document never reaches the reader's browser);
@@ -185,6 +206,7 @@ function DocArea({
           doc={publishedDoc ?? undefined}
           blobStore={blobStore}
           blobLoading={blobLoading}
+          scrollContainer={scrollContainer}
           databaseBridge={databaseBridge}
           blockRenderers={BLOCK_RENDERERS}
           pdfPreview={PdfFirstPage}
@@ -203,6 +225,7 @@ function DocArea({
             provider={runtime.provider}
             blobStore={blobStore}
             blobLoading={blobLoading}
+            scrollContainer={scrollContainer}
             databaseBridge={databaseBridge}
             blockRenderers={BLOCK_RENDERERS}
             syncEmbedResolver={syncEmbedResolver}

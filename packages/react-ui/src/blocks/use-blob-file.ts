@@ -61,8 +61,9 @@ interface BlobFileResult {
  * changes. The resolution stands in two phases: the metadata's lookup (the
  * store's opt-in `getMeta` — no body transfer) runs at mount, and the
  * bytes' fetch (`get` + the object URL) runs only once the placeholder's
- * box stands in the viewport's preload band — the viewport-gated lazy
- * loading. The gate waits for the head's metadata over a store that offers
+ * box stands in the viewport's preload band (framed by the consumer's
+ * `scrollContainer` when the document scrolls inside one) — the
+ * viewport-gated lazy loading. The gate waits for the head's metadata over a store that offers
  * it: the reserved aspect ratio is the layout the band's decision is made
  * on (a document of images resolves its first screen only).
  *
@@ -80,7 +81,7 @@ function useBlobFile(
   rendersBytes?: (mimeType: string) => boolean,
   options: BlobFileOptions = {}
 ): BlobFileResult {
-  const { blobStore } = useEditorContext();
+  const { blobStore, scrollContainer } = useEditorContext();
   // The store's optional head lookup (captured for the effect's closure —
   // its presence narrows the member type once, not per read).
   const getMeta = blobStore.getMeta;
@@ -99,6 +100,7 @@ function useBlobFile(
   const { ref: observeRef, inView } = useInView({
     disabled: options.eager === true,
     ready: headSettled,
+    root: scrollContainer,
   });
 
   // The gate's live stand: the effects below read it without re-running the

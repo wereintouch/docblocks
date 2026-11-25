@@ -45,6 +45,7 @@ function SyncPane({
   role,
   attrDemo,
   blobEager,
+  innerScroll,
   longdoc,
 }: {
   client: "a" | "b";
@@ -56,6 +57,7 @@ function SyncPane({
   role: "editor" | "viewer";
   attrDemo: boolean;
   blobEager: boolean;
+  innerScroll: boolean;
   /** The long-document seed's image count (0 when the mode stands off). */
   longdoc: number;
 }) {
@@ -195,6 +197,7 @@ function SyncPane({
           syncEmbedResolver={syncEmbedResolver}
           catalog={catalog}
           blobEager={blobEager}
+          innerScroll={innerScroll}
           coverPresetsOn={coverPresetsOn}
           attrDemo={attrDemo}
           peerLetter={peerLetter}

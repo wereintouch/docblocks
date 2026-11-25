@@ -29,6 +29,9 @@ interface EditorContextValue {
   /** The effective blob loading policy (the own prop, else the enclosing
    *  one, else "lazy"). */
   blobLoading: BlobLoading;
+  /** The consumer's scroll container (the `scrollContainer` provider prop);
+   *  `null` stands the window — the page scroll. */
+  scrollContainer: Element | null;
   /** The effective database bridge (the consumer's implementation);
    *  undefined when none was supplied — the external-form database blocks
    *  render the disconnected placeholder. */

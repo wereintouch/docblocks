@@ -441,6 +441,10 @@ between those ids and the stored objects:
 interface BlobMeta {
   name: string;
   mimeType: string;
+  /** The intrinsic dimensions: the lazy placeholder reserves the aspect
+   *  ratio from them (the landing shifts nothing). */
+  width?: number;
+  height?: number;
 }
 
 interface BlobStore {
@@ -469,6 +473,24 @@ interface BlobStore {
   `downloadUrl` — the blocks keep the legacy stand (the bytes over `get`,
   the object URL's href). Both members are optional: existing consumers and
   `createMemoryBlobStore` stand exactly the legacy behavior.
+- **The lazy resolution (the default):** the metadata's head lookup runs at
+  mount (the placeholder reserves the aspect ratio from `width`/`height`),
+  and the bytes resolve only once the block enters the preload band — the
+  viewport grown by the `--docblocks-image-preload-margin` token (200% by
+  default, two viewport heights on each side). The blocks standing in view
+  at mount resolve at once (the first screen's priority); a resolved view
+  never falls back to the placeholder on a store change, and outside the
+  band the bytes are not re-fetched. `blobLoading: "eager"` on the provider
+  resolves every block at mount (the pre-lazy behavior); `"lazy"` is the
+  default, and a nested provider inherits the enclosing policy.
+- **The scroll container** (`scrollContainer`): the preload band and the
+  first screen's measure are framed by this element when the consumer
+  scrolls the document inside its own `overflow` box instead of the page —
+  an element clipped by an inner scroller never intersects a window-rooted
+  observer, so the band would shrink to the visible area. `null` (the
+  default) frames the window; the value is read per render into the provider
+  context, so pass a stable reference (and the element itself may land after
+  the provider's first render — the band re-frames on it).
 - The file picker accepts arbitrary files. New `image/*` uploads create an
   `image` block; other MIME types, including `application/pdf`, create a
   `file` block. PDF files render through `pdfPreview` or the sandboxed native
