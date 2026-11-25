@@ -184,7 +184,9 @@ describe("the cover's direct-URL stand", () => {
     // The store's URL stands the cross-origin no-CORS read: its decode
     // rejects (the taint's stand), while the bytes' object URL decodes.
     const directProxy = new URL(DIRECT_URL, document.baseURI).href;
+    const attempts: string[] = [];
     (HTMLImageElement.prototype as { decode?: unknown }).decode = function (this: HTMLImageElement) {
+      attempts.push(this.src);
       return this.src === directProxy ? Promise.reject(new Error("tainted")) : Promise.resolve(this);
     };
     const { store, get } = makeDirectStore();
@@ -196,6 +198,11 @@ describe("the cover's direct-URL stand", () => {
     renderCover(store, {}, <TintProbe />);
     await flush();
 
+    // The store's URL stands the first read (the direct stand), the bytes'
+    // own object URL the second (the fallback).
+    await vi.waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts[0], "the store's URL stands the first read").toBe(directProxy);
+    expect(attempts[1], "the bytes' own url stands the fallback").toMatch(/^blob:/);
     expect(get, "the bytes' fallback should read the store").toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("tint-color").textContent).toBe("rgb(10, 20, 30)");
   });
