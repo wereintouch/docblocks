@@ -19,6 +19,9 @@ export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
 export { setOwn } from "./object-safety";
 export { attributeOrderNormalized } from "./attribute-order";
 export { CANVAS_ZORDER_TYPES, normalizeZOrder } from "./z-order";
+export { buildTableGrid, spanOfValue } from "./table-grid";
+export type { GridAnchor, GridCellInput, TableGrid, TableGridBuild } from "./table-grid";
+export { normalizeMerges } from "./table-merges";
 export {
   checkDatabaseCellValue,
   validateBlockAttrs,

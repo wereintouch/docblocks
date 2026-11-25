@@ -1,23 +1,20 @@
 /**
  * The table block's invariants: the `columnOrder`'s set + the
- * `columnWidths` mirror; the table-row's cell binding over the column's
- * position. Run from validateDoc.
+ * `columnWidths` mirror, and the row/cell grid — the cells' column bindings
+ * and the merged regions' spans. Run from validateDoc.
  */
 import { isReservedId } from "../../id-safety";
+import { buildTableGrid } from "../../table-grid";
+import type { GridCellInput } from "../../table-grid";
 import type { ValidationError } from "../models";
 import { isPlainObject } from "./common";
 
 /**
- * The table's invariants (once each): the column set + the width mirror;
- * every table row holds AT MOST the parent table's columnOrder cells, each
- * bound to its column by `columnId`.
+ * The table's invariants: the column set + the width mirror, and the grid —
+ * every row holds at most the table's column order cells, each bound to a
+ * column of it, and the merged regions fit the table's free coordinates.
  */
-function validateTableInvariants(
-  blocks: Record<string, unknown>,
-  firstParent: Map<string, { parentId: string; path: string }>,
-  referenceCount: Map<string, number>,
-  errors: ValidationError[]
-): void {
+function validateTableInvariants(blocks: Record<string, unknown>, errors: ValidationError[]): void {
   // The table's columnOrder invariants (once each): the column set (unique
   // non-empty ids), and the columnWidths mirror the set (one width per column).
   for (const [id, block] of Object.entries(blocks)) {
@@ -65,54 +62,84 @@ function validateTableInvariants(
     }
   }
 
-  // Every table row holds AT MOST the parent table's columnOrder cells,
-  // each bound to its column by `columnId`. A short row (fewer cells than
-  // columns) is a valid CRDT race residue: a row created before a
-  // concurrent column insert keeps its cell set, and the read/UI stands the
-  // missing cells as placeholders (the cells stand by id, not position). An
-  // overfull row is corrupt (a cell can exist only for a column that was in
-  // the columnOrder when it was written). On a full row, each cell's
-  // columnId must match its position in the columnOrder (the cells stand in
-  // columnOrder order).
-  for (const [id, block] of Object.entries(blocks)) {
-    if (!isPlainObject(block) || block.type !== "table-row") continue;
-    if (referenceCount.get(id) !== 1) continue; // missing/multiple parents are reported above
-    const reference = firstParent.get(id);
-    if (!reference) continue;
-    const parent = blocks[reference.parentId];
-    if (!isPlainObject(parent) || parent.type !== "table") continue;
-    const columnOrder = (parent as { columnOrder?: unknown }).columnOrder;
-    if (!Array.isArray(columnOrder)) continue; // invalid columnOrder is reported on the table
-    const columnIds = columnOrder as unknown[];
-    const children = block.children;
-    if (!Array.isArray(children)) {
-      errors.push({
-        path: `blocks.${id}.children`,
-        message: "A table row must carry a children array of cell ids.",
-      });
-      continue;
-    }
-    if (children.length > columnIds.length) {
-      errors.push({
-        path: `blocks.${id}.children`,
-        message: `A table row must not hold more than ${columnIds.length} cell(s); found ${children.length}.`,
-      });
-      continue;
-    }
-    if (children.length < columnIds.length) continue; // race residue: the read stands the missing cells as placeholders
-    // Full row: each cell's columnId matches its position in the columnOrder.
-    children.forEach((cellId, position) => {
-      const cell = blocks[cellId as string];
-      if (!isPlainObject(cell) || cell.type !== "table-cell") return; // missing/mis-typed cells are reported above
-      const columnId = (cell as { attrs?: { columnId?: unknown } }).attrs?.columnId;
-      const expected = columnIds[position];
-      if (columnId !== expected) {
+  // The rows' cells: each cell binds to a column of the table's columnOrder,
+  // and each merged region (the anchor cell's spans) stands inside the table
+  // over free coordinates. The grid resolver is the placement's single
+  // source: a row is legitimately shorter than the column set — the covered
+  // cells and the race residue leave gaps.
+  for (const block of Object.values(blocks)) {
+    if (!isPlainObject(block) || block.type !== "table") continue;
+    const columnOrder = (block as { columnOrder?: unknown }).columnOrder;
+    if (!Array.isArray(columnOrder)) continue; // reported above
+    const columnIds = columnOrder.filter((columnId): columnId is string => typeof columnId === "string");
+    if (columnIds.length !== columnOrder.length) continue; // reported above
+    const columnSet = new Set(columnIds);
+    const rowIds = Array.isArray((block as { children?: unknown }).children)
+      ? (block as { children: unknown[] }).children.filter((rowId): rowId is string => typeof rowId === "string")
+      : [];
+    const rows: GridCellInput[][] = [];
+    for (const rowId of rowIds) {
+      const row = blocks[rowId];
+      if (!isPlainObject(row) || row.type !== "table-row") {
+        rows.push([]); // a missing / mis-typed row stands the structure pass's report
+        continue;
+      }
+      const children = (row as { children?: unknown }).children;
+      if (!Array.isArray(children)) {
         errors.push({
-          path: `blocks.${cellId as string}.attrs.columnId`,
-          message: `The cell's columnId must stand ${JSON.stringify(expected)} (its position in the table's columnOrder); found ${JSON.stringify(columnId)}.`,
+          path: `blocks.${rowId}.children`,
+          message: "A table row must carry a children array of cell ids.",
+        });
+        rows.push([]);
+        continue;
+      }
+      if (children.length > columnIds.length) {
+        errors.push({
+          path: `blocks.${rowId}.children`,
+          message: `A table row must not hold more than ${columnIds.length} cell(s); found ${children.length}.`,
         });
       }
-    });
+      const cells: GridCellInput[] = [];
+      for (const cellId of children) {
+        if (typeof cellId !== "string") continue;
+        const cell = blocks[cellId];
+        if (!isPlainObject(cell) || cell.type !== "table-cell") continue; // the structure pass's stand
+        const attrs = isPlainObject(cell.attrs) ? (cell.attrs as Record<string, unknown>) : {};
+        const columnId = typeof attrs.columnId === "string" && attrs.columnId !== "" ? attrs.columnId : null;
+        if (columnId !== null && !columnSet.has(columnId)) {
+          errors.push({
+            path: `blocks.${cellId}.attrs.columnId`,
+            message: `The cell's columnId must stand a column of the table's columnOrder; found ${JSON.stringify(columnId)}.`,
+          });
+        }
+        cells.push({
+          id: cellId,
+          columnId,
+          colspan: typeof attrs.colspan === "number" ? attrs.colspan : 1,
+          rowspan: typeof attrs.rowspan === "number" ? attrs.rowspan : 1,
+        });
+      }
+      rows.push(cells);
+    }
+    const { clamped, collisions, overflow } = buildTableGrid(columnIds, rows);
+    for (const anchor of clamped) {
+      errors.push({
+        path: `blocks.${anchor.id}.attrs`,
+        message: `The cell's merged region must stand inside the table and over free cells; the span ${anchor.colspan} x ${anchor.rowspan} is what fits.`,
+      });
+    }
+    for (const cellId of collisions) {
+      errors.push({
+        path: `blocks.${cellId}.attrs.columnId`,
+        message: "Two cells stand in the same column of a table row (a merged region covers the cell's column).",
+      });
+    }
+    for (const cellId of overflow) {
+      errors.push({
+        path: `blocks.${cellId}.attrs`,
+        message: "The row's cells do not fit the table's free columns.",
+      });
+    }
   }
 }
 

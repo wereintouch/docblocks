@@ -84,6 +84,16 @@ interface CodeAttrs {
 interface TableCellAttrs {
   /** The column this cell belongs to (a `columnOrder` entry). Set automatically by the insert path (the cell's position in the row's columnOrder). */
   columnId?: string;
+  /**
+   * The merged region's column span (default 1): the anchor cell covers this
+   * many grid columns; the covered cells are absent from their rows.
+   */
+  colspan?: number;
+  /**
+   * The merged region's row span (default 1): the anchor cell covers this
+   * many table rows; the covered cells are absent from those rows.
+   */
+  rowspan?: number;
   align?: TextAlign;
   /** The column background color (hex); the display priority layer over the row color. */
   columnColor?: string;

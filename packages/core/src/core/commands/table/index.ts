@@ -15,6 +15,10 @@
  * Removing the LAST row or column converts the table into a plain
  * paragraph in place (the children are gone by then; the indent attr
  * stands).
+ *
+ * The cell grid's merge/split (mergeTableCells / splitTableCells) compose
+ * the same layout primitives over the grid resolver: the anchor cell carries
+ * the region's spans, the covered cells are gone.
  */
 export { DEFAULT_TABLE_COLUMN_WIDTH } from "./common";
 export {
@@ -34,3 +38,5 @@ export {
   removeTableRow,
   setTableRowColor,
 } from "./rows";
+export { mergeTableCells, splitTableCells } from "./merges";
+export type { TableGridPoint } from "./merges";

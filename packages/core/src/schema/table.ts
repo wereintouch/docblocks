@@ -21,12 +21,17 @@ interface TableBlock {
 
 interface TableRowBlock {
   type: "table-row";
-  /** `table-cell` blocks only; exactly the table `columnOrder.length` count. */
+  /**
+   * `table-cell` blocks only, at most `columnOrder.length` of them: the
+   * cells a merged region covers are absent from their row (the grid
+   * resolver places the remaining cells by their bindings).
+   */
   children?: BlockId[];
 }
 
 interface TableCellBlock {
   type: "table-cell";
+  /** The cell's attrs; a merged region's anchor carries `colspan`/`rowspan`. */
   attrs?: TableCellAttrs;
   /** Empty content is a valid (empty) cell. */
   content?: BlockContent;

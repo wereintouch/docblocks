@@ -237,7 +237,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
 
   // The table's invariants (the columnOrder's set + width mirror, the
   // table-row's cell binding over the column position).
-  validateTableInvariants(blocks, firstParent, referenceCount, errors);
+  validateTableInvariants(blocks, errors);
 
   return errors;
 }
