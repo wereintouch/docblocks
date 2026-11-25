@@ -3,14 +3,15 @@
 // dev servers (each with its own in-process relay on unique ports) and runs
 // them in parallel. The single vite+relay process is the suite's contention
 // point (the measured 2026-11: workers 4 on one server flakes under a loaded
-// machine, while 3 servers x 2 workers stands clean and ~45% faster).
+// machine, while 4 servers x 2 workers stands clean and ~55% faster; the
+// first flake appears at 5 shards).
 //
 // The split is a round-robin by file, not Playwright's contiguous --shard:
 // the heavy canvas files cluster alphabetically, and a contiguous chunk
 // lands them all in one shard (the wall clock's bounding shard).
 //
 // Usage: node scripts/e2e-shard.mjs
-//   SHARDS  — the shard count (default 3)
+//   SHARDS  — the shard count (default 4)
 //   WORKERS — the per-shard workers (default 2; total = SHARDS * WORKERS)
 //   RETRIES — the per-test retries (default 1, the local e2e's stand)
 //   SHARD_BASE_PORT — the first dev-server port (default 40000; the relay
@@ -23,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const repoRoot = path.resolve(here, "..");
 
-const SHARDS = Number(process.env.SHARDS ?? 3);
+const SHARDS = Number(process.env.SHARDS ?? 4);
 const WORKERS = Number(process.env.WORKERS ?? 2);
 const RETRIES = Number(process.env.RETRIES ?? 1);
 const BASE_VITE = Number(process.env.SHARD_BASE_PORT ?? 40000);

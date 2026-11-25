@@ -13,7 +13,7 @@ CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
 B ?= chromium
-SHARDS ?= 3
+SHARDS ?= 4
 WORKERS ?= 2
 
 NPM_TOKEN ?= $(shell awk '/^NPM_TOKEN=/ { sub(/^NPM_TOKEN=/, ""); print; exit }' .env 2>/dev/null | tr -d "\"'" | tr -d " \t")
@@ -78,7 +78,7 @@ unit: ## All unit tests (vitest, ~10s wall) — the e2e stands separate (make e2
 e2e: ## Playwright E2E over the chromium project (playground consumes react-ui from dist — make build first)
 	PLAYWRIGHT_RETRIES=1 npm run test:e2e
 
-e2e-shard: ## E2E sharded across N dev servers (SHARDS=3 WORKERS=2 — the loaded-machine's clean stand, ~45% faster)
+e2e-shard: ## E2E sharded across N dev servers (SHARDS=4 WORKERS=2 — the loaded-machine's clean stand, ~55% faster)
 	SHARDS=$(SHARDS) WORKERS=$(WORKERS) node scripts/e2e-shard.mjs
 
 e2e-ff: ## Playwright E2E over the firefox project
