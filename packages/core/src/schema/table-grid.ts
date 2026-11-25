@@ -169,5 +169,44 @@ function buildTableGrid(columnIds: readonly string[], rowsIn: readonly (readonly
   return { grid, clamped, collisions, overflow };
 }
 
-export { buildTableGrid, spanOfValue };
-export type { GridAnchor, GridCellInput, TableGrid, TableGridBuild };
+/** The grid rectangle (the coordinates inclusive). */
+interface GridRect {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+}
+
+/**
+ * Whether the grid rectangle merges into its top-left cell: it holds at
+ * least two cells, every coordinate stands a cell (no gap), the top-left
+ * coordinate is a cell's own anchor corner, and every region it touches lies
+ * WHOLE inside it (a rectangle that cuts a merged region is not mergeable —
+ * the region's cells stand as one). The merge command and the editor's menu
+ * share this predicate, so an offered merge is an applied merge.
+ */
+function isMergeableRect(grid: TableGrid, rect: GridRect): boolean {
+  const { top, left, bottom, right } = rect;
+  if (top < 0 || left < 0 || bottom >= grid.rowCount || right >= grid.cols) return false;
+  if (bottom < top || right < left) return false;
+  if ((bottom - top + 1) * (right - left + 1) < 2) return false;
+  const anchor = grid.cellAt(top, left);
+  if (anchor === null || anchor.row !== top || anchor.col !== left) return false;
+  for (let row = top; row <= bottom; row += 1) {
+    for (let col = left; col <= right; col += 1) {
+      if (grid.cellAt(row, col) === null) return false;
+    }
+  }
+  return grid
+    .anchorsIn(top, left, bottom, right)
+    .every(
+      (region) =>
+        region.row >= top &&
+        region.col >= left &&
+        region.row + region.rowspan - 1 <= bottom &&
+        region.col + region.colspan - 1 <= right
+    );
+}
+
+export { buildTableGrid, isMergeableRect, spanOfValue };
+export type { GridAnchor, GridCellInput, GridRect, TableGrid, TableGridBuild };

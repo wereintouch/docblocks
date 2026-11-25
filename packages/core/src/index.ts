@@ -63,6 +63,7 @@ export {
   PAGE_BLOCK_TYPES,
   flattenDoc,
   isHexColor,
+  isMergeableRect,
   isSafeEmbedSrc,
   isSafeLinkHref,
   linkHrefKindOf,

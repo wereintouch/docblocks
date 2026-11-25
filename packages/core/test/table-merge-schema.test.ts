@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
 import { createDoc, fromJSON, loadDoc } from "../src/core";
-import { buildTableGrid, normalizeMerges, validateDoc } from "../src/schema";
+import { buildTableGrid, isMergeableRect, normalizeMerges, validateDoc } from "../src/schema";
 import type { DocJSON } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -217,5 +217,43 @@ describe("buildTableGrid", () => {
     expect(collisionBuild.collisions).toEqual(["y"]);
     expect(collisionBuild.grid.cellAt(0, 1)?.id).toBe("x");
     expect(collisionBuild.grid.cellAt(0, 2)?.id).toBe("y");
+  });
+});
+
+describe("isMergeableRect", () => {
+  const build = (rows: Parameters<typeof buildTableGrid>[1], cols = 3) =>
+    buildTableGrid(["a", "b", "c"].slice(0, cols), rows).grid;
+
+  it("accepts a rectangle of whole cells and rejects a single cell", () => {
+    const grid = build([
+      [
+        { id: "x", columnId: "a", colspan: 1, rowspan: 1 },
+        { id: "y", columnId: "b", colspan: 1, rowspan: 1 },
+      ],
+    ]);
+    expect(isMergeableRect(grid, { top: 0, left: 0, bottom: 0, right: 1 })).toBe(true);
+    expect(isMergeableRect(grid, { top: 0, left: 0, bottom: 0, right: 0 })).toBe(false);
+  });
+
+  it("rejects a rectangle that cuts a merged region", () => {
+    // The region covers a..b; a rectangle over b..c would cut it.
+    const grid = build([
+      [
+        { id: "region", columnId: "a", colspan: 2, rowspan: 1 },
+        { id: "z", columnId: "c", colspan: 1, rowspan: 1 },
+      ],
+    ]);
+    expect(isMergeableRect(grid, { top: 0, left: 0, bottom: 0, right: 2 })).toBe(true);
+    expect(isMergeableRect(grid, { top: 0, left: 1, bottom: 0, right: 2 })).toBe(false);
+  });
+
+  it("rejects a rectangle over a gap and one out of the grid", () => {
+    // A short row: the second column stands no cell.
+    const grid = build([
+      [{ id: "x", columnId: "a", colspan: 1, rowspan: 1 }],
+      [{ id: "y", columnId: "a", colspan: 1, rowspan: 1 }],
+    ]);
+    expect(isMergeableRect(grid, { top: 0, left: 0, bottom: 1, right: 1 })).toBe(false);
+    expect(isMergeableRect(grid, { top: 0, left: 0, bottom: 2, right: 0 })).toBe(false);
   });
 });

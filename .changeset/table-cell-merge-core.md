@@ -17,3 +17,7 @@ column bindings; the strict validator checks the spans' bounds and overlaps
 instead of counting cells, and the read path re-derives a stale span
 (`normalizeMerges`) before validation, the same way the canvas z-order mirror
 is re-derived.
+
+`isMergeableRect(grid, rect)` stands the single mergeability predicate: the
+command validates a rectangle with it and the editor's menu reads the same
+stand, so an offered merge is an applied merge.

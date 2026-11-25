@@ -12,6 +12,8 @@
  */
 import * as Y from "yjs";
 
+import { isMergeableRect } from "@docblocks-core/schema";
+
 import { InvalidOperationError } from "../../errors";
 import { localTransact, writeBlock } from "../../layout";
 import { resolveTableGrid } from "../../read/table-grid";
@@ -58,9 +60,10 @@ function dropCell(ydoc: Y.Doc, rowId: string, cellId: string): void {
 
 /**
  * Merges the rectangle between the two grid corners into its top-left cell:
- * the rectangle must hold at least two cells, stand inside the table, cover
- * only existing cells, and every region it touches must lie entirely inside
- * it (a partial overlap of an existing region is rejected).
+ * the rectangle must hold at least two whole cells, stand inside the table,
+ * cover only existing cells, and every region it touches must lie entirely
+ * inside it (the `isMergeableRect` predicate — the editor's menu reads the
+ * same stand, so an offered merge is an applied merge).
  */
 function mergeTableCells(ydoc: Y.Doc, tableId: string, first: TableGridPoint, second: TableGridPoint): void {
   const grid = resolveTableGrid(ydoc, tableId);
@@ -69,27 +72,17 @@ function mergeTableCells(ydoc: Y.Doc, tableId: string, first: TableGridPoint, se
   const bottom = Math.max(first.row, second.row);
   const left = Math.min(first.col, second.col);
   const right = Math.max(first.col, second.col);
-  const standsInside = (row: number, col: number): boolean =>
-    Number.isInteger(row) && Number.isInteger(col) && row >= 0 && col >= 0 && row < grid.rowCount && col < grid.cols;
-  if (!standsInside(top, left) || !standsInside(bottom, right)) {
+  if (!Number.isInteger(top) || !Number.isInteger(left) || !Number.isInteger(bottom) || !Number.isInteger(right)) {
+    throw new InvalidOperationError("The merged region's corners must be integer grid coordinates.");
+  }
+  if (!isMergeableRect(grid, { top, left, bottom, right })) {
     throw new InvalidOperationError(
-      `The merged region stands outside the table (a ${grid.rowCount} x ${grid.cols} grid).`
+      "The rectangle is not mergeable: it must hold at least two whole cells inside the table's grid, " +
+        "with no gap under it, and every merged region it touches must lie entirely inside it."
     );
   }
-  if ((bottom - top + 1) * (right - left + 1) < 2) {
-    throw new InvalidOperationError("A merge covers at least two cells.");
-  }
   const anchor = grid.cellAt(top, left);
-  if (anchor === null || anchor.row !== top || anchor.col !== left) {
-    throw new InvalidOperationError("The merged region must start at its top-left cell (a region's left edge).");
-  }
-  for (let row = top; row <= bottom; row += 1) {
-    for (let col = left; col <= right; col += 1) {
-      if (grid.cellAt(row, col) === null) {
-        throw new InvalidOperationError(`The merged region covers a gap (row ${row}, column ${col} stands empty).`);
-      }
-    }
-  }
+  if (anchor === null) throw new InvalidOperationError("The rectangle's top-left coordinate stands no cell.");
   const covered = grid.anchorsIn(top, left, bottom, right);
   for (const region of covered) {
     const inside =
