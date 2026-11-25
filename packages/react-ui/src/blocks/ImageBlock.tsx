@@ -8,7 +8,7 @@ import { Card, CardContent } from "../shared/ui/Card";
 import { Image as ImageIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
 import { ImageFigure } from "./ImageFigure";
-import { BLOB_PLACEHOLDER_CLASS, blobPlaceholderAspect } from "./blob-styles";
+import { BLOB_PLACEHOLDER_CLASS, BLOB_PLACEHOLDER_CONTENT_CLASS, blobPlaceholderAspect } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
 /** The image block's renderable MIME (the bytes' stand): the image stands
@@ -56,7 +56,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         className={BLOB_PLACEHOLDER_CLASS}
         style={file.status === "loading" ? blobPlaceholderAspect(file.meta) : undefined}
       >
-        <CardContent className="flex flex-col items-center gap-2 text-center">
+        <CardContent className={BLOB_PLACEHOLDER_CONTENT_CLASS}>
           {file.status === "loading" ? (
             <LoaderCircle className="size-6 animate-spin" />
           ) : (

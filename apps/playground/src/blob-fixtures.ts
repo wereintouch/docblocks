@@ -7,6 +7,9 @@ const IMAGE_KEY = "demo-image";
  *  image heights — the windowing baseline's content). */
 const IMAGE_WIDE_KEY = "demo-image-wide";
 const IMAGE_TALL_KEY = "demo-image-tall";
+/** The banner fixture: a very wide intrinsic ratio (the placeholder's box
+ *  would outgrow the page column without a width clamp). */
+const IMAGE_BANNER_KEY = "demo-image-banner";
 /** The fixed generic attachment the catalog renders. */
 const CATALOG_FILE_KEY = "demo-file";
 
@@ -45,6 +48,17 @@ const BLOB_REFS: Record<string, BlobRef> = {
       { type: "image/svg+xml" }
     ),
     meta: { name: "tall.svg", mimeType: "image/svg+xml", width: 320, height: 240 },
+  },
+  // The banner's intrinsic ratio is far wider than the page column (the
+  // width clamp's fixture).
+  [IMAGE_BANNER_KEY]: {
+    blob: new Blob(
+      [
+        "<svg xmlns='http://www.w3.org/2000/svg' width='1132' height='43'><rect width='1132' height='43' fill='#8250df'/></svg>",
+      ],
+      { type: "image/svg+xml" }
+    ),
+    meta: { name: "banner.svg", mimeType: "image/svg+xml", width: 1132, height: 43 },
   },
 };
 
@@ -181,4 +195,4 @@ const blobStore: BlobStore = {
   remove: (fileId) => memoryBlobs.remove?.(fileId) ?? Promise.resolve(),
 };
 
-export { blobStore, CATALOG_FILE_KEY, DEMO_IMAGE_KEYS, IMAGE_KEY, coverPresets };
+export { blobStore, CATALOG_FILE_KEY, DEMO_IMAGE_KEYS, IMAGE_BANNER_KEY, IMAGE_KEY, coverPresets };
