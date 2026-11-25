@@ -40,14 +40,19 @@ interface BlobStore {
   /** Optional lightweight display resolution: file id → the metadata WITHOUT
    *  the bytes (the cheap head stand, no body transfer). The built-in
    *  file / image blocks resolve the bytes over `get` only when they render
-   *  the payload (the pdf preview, the `<img>`); any other MIME stands the
-   *  meta card with the `downloadUrl`'s href. Without the member the blocks
-   *  keep the legacy stand (the bytes over `get`). Rejects an unknown id
-   *  (the missing's stand). */
+   *  the payload (the pdf preview, the `<img>`'s fallback); any other MIME
+   *  stands the meta card with the `downloadUrl`'s href. Without the member
+   *  the blocks keep the legacy stand (the bytes over `get`). Rejects an
+   *  unknown id (the missing's stand). */
   getMeta?(fileId: string): Promise<BlobMeta>;
-  /** Optional direct download URL for a file id (the meta card's href — no
-   *  object URL stands). Without the member the download's href stands the
-   *  object URL resolved over `get` (the legacy's path). */
+  /** Optional direct URL for a file id (no object URL stands). The image
+   *  block renders an image MIME straight from it — the browser's own
+   *  cacheable subrequest instead of the bytes over `get` — and the meta
+   *  card stands it as the download's href; a store supplies it only when the
+   *  URL serves the payload inline (a `Content-Disposition: attachment`
+   *  response serves the download, not the `<img>`). Without the member the
+   *  download's href stands the object URL resolved over `get` (the
+   *  legacy's path). */
   downloadUrl?(fileId: string): string;
 }
 

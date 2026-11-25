@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BlobMeta, BlobRef } from "../blob-store";
 import { useEditorContext } from "../editor-provider";
 import { useInView } from "../shared/hooks/use-in-view";
+import { isSafeDownloadHref } from "../shared/utils";
 
 /**
  * The resolved file view: the blob, its authoritative metadata, and the
@@ -15,12 +16,17 @@ interface BlobView {
 }
 
 /**
- * The meta-only view: the authoritative metadata with the store's download
- * URL as the href — the bytes were never fetched (no object URL stands).
+ * The store-URL view: the authoritative metadata with the store's direct
+ * URL (`downloadUrl`) — the bytes never enter the JS heap and no object URL
+ * stands. The URL serves either the non-renderable payload's download card
+ * (`ready-meta`) or a renderable image's `src` (`ready-url` — the browser's
+ * own cacheable subrequest; a payload fetched into an object URL never
+ * reuses the native cache on WebKit).
  */
-interface BlobMetaView {
+interface BlobUrlView {
   meta: BlobMeta;
-  /** The download's href (the store's `downloadUrl`). */
+  /** The download's href (the `ready-meta` card) or the image's src (the
+   *  `ready-url` stand) — the store's `downloadUrl`. */
   url: string;
 }
 
@@ -32,20 +38,30 @@ interface BlobMetaView {
  * (the id stands no blob in this store — the cross-pane key's stand),
  * `ready` with the object URL over the resolved ref (the store change's
  * re-fetch keeps the previous view, so a rename's stand is the in-place
- * update, not the placeholder's flicker), and `ready-meta` over the
- * meta-only stand (the store's `getMeta` + `downloadUrl` — no bytes, no
- * object URL).
+ * update, not the placeholder's flicker), `ready-meta` over the meta-only
+ * stand (the store's `getMeta` + `downloadUrl` — no bytes, no object URL),
+ * and `ready-url` over the direct-URL stand (a renderable image the store's
+ * `downloadUrl` serves itself — the bytes' fetch is the browser's).
  */
 type BlobFileState =
   | { status: "loading"; meta: BlobMeta | null }
   | { status: "missing" }
   | ({ status: "ready" } & BlobView)
-  | ({ status: "ready-meta" } & BlobMetaView);
+  | ({ status: "ready-meta" } & BlobUrlView)
+  | ({ status: "ready-url" } & BlobUrlView);
+
+/** The store-URL view's resolved state (the card's href or the image's src). */
+type BlobUrlState = Extract<BlobFileState, { status: "ready-meta" | "ready-url" }>;
 
 interface BlobFileOptions {
   /** The eager stand: the bytes resolve at mount over the viewport gate's
    *  absence (the cover, the consumer's own gallery). */
   eager?: boolean;
+  /** The MIME predicate for the store's direct-URL stand: a `true` over a
+   *  store that supplies `downloadUrl` renders the block from that URL (the
+   *  browser's own cacheable subrequest) instead of fetching the bytes into
+   *  an object URL. Undeclared — every renderable MIME resolves the bytes. */
+  rendersFromUrl?: (mimeType: string) => boolean;
 }
 
 interface BlobFileResult {
@@ -68,13 +84,15 @@ interface BlobFileResult {
  * on (a document of images resolves its first screen only).
  *
  * With a `getMeta` member the non-renderable MIME (the predicate) stands
- * the meta-only view when the store supplies a `downloadUrl`; the
- * renderable MIME (and the absent `downloadUrl`) resolves the bytes over
- * `get` as before. Without `getMeta` the resolution stands the legacy
- * path's phases: no metadata before the bytes, the bytes over `get` once
- * the block is in view. A store change re-resolves over the current band,
- * and a view that already resolved never falls back to the placeholder
- * outside it.
+ * the meta-only view when the store supplies a `downloadUrl`; a renderable
+ * MIME the `rendersFromUrl` predicate claims stands the direct-URL view (the
+ * image's own `<img>` subrequest, no bytes in the JS heap) over the same
+ * store member; the remaining renderable MIME (and the absent
+ * `downloadUrl`) resolves the bytes over `get` as before. Without `getMeta`
+ * the resolution stands the legacy path's phases: no metadata before the
+ * bytes, the bytes over `get` once the block is in view. A store change
+ * re-resolves over the current band, and a view that already resolved never
+ * falls back to the placeholder outside it.
  */
 function useBlobFile(
   fileId: string,
@@ -85,8 +103,9 @@ function useBlobFile(
   // The store's optional head lookup (captured for the effect's closure —
   // its presence narrows the member type once, not per read).
   const getMeta = blobStore.getMeta;
+  const rendersFromUrl = options.rendersFromUrl;
   const [ref, setRef] = useState<BlobRef | null>(null);
-  const [metaView, setMetaView] = useState<BlobMetaView | null>(null);
+  const [urlView, setUrlView] = useState<BlobUrlState | null>(null);
   /** The head's metadata (the loading stand's aspect-ratio input). */
   const [headMeta, setHeadMeta] = useState<BlobMeta | null>(null);
   /** The resolution's rejection (the missing stand) — a resolve clears it. */
@@ -96,7 +115,7 @@ function useBlobFile(
   // The head's phase is in (or the store stands none): the gate's layout is
   // the one the placeholder reserves from the metadata.
   const headSettled =
-    options.eager === true || blobStore.getMeta === undefined || headMeta !== null || metaView !== null || failed;
+    options.eager === true || blobStore.getMeta === undefined || headMeta !== null || urlView !== null || failed;
   const { ref: observeRef, inView } = useInView({
     disabled: options.eager === true,
     ready: headSettled,
@@ -116,7 +135,7 @@ function useBlobFile(
     let alive = true;
     let sequence = 0;
     setRef(null);
-    setMetaView(null);
+    setUrlView(null);
     setHeadMeta(null);
     setFailed(false);
     loadedRef.current = false;
@@ -127,8 +146,8 @@ function useBlobFile(
     /** The head's in-flight request: a non-fresh load joins it instead of
      *  issuing a second lookup while one is pending. */
     let headRequest: Promise<BlobMeta> | null = null;
-    /** The head decided the meta-only card (no bytes stand over any band). */
-    let metaOnly = false;
+    /** The head decided a store-URL stand (no bytes stand over any band). */
+    let urlOnly = false;
 
     const load = async (freshHead: boolean): Promise<void> => {
       const request = ++sequence;
@@ -151,15 +170,34 @@ function useBlobFile(
             head = meta;
             setHeadMeta(meta);
             const downloadUrl = blobStore.downloadUrl;
-            if (downloadUrl !== undefined && rendersBytes !== undefined && !rendersBytes(meta.mimeType)) {
-              metaOnly = true;
+            const url = downloadUrl === undefined ? null : downloadUrl(fileId);
+            urlOnly = false;
+            if (url !== null && rendersBytes !== undefined && !rendersBytes(meta.mimeType)) {
+              urlOnly = true;
               setRef(null);
-              setMetaView({ meta, url: downloadUrl(fileId) });
+              setUrlView({ status: "ready-meta", meta, url });
               setFailed(false);
               return;
             }
-          } else if (metaOnly) {
-            // The head decided the meta-only card: its bytes never resolve.
+            // The renderable image stands the store's own URL: the browser
+            // fetches and caches it natively, so the block neither holds the
+            // bytes nor loses the response cache on the next mount. An
+            // executable scheme stands the bytes' path (the store's URL is
+            // untrusted — the download href's gate).
+            if (
+              url !== null &&
+              rendersFromUrl !== undefined &&
+              rendersFromUrl(meta.mimeType) &&
+              isSafeDownloadHref(url)
+            ) {
+              urlOnly = true;
+              setRef(null);
+              setUrlView({ status: "ready-url", meta, url });
+              setFailed(false);
+              return;
+            }
+          } else if (urlOnly) {
+            // The head decided a store-URL stand: its bytes never resolve.
             return;
           }
         }
@@ -171,14 +209,14 @@ function useBlobFile(
         if (!current()) return;
         loadedRef.current = true;
         setRef(next);
-        setMetaView(null);
+        setUrlView(null);
         setFailed(false);
       } catch {
         // The read's failure stands the failed card (the consumer's
         // notice) over a stale load's late stand — never a thrown render.
         if (!current()) return;
         setRef(null);
-        setMetaView(null);
+        setUrlView(null);
         setFailed(true);
       }
     };
@@ -196,7 +234,7 @@ function useBlobFile(
       alive = false;
       unsubscribe();
     };
-  }, [blobStore, fileId, rendersBytes]);
+  }, [blobStore, fileId, rendersBytes, rendersFromUrl]);
 
   useEffect(() => {
     inViewRef.current = inView;
@@ -220,10 +258,10 @@ function useBlobFile(
   }, [ref]);
 
   if (view !== null) return { state: { status: "ready", ...view }, ref: observeRef };
-  if (metaView !== null) return { state: { status: "ready-meta", ...metaView }, ref: observeRef };
+  if (urlView !== null) return { state: urlView, ref: observeRef };
   if (failed) return { state: { status: "missing" }, ref: observeRef };
   return { state: { status: "loading", meta: headMeta }, ref: observeRef };
 }
 
 export { useBlobFile };
-export type { BlobFileOptions, BlobFileResult, BlobFileState, BlobMetaView, BlobView };
+export type { BlobFileOptions, BlobFileResult, BlobFileState, BlobUrlView, BlobView };
