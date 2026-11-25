@@ -9,10 +9,10 @@ import { useTranslation } from "react-i18next";
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { useBlobFile } from "../blocks/use-blob-file";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
-import { COVER_MODE_ORDER, COVER_RENDERS_BYTES, coverModeGating, readImageDimensions } from "./cover";
-import type { CoverMode, ImageDimensions } from "./cover";
+import { COVER_MODE_ORDER, coverModeGating } from "./cover";
+import type { CoverMode } from "./cover";
+import { useCoverImage } from "./use-cover-image";
 
 /** The editor frame's selector (the width's measurement's source). */
 const EDITOR_SELECTOR = '[data-slot="docblocks/editor"]';
@@ -23,32 +23,15 @@ function CoverModeSelector({
   readOnly,
   onChange,
 }: {
-  /** The stored cover's file id (the dimensions' probe's source). */
+  /** The stored cover's file id (the resolution's / the dimensions' probe's
+   *  source). */
   coverId: string;
   mode: CoverMode;
   readOnly: boolean;
   onChange: (mode: CoverMode) => void;
 }) {
   const { t } = useTranslation("editor");
-  const { state: file } = useBlobFile(coverId, COVER_RENDERS_BYTES, { eager: true });
-  const blob = file.status === "ready" ? file.blob : null;
-
-  /** The intrinsic dimensions' probe (the gate's input — the undecodable's
-   *  payload keeps the gate's fail-open stand). */
-  const [dimensions, setDimensions] = useState<ImageDimensions | null>(null);
-  useLayoutEffect(() => {
-    if (blob === null) {
-      setDimensions(null);
-      return;
-    }
-    let alive = true;
-    void readImageDimensions(blob).then((next) => {
-      if (alive) setDimensions(next);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [blob]);
+  const { dimensions } = useCoverImage(coverId, { eager: true, measure: true });
 
   /** The editor frame's live width (the centering's gate's input): the
    *  anchor's nearest editor frame's box over the mount's measure + the

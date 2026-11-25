@@ -7,23 +7,23 @@
  *  over the scaled height). The banner is decoration only: the pointer's
  *  transparent stand keeps the page's selection and the cross-drag's
  *  stands untouched. The bottom's last pixels stand the fade-out's smooth
- *  stand into the page's content. */
+ *  stand into the page's content. The image stands the store's direct URL
+ *  when it supplies one (the browser's cacheable subrequest), the bytes'
+ *  object URL otherwise. */
 import { useStore } from "zustand";
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
 import {
   COVER_MAX_CENTER_HEIGHT_PX,
-  COVER_RENDERS_BYTES,
   centerBackgroundStyle,
   coverFadeMask,
   coverModeOf,
-  readImageDimensions,
   tileBackgroundStyle,
 } from "./cover";
-import type { CoverMode, ImageDimensions } from "./cover";
+import type { CoverMode } from "./cover";
+import { useCoverImage } from "./use-cover-image";
 
 function CoverBanner() {
   const { store } = useEditorContext();
@@ -35,29 +35,12 @@ function CoverBanner() {
 }
 
 /** The banner's body (the hooks' stand — the mount only over the cover's
- *  presence, so the resolution's hook never sees the empty's id). */
+ *  presence, so the resolution's hook never sees the empty's id). The
+ *  dimensions' probe runs over the centering only (the tile's fixed strip
+ *  needs no intrinsic size) — the store's direct URL serves the probe as it
+ *  serves the render. */
 function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }) {
-  const { state: file } = useBlobFile(coverId, COVER_RENDERS_BYTES, { eager: true });
-  const blob = file.status === "ready" ? file.blob : null;
-
-  /** The intrinsic dimensions' probe (the centering's slice's input — the
-   *  width's scale over the container; the undecodable's payload stands
-   *  the fallback's plain image's stand). The tile's stand needs no probe
-   *  (the fixed's strip's height is the layout's constant). */
-  const [dimensions, setDimensions] = useState<ImageDimensions | null>(null);
-  useLayoutEffect(() => {
-    if (blob === null || mode === "tile") {
-      setDimensions(null);
-      return;
-    }
-    let alive = true;
-    void readImageDimensions(blob).then((next) => {
-      if (alive) setDimensions(next);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [blob, mode]);
+  const { url, dimensions } = useCoverImage(coverId, { eager: true, measure: mode === "center" });
 
   /** The frame's live width (the centering's slice's height's input): the
    *  wrapper's own box (the full frame's width's stand) over the mount's
@@ -78,9 +61,9 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [file.status === "ready"]);
+  }, [url !== null]);
 
-  if (file.status !== "ready") return null;
+  if (url === null) return null;
 
   return (
     <div
@@ -102,15 +85,15 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
       {mode === "tile" ? (
         // The tile's stand: the fixed's strip (the height's constant — no
         // probe over the render's path).
-        <div className="w-full" style={tileBackgroundStyle(file.url)} />
+        <div className="w-full" style={tileBackgroundStyle(url)} />
       ) : dimensions === null ? (
         // The undecodable's legacy's cover's stand: the plain centered
         // image (the slice's decision needs the intrinsic dimensions).
         <div className="flex w-full justify-center">
-          <img src={file.url} alt="" className="max-w-full" style={{ maxHeight: COVER_MAX_CENTER_HEIGHT_PX }} />
+          <img src={url} alt="" className="max-w-full" style={{ maxHeight: COVER_MAX_CENTER_HEIGHT_PX }} />
         </div>
       ) : (
-        <div className="w-full" style={centerBackgroundStyle(dimensions, width, file.url)} />
+        <div className="w-full" style={centerBackgroundStyle(dimensions, width, url)} />
       )}
     </div>
   );

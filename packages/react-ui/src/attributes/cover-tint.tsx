@@ -9,25 +9,27 @@ import { useStore } from "zustand";
 import { useEffect, useState } from "react";
 
 import { useEditorContext } from "../editor-provider";
-import { COVER_TINT_VARIABLE, averageColorOfBlob } from "./cover";
+import { COVER_TINT_VARIABLE, averageColorOfUrl } from "./cover";
+import { useCoverImage } from "./use-cover-image";
 
 /**
  * The stored cover's average color (the frame's tint's / the consumer's
- * glow's data's source): the cover's blob resolved over the editor's blob
- * store, and the alpha-weighted average read from it — the `rgb(...)`'s
- * string or `null` over the absent's id / the unresolved's / the
- * undecodable's stand. The blob's identity's cache stands the
- * re-resolution's no re-compute (the store's change's new blob stands the
- * fresh entry).
+ * glow's data's source): the cover's resolved url drawn into the sample's
+ * canvas — the `rgb(...)`'s string or `null` over the absent's id / the
+ * unresolved's / the undecodable's stand. The resolved url is the store's
+ * direct URL when it supplies one; a cross-origin URL without CORS taints
+ * the canvas, so that read falls back to the fetched bytes' same-origin
+ * object URL (the library's own read).
  */
 function useCoverAverageColor(): string | null {
   const { store, blobStore } = useEditorContext();
   const attributes = useStore(store, (state) => state.meta.attributes);
   const coverId = typeof attributes?.cover === "string" ? attributes.cover : undefined;
+  const { url, source } = useCoverImage(coverId ?? "", { eager: true });
   const [color, setColor] = useState<string | null>(null);
 
   useEffect(() => {
-    if (coverId === undefined) {
+    if (url === null) {
       setColor(null);
       return;
     }
@@ -35,17 +37,39 @@ function useCoverAverageColor(): string | null {
     const settle = (next: string | null): void => {
       if (alive) setColor(next);
     };
-    const load = async (): Promise<void> => {
+    /**
+     * The bytes' read: the same-origin object URL (a `blob:` url never
+     * taints the canvas) — the fallback over a store URL the canvas cannot
+     * read, and the legacy resolution's own stand.
+     */
+    const readBytes = async (): Promise<void> => {
+      if (coverId === undefined) {
+        settle(null);
+        return;
+      }
+      let blobUrl: string | null = null;
       try {
         const ref = await blobStore.get(coverId);
-        settle(await averageColorOfBlob(ref.blob));
+        blobUrl = URL.createObjectURL(ref.blob);
+        settle(await averageColorOfUrl(blobUrl));
       } catch {
         // A failed read / decode stands the untinted frame (the border's
         // plain default), not a thrown render.
         settle(null);
+      } finally {
+        // The draw's source is the decoded image, not the url.
+        if (blobUrl !== null) URL.revokeObjectURL(blobUrl);
       }
     };
-    const unsubscribe = blobStore.subscribe(coverId, () => {
+    const load = async (): Promise<void> => {
+      const direct = await averageColorOfUrl(url);
+      if (direct !== null || source !== "url") {
+        settle(direct);
+        return;
+      }
+      await readBytes();
+    };
+    const unsubscribe = blobStore.subscribe(coverId ?? "", () => {
       void load();
     });
     void load();
@@ -53,7 +77,7 @@ function useCoverAverageColor(): string | null {
       alive = false;
       unsubscribe();
     };
-  }, [blobStore, coverId]);
+  }, [blobStore, coverId, url, source]);
 
   return color;
 }

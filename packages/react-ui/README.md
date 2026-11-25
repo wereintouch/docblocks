@@ -490,7 +490,11 @@ interface BlobStore {
   card only). PDF payloads stay on the bytes' path (the preview and the
   iframe read the bytes); without `getMeta` — the MIME is unknown before
   the bytes — or over an executable-scheme URL, an image keeps that path as
-  well.
+  well. The document attributes' cover stands the same contract: the
+  banner, the row's thumbnail and the preset cells render the store's URL,
+  and the intrinsic-dimension probe plus the frame's tint read that same
+  URL (a cross-origin URL without CORS taints the tint's canvas — the tint
+  falls back to the fetched bytes' same-origin object URL).
 - **The lazy resolution (the default):** the metadata's head lookup runs at
   mount (the placeholder reserves the aspect ratio from `width`/`height`),
   and the bytes resolve only once the block enters the preload band — the
@@ -918,7 +922,9 @@ value actually changes (the store's reference-stability contract):
 - `useCoverAverageColor()` — the stored cover's alpha-weighted average
   color (the `rgb(...)` string or `null` over the absent / the
   undecodable's stand) — the frame's tint's data and the consumer's
-  surroundings' glow's source.
+  surroundings' glow's source. The read stands over the cover's resolved
+  URL (the store's `downloadUrl` when supplied, the object URL otherwise);
+  a cross-origin URL without CORS falls back to the fetched bytes.
 - `useDatabaseTable(bridge, tableId, filter?)` — the external database
   block's grid controller (a consumer-owned grid over the bridge).
 

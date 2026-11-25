@@ -4,10 +4,9 @@
  * the anchor (the modal's measurement's source). */
 import { useTranslation } from "react-i18next";
 
-import { useBlobFile } from "../blocks/use-blob-file";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 import { Image } from "../shared/ui/icons";
-import { COVER_RENDERS_BYTES } from "./cover";
+import { useCoverImage } from "./use-cover-image";
 
 /** The editor frame's selector (the editor width's source — the measured
  *  frame's box over the anchor's nearest editor root). */
@@ -38,7 +37,7 @@ function CoverPresetCell({
   busy: boolean;
   onPick: () => void;
 }) {
-  const { state: file } = useBlobFile(fileId, COVER_RENDERS_BYTES, { eager: true });
+  const { status, url } = useCoverImage(fileId, { eager: true });
   return (
     <button
       type="button"
@@ -55,8 +54,8 @@ function CoverPresetCell({
         disabled:opacity-60
       "
     >
-      {file.status === "ready" ? (
-        <img src={file.url} alt="" className="size-full object-cover" />
+      {status === "ready" && url !== null ? (
+        <img src={url} alt="" className="size-full object-cover" />
       ) : (
         <Image className="size-4" />
       )}

@@ -92,7 +92,8 @@ interface BlobFileResult {
  * the resolution stands the legacy path's phases: no metadata before the
  * bytes, the bytes over `get` once the block is in view. A store change
  * re-resolves over the current band, and a view that already resolved never
- * falls back to the placeholder outside it.
+ * falls back to the placeholder outside it. An empty `fileId` stands the
+ * missing stand without a store read (an absent cover's row).
  */
 function useBlobFile(
   fileId: string,
@@ -139,6 +140,12 @@ function useBlobFile(
     setHeadMeta(null);
     setFailed(false);
     loadedRef.current = false;
+    // The empty id stands no store key (an absent cover's row): the missing
+    // stand without a read.
+    if (fileId === "") {
+      setFailed(true);
+      return;
+    }
 
     /** The head's resolved stand over this resolution's lifetime: the
      *  band's entry reuses it (the store's change re-reads it fresh). */
@@ -150,6 +157,7 @@ function useBlobFile(
     let urlOnly = false;
 
     const load = async (freshHead: boolean): Promise<void> => {
+      if (fileId === "") return;
       const request = ++sequence;
       const current = (): boolean => alive && request === sequence;
       try {
