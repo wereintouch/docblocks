@@ -2,9 +2,11 @@
  * The markdown paste parser (the `text/plain` paste branch): decomposes a
  * pasted markdown document or fragment into the v1 block set — headings,
  * paragraphs, lists (bullet/number/task, nesting via the flat `indent`
- * depth), quotes, fenced/indented code, dividers, GFM tables, standalone
- * images — with the inline marks (bold, italic, strike, code, link).
- * The `$$`/`$` math syntax is no longer parsed: it degrades to literal text.
+ * depth), quotes, fenced/indented code, dividers, GFM tables — with the
+ * inline marks (bold, italic, strike, code, link). The `$$`/`$` math syntax
+ * is no longer parsed: it degrades to literal text. A standalone image line
+ * drops (the html paste's `img` stand): the schema's image source is an
+ * opaque blob key, and the payload carries no bytes to store under one.
  *
  * The input is a pragmatic subset of CommonMark + GFM: block boundaries
  * are line-based (fences, the setext-vs-thematic `---` discriminator, the

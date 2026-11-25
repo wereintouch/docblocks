@@ -1,6 +1,9 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
-import { CATALOG_FILE_KEY, EMBED_SRC, seedCanvas, seedCatalogDatabase } from "./insert-blocks";
+import { CATALOG_FILE_KEY } from "./blob-fixtures";
+import { seedCatalogDatabase } from "./database-seed";
+import { EMBED_SRC } from "./insert-blocks";
+import { seedCanvas } from "./insert-canvas-demo";
 import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */

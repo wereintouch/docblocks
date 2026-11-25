@@ -239,9 +239,11 @@ describe("built-in renderers: code", () => {
 
   it("renders a divider as a styled <hr>", () => {
     renderDoc((doc) => doc.insertBlock("divider"));
-    const hr = document.querySelector('hr[data-slot="docblocks/divider"]');
-    expect(hr).not.toBeNull();
-    expect(hr!.getAttribute("data-block-type")).toBe("divider");
+    const wrapper = document.querySelector('[data-slot="docblocks/divider"]');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.getAttribute("data-block-type")).toBe("divider");
+    // The line: the inner hr (the box's centered stand).
+    expect(wrapper!.querySelector("hr")).not.toBeNull();
   });
 });
 

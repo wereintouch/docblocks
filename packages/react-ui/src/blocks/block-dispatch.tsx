@@ -110,16 +110,26 @@ function dispatchBuiltIn(
       );
     case "divider":
       return (
-        <hr
+        // The box's stand (the hover zone + the row's gutter controls'
+        // axis): the line is the box's center over the min-height (a
+        // margin over the line's element would collapse out of the row's
+        // box).
+        <div
           data-slot="docblocks/divider"
           data-block-type="divider"
           data-block-id={id}
           contentEditable={false}
           className="
-            m-(--docblocks-divider-margin) border-0 border-t-(length:--docblocks-divider-border-width)
-            border-t-(--docblocks-divider-border-color)
+            flex min-h-[calc(2*var(--docblocks-divider-margin)+var(--docblocks-divider-border-width))] w-full
+            items-center
           "
-        />
+        >
+          <hr
+            className="
+              w-full border-t-(length:--docblocks-divider-border-width) border-t-(--docblocks-divider-border-color)
+            "
+          />
+        </div>
       );
     case "image":
       return <ImageBlock id={id} block={block} />;

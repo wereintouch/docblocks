@@ -217,7 +217,10 @@
   /* Divider. */
   --docblocks-divider-border-color: var(--border, rgba(175, 184, 193, 0.4));
   --docblocks-divider-border-width: 1px;
-  --docblocks-divider-margin: 16px 0;
+  /* The spacing over the line (the block's box's min-height: the line
+     stands centered over the box — the hover zone's stand; the margin
+     stands 0, so the spacing never collapses out of the row's box). */
+  --docblocks-divider-margin: 20px;
 
   /* Table. */
   --docblocks-table-border-color: var(--border, rgba(175, 184, 193, 0.4));
@@ -535,6 +538,19 @@
 [data-docblocks-typing] [data-slot="docblocks/block"]:not([data-selected]) > [data-slot="docblocks/gutter"],
 [data-docblocks-typing] [data-slot="docblocks/list-item"]:not([data-selected]) > [data-slot="docblocks/gutter"] {
   opacity: 0;
+}
+
+/*
+ * The divider row's gutter controls: the row's box is the line's centered
+ * stand (the box's min-height — the first-line's offset stands the text
+ * rows only), so the controls center over the row (the line's axis). The
+ * unlayered rule outranks the utility's top offset.
+ */
+[data-slot="docblocks/row"][data-divider="true"] > [data-slot="docblocks/gutter"],
+[data-slot="docblocks/row"][data-divider="true"] > [data-slot="docblocks/gutter-plus"],
+[data-slot="docblocks/row"][data-divider="true"] > [data-slot="docblocks/gutter-delete"] {
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /*

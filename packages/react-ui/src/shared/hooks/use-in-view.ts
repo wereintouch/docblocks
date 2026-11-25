@@ -9,7 +9,13 @@
  *
  * The band is the viewport grown by the preload margin (the
  * `--docblocks-image-preload-margin` token — 200% by default, so the
- * network runs well before the element enters the frame). Without an
+ * network runs well before the element enters the frame). The band's frame
+ * is the observer's root: the window over the page scroll, or the
+ * consumer's own scroll container (`root`) when the document scrolls inside
+ * one — a window-rooted observer never sees an element clipped by the inner
+ * scroller, so the band degenerates to the visible area. The same root
+ * frames the mount's above-the-fold measure.
+ * Without an
  * `IntersectionObserver` in the runtime (SSR hydration, a test
  * environment) the hook reports in view: the resolution's eager fallback.
  */
@@ -30,6 +36,9 @@ interface UseInViewOptions {
    *  placeholder that reserves its height only after the metadata's
    *  lookup). */
   ready?: boolean;
+  /** The band's frame: the consumer's scroll container, or `null` for the
+   *  window (the page scroll). */
+  root?: Element | null;
 }
 
 interface InViewResult<T extends Element> {
@@ -47,14 +56,17 @@ function readPreloadMargin(node: Element): string {
   return value === "" ? DEFAULT_PRELOAD_MARGIN : value;
 }
 
-/** True when the element's box touches the viewport at the mount's stand. */
-function standsAboveFold(node: Element): boolean {
+/** True when the element's box touches the band's frame at the mount's
+ *  stand: the window's viewport, or the scroll container's box. */
+function standsAboveFold(node: Element, root: Element | null): boolean {
   const rect = node.getBoundingClientRect();
-  return rect.bottom > 0 && rect.top < window.innerHeight;
+  if (root === null) return rect.bottom > 0 && rect.top < window.innerHeight;
+  const frame = root.getBoundingClientRect();
+  return rect.bottom > frame.top && rect.top < frame.bottom;
 }
 
 function useInView<T extends Element = HTMLElement>(options: UseInViewOptions = {}): InViewResult<T> {
-  const { disabled = false, ready = true } = options;
+  const { disabled = false, ready = true, root = null } = options;
   // The observer is the only async source; without one the resolution runs
   // eagerly from the first render (the test environment's stand).
   const [inView, setInView] = useState<boolean>(() => disabled || typeof IntersectionObserver === "undefined");
@@ -75,7 +87,7 @@ function useInView<T extends Element = HTMLElement>(options: UseInViewOptions = 
     // The first screen's eager priority (the LCP's stand): the element that
     // already stands in the viewport resolves without waiting for the
     // observer's first callback.
-    if (standsAboveFold(node)) {
+    if (standsAboveFold(node, root)) {
       setInView(true);
       return;
     }
@@ -89,11 +101,11 @@ function useInView<T extends Element = HTMLElement>(options: UseInViewOptions = 
         if (entry.isIntersecting) observer.disconnect();
         setInView(entry.isIntersecting);
       },
-      { rootMargin: readPreloadMargin(node) }
+      { root, rootMargin: readPreloadMargin(node) }
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [disabled, ready]);
+  }, [disabled, ready, root]);
 
   return { ref, inView };
 }

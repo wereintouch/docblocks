@@ -72,4 +72,11 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
-export { canonicalJson, deepEqual, jsonSizeOf, physicalCompare, tableIdFor };
+/** The wire stand's deep clone (the JSON round-trip — the reads / the
+ *  receipts / the events stand plain copies, never the state's references).
+ */
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export { canonicalJson, clone, deepEqual, jsonSizeOf, physicalCompare, tableIdFor };

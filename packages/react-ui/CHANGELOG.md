@@ -1,5 +1,68 @@
 # docblocks-react-ui
 
+## 0.21.0
+
+### Minor Changes
+
+- 1dd5577: `EditorProvider` takes a `scrollContainer` prop: the element that scrolls
+  the document when the consumer renders the editor inside its own `overflow`
+  box instead of the page scroll. The lazy blob resolution's preload band is
+  an `IntersectionObserver` — an element clipped by an inner scroller never
+  intersects a window-rooted observer, so the band degenerated to the visible
+  area and the bytes resolved only once an image entered the view. The band
+  and the first screen's eager measure now frame on the passed container; a
+  nested provider inherits it, and `null` (the default) keeps the window
+  frame — the page-scroll consumers are unchanged.
+
+### Patch Changes
+
+- 258233c: The blob placeholder's box stays inside the page column and its content
+  stands centered. A figure whose intrinsic ratio is far wider than the
+  column (a 26:1 banner) let the loading placeholder outgrow the row on
+  Chromium — the box took its width from the inline `aspect-ratio` alone and
+  the document scroller grew a horizontal overflow; the shared placeholder
+  class now clamps the card to the row width. The placeholder's content (the
+  spinner + the label) is centered on both axes inside the reserved height
+  instead of sitting at the top edge — centered with auto margins, so a
+  reserved box shorter than the content keeps its top edge rather than
+  spilling above it.
+- 1e71630: A standalone markdown image line (`![alt](src)`) is dropped by the markdown
+  import and paste, the same stand the `text/html` paste already takes with
+  `<img>`: the document's image source is an opaque blob-store key, and a
+  markdown payload carries no bytes to store under one — the materialized
+  block took the source string verbatim (`img.png`, an external URL) and stood
+  a permanently broken `image` block whose store lookup never resolves. The
+  inline image in the middle of a line keeps its literal text. An imported
+  image becomes a real `image` block only through the consumer's upload.
+
+## 0.20.0
+
+### Minor Changes
+
+- 931b1ee: The divider's block box: the line stands centered over the block's box
+  (`min-height: 2 × --docblocks-divider-margin + the line's width`) instead
+  of the collapsed margin's 1px row — the row's hover zone stands the full
+  box, and the row's gutter controls (the grip, the plus, the delete) center
+  over the box's axis (the line's axis) instead of the first line's box.
+  The slotted element (`docblocks/divider`) stands the box — the line is
+  the inner `<hr>` (the former slotted `hr`). The `--docblocks-divider-margin`
+  token stands a single length (the spacing over the line, the default
+  16px → 20px) — the former two-value's shorthand stands removed.
+
+## 0.19.2
+
+### Patch Changes
+
+- 30a63b3: The divider block now renders its line over a Tailwind v4 consumer. The hr
+  carried `border-0` (the `border-width: 0` shorthand) next to the
+  `border-top-width` utility on the same element: over a consumer whose own
+  Tailwind build re-emits `.border-0` into the merged `@layer utilities`
+  (after the package's stylesheet), the shorthand won the cascade and zeroed
+  the top border width. The class no longer carries `border-0` — the other
+  sides stay zero over the preflight, and the top width has a single
+  declarer, so the line stands regardless of the consumer's `.border-0`
+  order.
+
 ## 0.19.1
 
 ### Patch Changes

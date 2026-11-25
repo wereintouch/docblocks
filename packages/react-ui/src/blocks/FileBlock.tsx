@@ -7,7 +7,7 @@ import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
 import { Card, CardContent } from "../shared/ui/Card";
 import { File as FileIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
-import { BLOB_PLACEHOLDER_CLASS, BLOB_PLACEHOLDER_SPACING } from "./blob-styles";
+import { BLOB_PLACEHOLDER_CLASS, BLOB_PLACEHOLDER_CONTENT_CLASS, BLOB_PLACEHOLDER_SPACING } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
 /** The file block's renderable MIME (the bytes' stand): the PDF stands the
@@ -44,7 +44,7 @@ function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
         aria-busy={view.status === "loading"}
         className={`${BLOB_PLACEHOLDER_CLASS} ${BLOB_PLACEHOLDER_SPACING}`}
       >
-        <CardContent className="flex flex-col items-center gap-2 text-center">
+        <CardContent className={BLOB_PLACEHOLDER_CONTENT_CLASS}>
           {view.status === "loading" ? (
             <LoaderCircle className="size-6 animate-spin" />
           ) : (

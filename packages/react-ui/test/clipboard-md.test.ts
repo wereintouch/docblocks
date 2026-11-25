@@ -69,14 +69,14 @@ describe("applyMdPaste: the block materialization", () => {
     expect(block.text).toBe("$$ x^2 $$");
   });
 
-  it("the standalone image lands with the src attr (verbatim)", () => {
+  it("the standalone image line lands nothing (the schema's src is a blob key)", () => {
     const { doc, seat } = docWithParagraph("");
     const landing = applyMdPaste(doc, seat, 0, 0, "![alt](https://x.com/img.png)");
     const blocks = rootBlocks(doc);
-    // the non-text landing at the sequence end: the trailing paragraph stands
-    expect(blocks.map((b) => b.type)).toEqual(["image", "paragraph"]);
-    expect(landing).toEqual({ blockId: doc.getChildren(doc.meta.id)[1], offset: 0 });
-    expect(blocks[0]!.attrs.src).toBe("https://x.com/img.png");
+    // The dropped line stands no block: the seat keeps its paragraph and the
+    // paste is a no-op (the caret stands where it was).
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph"]);
+    expect(landing).toBeNull();
   });
 
   it("the thematic break lands as the divider", () => {
@@ -169,13 +169,17 @@ describe("applyMdPaste: the caret-block split", () => {
     const seat = doc.insertBlock("paragraph", undefined, { parent: doc.meta.id, after: before });
     const follower = doc.insertBlock("paragraph", { indent: 1 }, { parent: doc.meta.id, after: seat });
     doc.insertText(follower, 0, "nested");
-    const landing = applyMdPaste(doc, seat, 0, 0, "![alt](x)");
+    const landing = applyMdPaste(doc, seat, 0, 0, "---");
     const blocks = rootBlocks(doc);
     // the seat stands (its derived segment would be cascaded by the
-    // removal); the image follows the seat; the follower stands
-    expect(blocks.map((b) => b.type)).toEqual(["paragraph", "paragraph", "image", "paragraph"]);
-    expect(blocks[3]!.text).toBe("nested");
-    // the non-text landing: the sibling after the image (the follower)
+    // removal); the divider follows the seat; the follower stands
+    expect(blocks.map((b) => [b.type, b.text])).toEqual([
+      ["paragraph", ""],
+      ["paragraph", ""],
+      ["divider", ""],
+      ["paragraph", "nested"],
+    ]);
+    // the non-text landing: the sibling after the divider (the follower)
     expect(landing).toEqual({ blockId: follower, offset: 0 });
   });
 });

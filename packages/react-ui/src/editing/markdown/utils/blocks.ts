@@ -219,11 +219,13 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
       continue;
     }
 
-    // The standalone image line.
-    const image = IMAGE_LINE.exec(line);
-    if (image !== null) {
+    // The standalone image line drops (the html paste's `img` stand): the
+    // schema's image source is an opaque blob key, and the markdown payload
+    // carries no bytes to store under one — a materialized block would never
+    // resolve. The inline image in the middle of a line keeps the literal
+    // text (the inline pass).
+    if (IMAGE_LINE.test(line)) {
       closeParagraph();
-      blocks.push({ type: "image", indent: 0, attrs: { src: image[2] }, runs: [] });
       i += 1;
       continue;
     }
@@ -270,13 +272,10 @@ function decodeRuns(runs: TextRun[]): TextRun[] {
   });
 }
 
-/** The entity decode over a parsed block (the runs, the table cells, the image src). */
+/** The entity decode over a parsed block (the runs, the table cells). */
 function decodeBlockEntities(block: MdPasteBlock): MdPasteBlock {
-  const attrs: Record<string, unknown> = { ...block.attrs };
-  if (block.type === "image" && typeof attrs.src === "string") attrs.src = decodeEntities(attrs.src);
   return {
     ...block,
-    attrs,
     runs: decodeRuns(block.runs),
     rows: block.rows !== undefined ? block.rows.map((row) => row.map(decodeRuns)) : undefined,
   };

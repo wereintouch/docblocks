@@ -18,7 +18,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   // value, so clear the `.dark` class explicitly.
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
   // The catalog is built locally on mount; the divider lands with it.
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
 }
 
 /** The pane's editor root. */
@@ -64,18 +64,16 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
   await expect(warning).toHaveCount(1);
   expect((await styleProps(warning, "border-left-color"))["border-left-color"]).toBe("rgb(154, 103, 0)");
 
-  // The divider: the margin token (the two-value shorthand — margin-top
-  // pins the token, margin-right the second value; the bottom margin is
-  // not pinned: the computed value of a collapsing margin is the used
-  // value after collapse) + the top border width/style.
-  const divider = doc.locator('hr[data-slot="docblocks/divider"]');
-  const dividerStyle = await styleProps(divider, "margin-top", "margin-right", "border-top-width", "border-top-style");
-  expect(dividerStyle).toEqual({
-    "margin-top": "16px",
-    "margin-right": "0px",
-    "border-top-width": "1px",
-    "border-top-style": "solid",
-  });
+  // The divider: the box's height (the margin token's two stands + the
+  // line — the line stands centered over the box, the hover zone's stand;
+  // the margin stands 0, so the spacing never collapses out of the box)
+  // + the line's border width/style (the inner hr).
+  const divider = doc.locator('[data-slot="docblocks/divider"]');
+  const dividerStyle = await styleProps(divider, "height", "margin-top");
+  expect(dividerStyle).toEqual({ height: "41px", "margin-top": "0px" });
+  const dividerLine = divider.locator("hr");
+  const lineStyle = await styleProps(dividerLine, "border-top-width", "border-top-style");
+  expect(lineStyle).toEqual({ "border-top-width": "1px", "border-top-style": "solid" });
 
   // The table: the collapsed borders + the cell width/padding tokens;
   // the fixed layout pins the explicit-layout contract.

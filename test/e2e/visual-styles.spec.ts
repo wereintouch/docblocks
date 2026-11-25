@@ -17,7 +17,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   // value, so clear the `.dark` class explicitly.
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
   // The catalog is built locally on mount; the divider lands with it.
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/divider"]')).toHaveCount(1);
 }
 
 /** The pane's editor root. */
@@ -240,7 +240,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   }
 
   // Divider.
-  expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
+  expect(await doc.locator('[data-slot="docblocks/divider"]').count()).toBe(1);
 
   // Nested under text: the flat model renders the indented segment as the
   // sequence's own rows (the per-level row step — no nested slot): the

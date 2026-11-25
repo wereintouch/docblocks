@@ -1,8 +1,8 @@
 import { createDoc } from "docblocks-core";
 import type { Doc } from "docblocks-core";
 
+import { DEMO_IMAGE_KEYS } from "./blob-fixtures";
 import { deterministicIdGenerator } from "./catalog";
-import { DEMO_IMAGE_KEYS } from "./insert-blocks";
 
 const DOC_ID = "d1";
 const DOC_CREATED_AT = "2026-01-01T00:00:00Z";

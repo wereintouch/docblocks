@@ -18,6 +18,7 @@ const IMAGE_ID = "img-1";
 
 interface ObserverRecord {
   callback: IntersectionObserverCallback;
+  options: IntersectionObserverInit | undefined;
   observed: Element[];
 }
 
@@ -26,8 +27,8 @@ const observers: ObserverRecord[] = [];
 class FakeIntersectionObserver {
   readonly record: ObserverRecord;
 
-  constructor(callback: IntersectionObserverCallback) {
-    this.record = { callback, observed: [] };
+  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+    this.record = { callback, options, observed: [] };
     observers.push(this.record);
   }
 
@@ -145,6 +146,7 @@ export {
   IMAGE_ID,
   enterBand,
   image,
+  imageDoc,
   makeStore,
   observers,
   placeholder,

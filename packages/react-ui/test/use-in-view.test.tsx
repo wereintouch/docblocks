@@ -44,17 +44,29 @@ function standObservers(): void {
 
 /** Every element's box sits at `top` (the fold's stand). */
 function standRect(top: number): void {
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rectAt(top, 100));
+}
+
+function rectAt(top: number, height: number): DOMRect {
+  return {
     top,
-    bottom: top + 100,
+    bottom: top + height,
     left: 0,
     right: 100,
     width: 100,
-    height: 100,
+    height,
     x: 0,
     y: top,
     toJSON: () => ({}),
-  } as DOMRect);
+  } as DOMRect;
+}
+
+/** A detached scroll container whose box stands at `top` (its own box wins
+ *  over the prototype's stand). */
+function scrollerAt(top: number, height: number): HTMLElement {
+  const scroller = document.createElement("div");
+  scroller.getBoundingClientRect = () => rectAt(top, height);
+  return scroller;
 }
 
 function enter(record: ObserverRecord, isIntersecting: boolean): void {
@@ -63,8 +75,8 @@ function enter(record: ObserverRecord, isIntersecting: boolean): void {
   });
 }
 
-function Probe() {
-  const { ref, inView } = useInView<HTMLDivElement>();
+function Probe({ root }: { root?: Element | null }) {
+  const { ref, inView } = useInView<HTMLDivElement>({ root });
   return <div ref={ref} data-slot="probe" data-in-view={inView ? "true" : "false"} />;
 }
 
@@ -147,5 +159,33 @@ describe("useInView", () => {
     expect(observers[0]!.disconnected).toBe(false);
     unmount();
     expect(observers[0]!.disconnected).toBe(true);
+  });
+
+  it("roots the band's observer on the supplied scroll container", () => {
+    standObservers();
+    standRect(2_000);
+    const scroller = scrollerAt(0, 400);
+    render(<Probe root={scroller} />);
+    expect(observers).toHaveLength(1);
+    expect(observers[0]!.options?.root).toBe(scroller);
+  });
+
+  it("measures the first screen against the scroll container's box", () => {
+    standObservers();
+    // Inside the window's viewport but below the scroller's visible bottom.
+    standRect(500);
+    const scroller = scrollerAt(0, 400);
+    render(<Probe root={scroller} />);
+    expect(probe().getAttribute("data-in-view")).toBe("false");
+    expect(observers).toHaveLength(1);
+  });
+
+  it("stands in view at once inside the scroll container's box", () => {
+    standObservers();
+    standRect(100);
+    const scroller = scrollerAt(0, 400);
+    render(<Probe root={scroller} />);
+    expect(probe().getAttribute("data-in-view")).toBe("true");
+    expect(observers).toHaveLength(0);
   });
 });

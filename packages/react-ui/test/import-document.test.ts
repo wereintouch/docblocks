@@ -77,6 +77,25 @@ describe("importDocument — the fresh-doc precondition", () => {
   });
 });
 
+describe("importDocument — the markdown image lines (the drop)", () => {
+  it("the image line stands no block (the html paste's `img` parity)", () => {
+    const doc = freshDoc();
+    importDocument(doc, "# T\n\n![pic](pic.png)\n\ntext", "markdown");
+    const types = doc.getChildren(doc.meta.id).map((id) => doc.getBlock(id)!.type);
+    expect(types).toEqual(["heading", "paragraph"]);
+  });
+
+  it("an image-only payload writes nothing and runs no transaction", () => {
+    const doc = freshDoc();
+    const changes: Change[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    importDocument(doc, "![pic](pic.png)", "markdown");
+    off();
+    expect(doc.getChildren(doc.meta.id)).toHaveLength(0);
+    expect(changes).toHaveLength(0);
+  });
+});
+
 describe("importDocument — the empty payload (the no-op)", () => {
   // The emptiness is per kind: the structural-tag payload is the literal
   // text over the markdown (the parser's degrade) and the nothing over the

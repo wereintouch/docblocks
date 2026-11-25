@@ -199,7 +199,7 @@ function materializePaste(
         }
       }
 
-      // The non-text landing at the sequence end (a table / image / divider):
+      // The non-text landing at the sequence end (a table / divider):
       // the trailing empty paragraph (the caret has nowhere to type otherwise
       // — the same contract as the slash divider).
       const sequenceNow = doc.getChildren(parentId);
@@ -232,7 +232,7 @@ function materializePaste(
 
   // The caret landing: the text landing is the end of the last pasted text
   // block (when it is the paste's last block); the non-text landing (a
-  // table / image / divider) seats in the sibling after the last pasted
+  // table / divider) seats in the sibling after the last pasted
   // block (the suffix or the trailing paragraph when the paste ends the
   // sequence — the trailing-paragraph logic guarantees the seat there).
   const lastPasted = prevId;
