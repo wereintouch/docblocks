@@ -172,8 +172,19 @@ test("the add-row chip's drag appends / removes several rows (one undo step per 
     });
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(2);
 
-    // The drag up one row's height = one removal (the last row).
-    await dragAddChip(a, "docblocks/table-add-row", 0, -rowStep);
+    // The drag up one row's height = one removal (the last row); the
+    // removal stands the columns' fill over the row it takes.
+    const rowChip = a.locator('[data-slot="docblocks/table-add-row"]');
+    const rowChipBox = await rowChip.boundingBox();
+    if (rowChipBox === null) throw new Error("the row chip has no box");
+    await a.mouse.move(rowChipBox.x + rowChipBox.width / 2, rowChipBox.y + rowChipBox.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(rowChipBox.x + rowChipBox.width / 2, rowChipBox.y + rowChipBox.height / 2 - rowStep, {
+      steps: 5,
+    });
+    await expect(a.locator('[data-slot="docblocks/table-row-remove"]')).toHaveCount(1);
+    await expect(a.locator('[data-slot="docblocks/table-size"]')).toHaveText("2 × 1 − 1");
+    await a.mouse.up();
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(1);
   } finally {
     await close();

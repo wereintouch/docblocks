@@ -109,11 +109,15 @@ describe("planSlashApply", () => {
     expect(planSlashApply(command("Heading 2"), block, "/head", 0, false)).toEqual({ kind: "replace" });
   });
 
-  it("is an insert for the table, never a convert: the caret block stands and the phrase is stripped", () => {
-    // A phrase-only block (the replace path would take its slot) converts
-    // in place: the table lands after it.
+  it("takes the empty block's slot for the table and strips the phrase over a text block", () => {
+    // A phrase-only block (no derived segment): the table replaces it — the
+    // grid never CONVERTS (it cannot take the block's text).
     const phraseOnly = textBlock("paragraph", "/tab");
-    expect(planSlashApply(command("Table"), phraseOnly, "/tab", 0, false)).toEqual({
+    expect(planSlashApply(command("Table"), phraseOnly, "/tab", 0, false)).toEqual({ kind: "replace" });
+    // A phrase-only block that owns a derived segment cannot be removed
+    // (the removal cascades its followers): the block stands, the table
+    // lands after it.
+    expect(planSlashApply(command("Table"), phraseOnly, "/tab", 0, true)).toEqual({
       kind: "update",
       deleteFrom: 0,
       deleteTo: 4,

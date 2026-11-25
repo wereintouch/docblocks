@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
-import { ADD_BUTTON_CLASSES } from "./constants";
+import { ADD_BUTTON_CLASSES, HANDLE_ZONE } from "./constants";
 import type { HandleKind } from "./models";
 
 interface TableCellMenuStand {
@@ -35,6 +35,10 @@ interface TableCellMenuStand {
 }
 
 interface TableFrameChromeProps {
+  /** The columns' total width (the removal overlay's span). */
+  tableWidth: number;
+  /** The rows' measured boxes (the removal overlay's stand). */
+  rowMetrics: { top: number; height: number }[];
   /** The read-only stand (view / published): the chrome stands no stand. */
   viewMode: boolean;
   insertTableRow: () => void;
@@ -50,6 +54,8 @@ interface TableFrameChromeProps {
 }
 
 function TableFrameChrome({
+  tableWidth,
+  rowMetrics,
   viewMode,
   insertTableRow,
   onAddChipPointerDown,
@@ -83,6 +89,28 @@ function TableFrameChrome({
           <Plus />
         </Button>
       )}
+      {/* The rows a negative drag removes: the columns' stand (the muted
+          fill over the last rows) — the count rides the size stand. */}
+      {addPreview !== null && addPreview.kind === "row" && addPreview.count < 0
+        ? Array.from({ length: -addPreview.count }, (_, offset) => {
+            const metrics = rowMetrics[rowCount - 1 - offset];
+            if (metrics === undefined) return null;
+            return (
+              <div
+                key={`remove-row-${offset}`}
+                data-slot="docblocks/table-row-remove"
+                aria-hidden
+                className="pointer-events-none absolute bg-(--muted-foreground)/30"
+                style={{
+                  left: HANDLE_ZONE,
+                  top: HANDLE_ZONE + metrics.top,
+                  width: tableWidth,
+                  height: metrics.height,
+                }}
+              />
+            );
+          })
+        : null}
       {/* The table's size stand (the columns x the rows' RESULTING size +
           the drag's delta): stands only during the add chips' drag (the
           add / remove's preview — the count stands nonzero), the frame's

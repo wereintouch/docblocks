@@ -14,8 +14,8 @@ import type { BlobStore } from "../../blob-store";
 import type { EditorStore } from "../../state";
 import { focusCaretIn, segmentRange } from "../block-commands";
 import { blockTextOf, isQueryBoundary } from "../phrase";
+import { indentOf } from "./helpers";
 import type { PendingPick } from "./use-slash-pickers";
-import { indentOf } from "./utils";
 
 interface UseSlashCommitPaths {
   doc: Doc;

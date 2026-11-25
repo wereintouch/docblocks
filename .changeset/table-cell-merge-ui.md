@@ -29,3 +29,7 @@ step is the last row's height (it was a fixed 24 px, so one row's worth of
 drag removed two), the removal walks the real row heights from the last one,
 the ghost rows stand the real row height, and the size stand spells the
 delta out (`3 × 3 − 1`).
+
+The rows a negative add-chip drag removes stand the columns' fill over the
+last rows (the count rides the size stand), and the slash `/table` takes an
+empty block's slot instead of leaving an empty paragraph above the grid.

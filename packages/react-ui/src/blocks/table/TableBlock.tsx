@@ -277,6 +277,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         onAddChipPointerCancel={onAddChipPointerCancel}
         rowButtonLeft={rowButtonLeft}
         addPreview={addPreview}
+        tableWidth={tableWidth}
+        rowMetrics={rowMetrics}
         columnCount={block.columnOrder.length}
         rowCount={rows.length}
         cellMenu={cellMenu}
