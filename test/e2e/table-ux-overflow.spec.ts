@@ -177,10 +177,12 @@ test("the wide columns overflow-scroll (both panes); the add chips stand over th
     await expect.poll(async () => frameScroll(a), SETTLE).toBeGreaterThan(0);
     await expect.poll(async () => frameScroll(b), SETTLE).toBeGreaterThan(0);
 
-    // The add-row chip is pinned to the frame's visible part (its center
-    // stands on the visible width's center — the table overflows); the
-    // add-column chip stands at the table's right edge, vertically centered
-    // on the table's height (both scroll with the content on the x-axis).
+    // The add-row chip centers on the table's visible part: the table's
+    // box starts a handle band (HANDLE_ZONE) inside the frame, so the
+    // center is the midpoint of [table's left, frame's visible right] —
+    // not the raw frame's center (the overflow's stand). The add-column
+    // chip stands at the table's right edge, vertically centered on the
+    // table's height.
     const frameBox = await a.locator('[data-slot="docblocks/table-scroll"]').boundingBox();
     const tableBox = await tableEl(a).boundingBox();
     const scrollClient = await scrollEl(a).evaluate((el) => el.clientWidth);
@@ -189,7 +191,7 @@ test("the wide columns overflow-scroll (both panes); the add chips stand over th
     if (frameBox === null || tableBox === null || rowChipBox === null || colChipBox === null) {
       throw new Error("the frame / table / chips have no boxes");
     }
-    expect(rowChipBox.x + rowChipBox.width / 2).toBeCloseTo(frameBox.x + scrollClient / 2, 0);
+    expect(rowChipBox.x + rowChipBox.width / 2).toBeCloseTo((tableBox.x + frameBox.x + scrollClient) / 2, 0);
     expect(colChipBox.y + colChipBox.height / 2).toBeCloseTo(tableBox.y + tableBox.height / 2, 0);
   } finally {
     await close();

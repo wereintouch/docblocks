@@ -1,7 +1,7 @@
 // Its own room: a manually left-over tab must not pollute the sync specs.
 import { expect, test } from "@playwright/test";
 
-import { SETTLE } from "./helpers";
+import { RELAY, SETTLE } from "./helpers";
 
 // The standard (shadcn) input-token contract: when the consumer defines the
 // standard tokens on :root/.dark, the editor's --docblocks-* tokens follow
@@ -33,7 +33,7 @@ const STANDARD_TOKENS = `
 `;
 
 test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
-  await page.goto(`/?syncUrl=ws://localhost:5199/shadcn-${Math.random().toString(36).slice(2, 8)}`);
+  await page.goto(`/?syncUrl=${RELAY}/shadcn-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
   const editor = page.locator('[data-slot="docblocks/editor"]');
   await expect(editor).toBeVisible();

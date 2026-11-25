@@ -1,10 +1,10 @@
 // Its own room: a manually left-over tab must not pollute the sync specs.
 import { expect, test } from "@playwright/test";
 
-import { SETTLE } from "./helpers";
+import { RELAY, SETTLE } from "./helpers";
 
 test("the dark theme activates via the .dark class on an ancestor", async ({ page }) => {
-  await page.goto(`/?syncUrl=ws://localhost:5199/theme-${Math.random().toString(36).slice(2, 8)}`);
+  await page.goto(`/?syncUrl=${RELAY}/theme-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
   // The harness loads dark by default; this spec pins the light seed
   // baseline first, so clear the `.dark` class explicitly.

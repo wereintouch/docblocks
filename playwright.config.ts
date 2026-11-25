@@ -1,5 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
+// The dev server's port (the base URL's host): overridable per shard via
+// DOCBLOCKS_PORT (the parallel dev servers' stand); the default keeps the
+// single-server runs at :5173.
+const PORT = process.env.DOCBLOCKS_PORT ?? "5173";
+const BASE_URL = `http://localhost:${PORT}`;
+
 export default defineConfig({
   testDir: "./test/e2e",
   // The dev server's module-graph warm-up before the first spec (the
@@ -48,11 +54,11 @@ export default defineConfig({
     { name: "webkit", use: { browserName: "webkit" } },
   ],
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: BASE_URL,
   },
   webServer: {
     command: "npm run dev -w apps/playground",
-    url: "http://localhost:5173",
+    url: BASE_URL,
     // Reuse of an already-running :5173 is an explicit local opt-in
     // (PLAYWRIGHT_REUSE_SERVER=true) — the default stands the run's own
     // server. The dev server is strict-port, so an occupied :5173 fails the

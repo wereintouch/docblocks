@@ -470,14 +470,31 @@ interface BlobStore {
 - **The meta-only stand (opt-in):** with the optional `getMeta` member the
   blocks resolve the metadata first (a cheap head stand, no body transfer).
   A MIME the block renders — `application/pdf` for the `file` block, the
-  `image/*` and `application/pdf` payloads for the `image` block — still
-  resolves the bytes over `get` (the pdf preview / the `<img>` stand
-  unchanged); any other MIME stands the download card WITHOUT fetching the
-  bytes (no `get` call, no object URL), the download's href standing the
-  consumer's `downloadUrl(fileId)`. Without `getMeta` — or without
-  `downloadUrl` — the blocks keep the legacy stand (the bytes over `get`,
-  the object URL's href). Both members are optional: existing consumers and
+  `image/*` and `application/pdf` payloads for the `image` block — resolves
+  the bytes over `get` (the pdf preview / the `<img>` stand), except for an
+  image the store's `downloadUrl` serves (the next bullet); any other MIME
+  stands the download card WITHOUT fetching the bytes (no `get` call, no
+  object URL), the download's href standing the consumer's
+  `downloadUrl(fileId)`. Without `getMeta` — or without `downloadUrl` — the
+  blocks keep the legacy stand (the bytes over `get`, the object URL's
+  href). Both members are optional: existing consumers and
   `createMemoryBlobStore` stand exactly the legacy behavior.
+- **The direct image URL:** an `image/*` payload over a store that supplies
+  both `getMeta` and `downloadUrl` renders `<img src={downloadUrl(fileId)}>`
+  — the browser's own subrequest, cached natively. The library neither
+  fetches the bytes nor creates an object URL: a `fetch`-resolved blob URL
+  never reuses the native cache on WebKit, so every page reload
+  re-downloaded the images. `getMeta` still decides the MIME and reserves
+  the placeholder's aspect ratio, and `downloadUrl` serves the payload
+  inline (a `Content-Disposition: attachment` response suits the download
+  card only). PDF payloads stay on the bytes' path (the preview and the
+  iframe read the bytes); without `getMeta` — the MIME is unknown before
+  the bytes — or over an executable-scheme URL, an image keeps that path as
+  well. The document attributes' cover stands the same contract: the
+  banner, the row's thumbnail and the preset cells render the store's URL,
+  and the intrinsic-dimension probe plus the frame's tint read that same
+  URL (a cross-origin URL without CORS taints the tint's canvas — the tint
+  falls back to the fetched bytes' same-origin object URL).
 - **The lazy resolution (the default):** the metadata's head lookup runs at
   mount (the placeholder reserves the aspect ratio from `width`/`height`),
   and the bytes resolve only once the block enters the preload band — the
@@ -905,7 +922,9 @@ value actually changes (the store's reference-stability contract):
 - `useCoverAverageColor()` — the stored cover's alpha-weighted average
   color (the `rgb(...)` string or `null` over the absent / the
   undecodable's stand) — the frame's tint's data and the consumer's
-  surroundings' glow's source.
+  surroundings' glow's source. The read stands over the cover's resolved
+  URL (the store's `downloadUrl` when supplied, the object URL otherwise);
+  a cross-origin URL without CORS falls back to the fetched bytes.
 - `useDatabaseTable(bridge, tableId, filter?)` — the external database
   block's grid controller (a consumer-owned grid over the bridge).
 

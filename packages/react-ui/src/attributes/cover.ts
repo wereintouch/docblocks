@@ -29,12 +29,13 @@ const COVER_FADE_BOTTOM_PX = 16;
  *  gradual's stand). */
 type CoverFadeMode = "linear" | "smooth";
 
-/** The cover's renderable-MIME's predicate. A module-level const keeps the
- *  predicate's identity stable (the resolution's effect's dep — an inline
- *  arrow re-runs the effect on every render). The lenient's `image/*`'s
- *  stand: the legacy's covers may stand a format outside the upload's
- *  strict's gate. */
-const COVER_RENDERS_BYTES = (mimeType: string): boolean => mimeType.startsWith("image/");
+/** The cover's renderable-MIME's predicate (both the bytes' path and the
+ *  store's direct URL render an image the same way). A module-level const
+ *  keeps the predicate's identity stable (the resolution's effect's dep —
+ *  an inline arrow re-runs the effect on every render). The lenient's
+ *  `image/*`'s stand: the legacy's covers may stand a format outside the
+ *  upload's strict's gate. */
+const COVER_RENDERS_IMAGE = (mimeType: string): boolean => mimeType.startsWith("image/");
 
 /** The cover's placement mode: the tile's stand (the image's strip repeats
  *  over the row's width) or the centering's stand (the image stands the
@@ -53,7 +54,8 @@ interface ImageDimensions {
 
 /**
  * The intrinsic dimensions over a decodable image blob (the
- * `createImageBitmap` decode probe — the bytes are never rendered).
+ * `createImageBitmap` decode probe — the bytes are never rendered). The
+ * picked file's upload validation reads them before a store exists.
  * `null` over an undecodable payload (the fail-open: the consumer's
  * renderer may accept a format the browser cannot probe).
  */
@@ -72,6 +74,38 @@ async function readImageDimensions(file: Blob): Promise<ImageDimensions | null> 
   }
 }
 
+/**
+ * The browser's decode over an image url: the store's direct URL or the
+ * library's own object URL. The element carries the intrinsic dimensions,
+ * and the tint draws it into the sample's canvas — a `blob:` url stays
+ * same-origin, so that read never taints. `null` over an undecodable
+ * payload.
+ */
+async function decodeImageUrl(url: string): Promise<HTMLImageElement | null> {
+  const img = new Image();
+  img.src = url;
+  try {
+    await img.decode();
+    return img;
+  } catch {
+    // The decode stands null over an unreadable payload (the caller's
+    // fail-open).
+    return null;
+  }
+}
+
+/**
+ * The intrinsic dimensions over a resolved image url (the display path's
+ * probe — the browser decodes the very image the cover renders, so its own
+ * cache serves the payload). `null` over an undecodable payload or a
+ * zero-sized element (the fail-open stands the caller's own rendering).
+ */
+async function readUrlDimensions(url: string): Promise<ImageDimensions | null> {
+  const img = await decodeImageUrl(url);
+  if (img === null || img.naturalWidth === 0 || img.naturalHeight === 0) return null;
+  return { width: img.naturalWidth, height: img.naturalHeight };
+}
+
 /** The frame's tint's CSS variable (the cover's average color's stand
  *  over the card's element — the border's mix's input). */
 const COVER_TINT_VARIABLE = "--docblocks-cover-tint-color";
@@ -80,82 +114,48 @@ const COVER_TINT_VARIABLE = "--docblocks-cover-tint-color";
  *  grid's area's mean over the image's downscale). */
 const TINT_SAMPLE_PX = 8;
 
-/** The image's decode over the `<img>`'s element (the SVG's stand — the
- *  `createImageBitmap`'s rejection's parity: the engine refuses the SVG's
- *  blob over the bitmap's API, while the image's decode accepts it over
- *  the raster's formats' parity). The object URL's lifecycle stands the
- *  decode's completion (the pixels' in-memory's stand over the revoke —
- *  the draw's source is the decoded's image, not the url). */
-async function decodeToImage(file: Blob): Promise<HTMLImageElement | null> {
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.src = url;
-  try {
-    await img.decode();
-    return img;
-  } catch {
-    // The decode stands null over an unreadable payload (the tint stands
-    // none — the caller's plain border).
-    return null;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-/** The average's color's cache over the blob's identity (the re-resolution's
- *  no re-compute's stand; the store's change's new blob stands a fresh
- *  entry — the weak key's stand keeps the dead blobs' garbage's parity).
- */
-const tintColorCache = new WeakMap<Blob, Promise<string | null>>();
-
 /**
- * The alpha-weighted average color over a decodable image blob (the
- *  frame's tint's / the consumer's glow's data's source): the image stands
- *  downscaled to the sample's grid over a canvas (the `img`'s decode — the
- *  SVG's parity), and the mean stands the premultiplied's accumulation
- *  (the alpha's share per pixel) — the transparent's stand no gray's pull
- *  (the alpha fade's cover stands its solid's hue, not the fade's
- *  average). The `rgb(...)`'s string over the computed's stand; `null`
- *  over an undecodable payload or the canvas's absence (the jsdom's
- *  fail-open's stand — the plain border's parity).
+ * The alpha-weighted average color over a resolved image url (the frame's
+ * tint's / the consumer's glow's data's source): the image stands
+ * downscaled to the sample's grid over a canvas, and the mean stands the
+ * premultiplied's accumulation (the alpha's share per pixel) — the
+ * transparent's stand no gray's pull (the alpha fade's cover stands its
+ * solid's hue, not the fade's average). The `rgb(...)`'s string over the
+ * computed's stand; `null` over an undecodable payload, the canvas's
+ * absence, or a tainted read (a cross-origin url without CORS — the caller
+ * stands the bytes' same-origin object URL as the fallback).
  */
-async function averageColorOfBlob(file: Blob): Promise<string | null> {
-  let cached = tintColorCache.get(file);
-  if (cached === undefined) {
-    cached = (async (): Promise<string | null> => {
-      const img = await decodeToImage(file);
-      if (img === null) return null;
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = TINT_SAMPLE_PX;
-        canvas.height = TINT_SAMPLE_PX;
-        const ctx = canvas.getContext("2d");
-        if (ctx === null) return null;
-        ctx.drawImage(img, 0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX);
-        const data = ctx.getImageData(0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX).data;
-        let r = 0;
-        let g = 0;
-        let b = 0;
-        let alphaSum = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const alpha = (data[i + 3] ?? 0) / 255;
-          r += (data[i] ?? 0) * alpha;
-          g += (data[i + 1] ?? 0) * alpha;
-          b += (data[i + 2] ?? 0) * alpha;
-          alphaSum += alpha;
-        }
-        if (alphaSum === 0) return null;
-        const mean = (sum: number): number => Math.round(sum / alphaSum);
-        return `rgb(${mean(r)}, ${mean(g)}, ${mean(b)})`;
-      } catch {
-        // The canvas's read stands null over an unreadable image or a
-        // tainted context (the tint stands none — the plain border).
-        return null;
-      }
-    })();
-    tintColorCache.set(file, cached);
+async function averageColorOfUrl(url: string): Promise<string | null> {
+  const img = await decodeImageUrl(url);
+  if (img === null) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = TINT_SAMPLE_PX;
+    canvas.height = TINT_SAMPLE_PX;
+    const ctx = canvas.getContext("2d");
+    if (ctx === null) return null;
+    ctx.drawImage(img, 0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX);
+    const data = ctx.getImageData(0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX).data;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let alphaSum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const alpha = (data[i + 3] ?? 0) / 255;
+      r += (data[i] ?? 0) * alpha;
+      g += (data[i + 1] ?? 0) * alpha;
+      b += (data[i + 2] ?? 0) * alpha;
+      alphaSum += alpha;
+    }
+    if (alphaSum === 0) return null;
+    const mean = (sum: number): number => Math.round(sum / alphaSum);
+    return `rgb(${mean(r)}, ${mean(g)}, ${mean(b)})`;
+  } catch {
+    // The canvas's read stands null over an unreadable image or a tainted
+    // context (the tint stands none — the caller's fallback or the plain
+    // border).
+    return null;
   }
-  return cached;
 }
 
 /**
@@ -267,15 +267,16 @@ export {
   COVER_FADE_BOTTOM_PX,
   COVER_MAX_CENTER_HEIGHT_PX,
   COVER_MODE_ORDER,
-  COVER_RENDERS_BYTES,
+  COVER_RENDERS_IMAGE,
   COVER_TILE_STRIP_HEIGHT_PX,
   COVER_TINT_VARIABLE,
-  averageColorOfBlob,
+  averageColorOfUrl,
   centerBackgroundStyle,
   coverFadeMask,
   coverModeGating,
   coverModeOf,
   readImageDimensions,
+  readUrlDimensions,
   tileBackgroundStyle,
   validateCoverUpload,
 };

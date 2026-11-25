@@ -158,9 +158,10 @@ function ImageFigure({
           // CSS width's 100% and the height's auto keep the rendered scale).
           width={width}
           height={height}
-          // The bytes are library-resolved (the object URL exists before the
-          // element mounts), so the native lazy loading defers the decode,
-          // not the fetch; the async decode keeps it off the main thread.
+          // Over the store's direct URL the native lazy loading defers the
+          // fetch; over the library-owned object URL the bytes already sit in
+          // the JS heap and it defers the decode. The async decode keeps the
+          // decode off the main thread.
           loading="lazy"
           decoding="async"
           draggable={false}

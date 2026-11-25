@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { editorContext } from "./helpers";
+import { RELAY, editorContext } from "./helpers";
 
 test("playground shell loads", async ({ page }) => {
   // Its own room: a manually left-over tab must not pollute the sync specs.
-  await page.goto(`/?syncUrl=ws://localhost:5199/smoke-${Math.random().toString(36).slice(2, 8)}`);
+  await page.goto(`/?syncUrl=${RELAY}/smoke-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page).toHaveTitle(/docblocks playground/);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
 });
@@ -63,7 +63,7 @@ test("the stale persisted bridge's snapshot adopts the canonical demo's stand (t
     };
     window.localStorage.setItem("docblocks-playground-bridge-v2", JSON.stringify(stale));
   });
-  await page.goto(`/?client=a&syncUrl=ws://localhost:5199/seed-${Math.random().toString(36).slice(2, 8)}`);
+  await page.goto(`/?client=a&syncUrl=${RELAY}/seed-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
 
   // The upsert stands (the bridge's reads await the seed's readiness):

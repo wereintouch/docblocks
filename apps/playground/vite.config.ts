@@ -4,7 +4,9 @@ import { type Plugin, defineConfig } from "vite";
 import { type RelayHandle, startRelay } from "./server/relay.ts";
 
 // Strict: the E2E specs and the pane's default ?syncUrl= point at this port.
-const RELAY_PORT = 5199;
+// Overridable per shard (the parallel dev servers' stand) via
+// DOCBLOCKS_RELAY_PORT; the default keeps the single-server runs.
+const RELAY_PORT = Number(process.env.DOCBLOCKS_RELAY_PORT ?? 5199);
 
 // The relay binds loopback (127.0.0.1) by default — it is a dev-only sync
 // harness, not a network service. An explicit non-loopback bind
@@ -48,7 +50,7 @@ export default defineConfig({
   plugins: [react(), relayPlugin],
   // Fixed at this port: the Playwright webServer probe and the ws relay
   // (5199) are addressed by the e2e specs at exactly these ports.
-  server: { port: 5173, strictPort: true },
+  server: { port: Number(process.env.DOCBLOCKS_PORT ?? 5173), strictPort: true },
   // The consumer view stands over both packages: neither docblocks-core nor
   // docblocks-react-ui carries an alias — each resolves through the workspace
   // symlink + the package.json's exports map to the built dist, the same way

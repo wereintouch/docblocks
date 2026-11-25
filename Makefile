@@ -13,10 +13,12 @@ CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
 B ?= chromium
+SHARDS ?= 4
+WORKERS ?= 2
 
 NPM_TOKEN ?= $(shell awk '/^NPM_TOKEN=/ { sub(/^NPM_TOKEN=/, ""); print; exit }' .env 2>/dev/null | tr -d "\"'" | tr -d " \t")
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations changesets build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full version publish dev clean
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations changesets build build-core test test-core test-ui unit unit-f e2e e2e-shard e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full version publish dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -75,6 +77,9 @@ unit: ## All unit tests (vitest, ~10s wall) — the e2e stands separate (make e2
 
 e2e: ## Playwright E2E over the chromium project (playground consumes react-ui from dist — make build first)
 	PLAYWRIGHT_RETRIES=1 npm run test:e2e
+
+e2e-shard: ## E2E sharded across N dev servers (SHARDS=4 WORKERS=2 — the loaded-machine's clean stand, ~55% faster)
+	SHARDS=$(SHARDS) WORKERS=$(WORKERS) node scripts/e2e-shard.mjs
 
 e2e-ff: ## Playwright E2E over the firefox project
 	PLAYWRIGHT_RETRIES=1 npm run test:e2e:firefox

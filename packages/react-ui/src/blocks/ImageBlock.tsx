@@ -19,25 +19,35 @@ import { useBlobFile } from "./use-blob-file";
 const IMAGE_RENDERS_BYTES = (mimeType: string): boolean =>
   mimeType.startsWith("image/") || mimeType === "application/pdf";
 
+/** The MIME the `<img>` renders straight from the store's `downloadUrl`: the
+ *  browser's own cacheable subrequest over the consumer's URL. The PDF keeps
+ *  the bytes' path (the preview and the iframe read the payload). A
+ *  module-level const keeps the predicate's identity stable (the
+ *  resolution's effect's dep). */
+const IMAGE_RENDERS_URL = (mimeType: string): boolean => mimeType.startsWith("image/");
+
 /**
  * An image: the <img> src comes from the consumer's blob store (the key is
  * opaque; resolution is a consumer-side concern). The store's MIME metadata
  * decides the rendering: images stand the <img>, PDF an iframe viewer, and
- * legacy non-image payloads the download card. While the id is unknown or
- * the get is in flight the block renders
- * a structural placeholder card instead of a broken <img>.
+ * legacy non-image payloads the download card. An image resolves from the
+ * store's `downloadUrl` when it supplies one — the browser fetches and
+ * caches it natively instead of the library's `get` + object URL. While the
+ * id is unknown or the get is in flight the block renders a structural
+ * placeholder card instead of a broken <img>.
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
   const { pdfPreview, blobLoading } = useEditorContext();
   const src = block.attrs.src;
   // The lazy stand: the bytes resolve once the block enters the viewport's
-  // preload band; the eager policy skips the gate.
-  const { state: file, ref: placeholderRef } = useBlobFile(
-    src,
-    IMAGE_RENDERS_BYTES,
-    blobLoading === "eager" ? { eager: true } : {}
-  );
+  // preload band; the eager policy skips the gate. The store's direct URL
+  // stands no gate of its own (the `<img>`'s native lazy loading defers the
+  // fetch).
+  const { state: file, ref: placeholderRef } = useBlobFile(src, IMAGE_RENDERS_BYTES, {
+    eager: blobLoading === "eager",
+    rendersFromUrl: IMAGE_RENDERS_URL,
+  });
 
   if (file.status === "loading" || file.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
@@ -65,6 +75,21 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
           {t("image.placeholder")}
         </CardContent>
       </Card>
+    );
+  }
+
+  if (file.status === "ready-url") {
+    // The store's direct URL (the browser's own cacheable subrequest): the
+    // image stands the `<img>` straight from it — no bytes in the JS heap.
+    return (
+      <ImageFigure
+        id={id}
+        block={block}
+        url={file.url}
+        name={file.meta.name}
+        width={file.meta.width}
+        height={file.meta.height}
+      />
     );
   }
 

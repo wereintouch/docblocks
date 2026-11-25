@@ -19,6 +19,16 @@ import {
 } from "./cover-upload.helpers";
 
 describe("the cover upload's modal", () => {
+  it("stands the notSet's row over the absent cover without a store read", async () => {
+    const gets: string[] = [];
+    renderCover(storeWith([], gets));
+    await act(async () => {});
+
+    const row = document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-cover"]');
+    expect(row, "the row stands").not.toBeNull();
+    expect(row!.querySelector("img"), "no thumbnail over the absent cover").toBeNull();
+    expect(gets, "the empty id stands no store key").toEqual([]);
+  });
   it("opens over the upload's press (the tile's default's stand)", () => {
     renderCover(storeWith([]));
     expect(modalDialog()).toBeNull();
