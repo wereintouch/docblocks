@@ -83,10 +83,12 @@ function TableFrameChrome({
           <Plus />
         </Button>
       )}
-      {/* The table's size stand (the columns x the rows' RESULTING size):
-          stands only during the add chips' drag (the add / remove's
-          preview — the count stands nonzero), the frame's top-left
-          corner (the handle band's free zone), muted. */}
+      {/* The table's size stand (the columns x the rows' RESULTING size +
+          the drag's delta): stands only during the add chips' drag (the
+          add / remove's preview — the count stands nonzero), the frame's
+          top-left corner (the handle band's free zone), muted. The delta
+          makes the removal's count explicit (the dimmed rows stand which
+          ones go, the number stands how many). */}
       {addPreview !== null && addPreview.count !== 0 ? (
         <div
           data-slot="docblocks/table-size"
@@ -95,7 +97,9 @@ function TableFrameChrome({
         >
           {`${
             addPreview.kind === "column" ? columnCount + addPreview.count : columnCount
-          } × ${addPreview.kind === "row" ? rowCount + addPreview.count : rowCount}`}
+          } × ${addPreview.kind === "row" ? rowCount + addPreview.count : rowCount} ${
+            addPreview.count > 0 ? `+ ${addPreview.count}` : `− ${-addPreview.count}`
+          }`}
         </div>
       ) : null}
       <DropdownMenu modal={false} open={cellMenu.ctx !== null} onOpenChange={cellMenu.onOpenChange}>

@@ -116,6 +116,16 @@ async function seedTable(
 
 const tableEl = (page: Page) => page.locator('table[data-slot="docblocks/table"]');
 
+/** The last row's measured height (the add-row drag's step — the live geometry). */
+async function rowStepOf(page: Page): Promise<number> {
+  const heights = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="doc-a"] tbody > tr')].map((tr) => tr.getBoundingClientRect().height)
+  );
+  const last = heights[heights.length - 1];
+  if (last === undefined) throw new Error("the table's rows are absent");
+  return last;
+}
+
 /** The add chip's press + drag (the chip stands pointer-events-none until
  * the frame's hover — the first move over the chip's box seeds it). */
 async function dragAddChip(page: Page, slot: string, dx: number, dy: number): Promise<void> {
@@ -148,8 +158,9 @@ test("the add-row chip's drag appends / removes several rows (one undo step per 
     ]);
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
-    // The drag down 48 px = two rows (the step's 24 px): A and B.
-    await dragAddChip(a, "docblocks/table-add-row", 0, 48);
+    // The drag down two rows' heights (the step is the live row height): A and B.
+    const rowStep = await rowStepOf(a);
+    await dragAddChip(a, "docblocks/table-add-row", 0, rowStep * 2);
     await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.rows.length, SETTLE).toBe(4);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(4);
 
@@ -161,8 +172,8 @@ test("the add-row chip's drag appends / removes several rows (one undo step per 
     });
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(2);
 
-    // The drag up 24 px = one removal (the last row).
-    await dragAddChip(a, "docblocks/table-add-row", 0, -24);
+    // The drag up one row's height = one removal (the last row).
+    await dragAddChip(a, "docblocks/table-add-row", 0, -rowStep);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(1);
   } finally {
     await close();
@@ -196,10 +207,10 @@ test("the add-column chip's drag appends / removes several columns (the ghosts s
     await a.mouse.down();
     await a.mouse.move(cx + 100, cy);
     expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(1);
-    await expect(badge).toHaveText("3 × 2");
+    await expect(badge).toHaveText("3 × 2 + 1");
     await a.mouse.move(cx + 200, cy);
     expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(2);
-    await expect(badge).toHaveText("4 × 2");
+    await expect(badge).toHaveText("4 × 2 + 2");
     await a.mouse.up();
     await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.cols, SETTLE).toBe(4);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(4);

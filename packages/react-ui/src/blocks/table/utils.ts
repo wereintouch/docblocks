@@ -6,8 +6,7 @@ import type { BlockId, Doc } from "docblocks-core";
 
 import { plainTextOfHtml } from "../../editing/clipboard";
 import { cn } from "../../shared/ui/cn";
-import { ADD_COLUMN_DRAG_STEP_PX, ADD_ROW_DRAG_STEP_PX, MIN_COLUMN_WIDTH } from "./constants";
-import type { HandleKind } from "./models";
+import { MIN_COLUMN_WIDTH } from "./constants";
 
 /** The handle chip's classes (revealed when hovered / dragged / menued). */
 function handleClasses(visible: boolean, dragging: boolean): string {
@@ -148,20 +147,48 @@ async function readClipboardText(): Promise<string> {
 function clampColumnWidth(width: number): number {
   return Math.max(Math.round(width), MIN_COLUMN_WIDTH);
 }
-/**
- * The add chip's drag delta -> the count (positive = the add, negative =
- * the remove): the nearest step's count (the rows' step 24 px, the
- * columns' the base width 100 px); the floor clamps the removal to keep
- * at least one row / column (the full removal is the handle's menu
- * delete only — the paragraph conversion), the add stands unclamped (the
- * travel's count is the intent).
- */
-function addDragCount(kind: HandleKind, total: number, delta: number): number {
-  const step = kind === "row" ? ADD_ROW_DRAG_STEP_PX : ADD_COLUMN_DRAG_STEP_PX;
-  const raw = Math.round(delta / step);
-  if (raw >= 0) return raw;
-  return Math.max(1 - total, raw);
+/** The add chip's drag geometry: the item sizes the travel spans. */
+interface AddDragSteps {
+  /** The rows' heights / the columns' widths, in the table's order. */
+  sizes: readonly number[];
+  /** The step a not-yet-existing item stands (the ghost row's height / the base column's width). */
+  fallback: number;
 }
+
+/**
+ * The add chip's drag delta -> the count (positive = the add, negative = the
+ * remove). The travel is measured in the ITEMS the reader sees: an add step
+ * is one expected item's size, and a removal counts the items whose midpoint
+ * the travel passed (so one row's worth of drag removes exactly one row,
+ * whatever the rows' heights are). The removal keeps at least one row /
+ * column (the full removal is the handle's menu delete only — the paragraph
+ * conversion); the add stands unclamped (the travel's count is the intent).
+ */
+function addDragCount(total: number, delta: number, steps: AddDragSteps): number {
+  const sizeOf = (index: number): number => {
+    const size = steps.sizes[index];
+    return size !== undefined && size > 0 ? size : steps.fallback;
+  };
+  if (delta >= 0) {
+    const step = sizeOf(total - 1) > 0 ? sizeOf(total - 1) : steps.fallback;
+    return step > 0 ? Math.round(delta / step) : 0;
+  }
+  const travelled = -delta;
+  let passed = 0;
+  let count = 0;
+  for (let index = total - 1; index >= 0 && total - count > 1; index -= 1) {
+    const size = sizeOf(index);
+    // The strict bound matches the add's rounding: exactly half an item
+    // stands no count.
+    if (travelled <= passed + size / 2) break;
+    passed += size;
+    count += 1;
+  }
+  // `-0` is the same stand as 0 (the setter's equality reads it as zero).
+  return count === 0 ? 0 : -count;
+}
+
+export type { AddDragSteps };
 
 export {
   addDragCount,

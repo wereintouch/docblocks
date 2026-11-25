@@ -182,16 +182,16 @@ describe("the add chips' drag (the multi add / remove)", () => {
     expect(doc2.getChildren(tableId2).length).toBe(1);
   });
 
-  it("the column chip's drag right appends the count's columns (the step's the base width, the ghosts stand, one undo step)", () => {
+  it("the column chip's drag right appends the count's columns (the step's the last column's width, the ghosts stand, one undo step)", () => {
     const { doc, tableId } = renderTableDoc(2, [120, 80]);
     const chip = colChip();
     expect(chip).not.toBeNull();
     fireEvent.pointerDown(chip!, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
-    fireEvent.pointerMove(chip!, { clientX: 200, clientY: 100, pointerId: 1 }); // 100 px = one base width
+    fireEvent.pointerMove(chip!, { clientX: 180, clientY: 100, pointerId: 1 }); // 80 px = the last column's width
     expect(document.querySelectorAll('[data-slot="docblocks/table-ghost-column"]').length).toBe(1);
-    fireEvent.pointerMove(chip!, { clientX: 300, clientY: 100, pointerId: 1 }); // 200 px = two
+    fireEvent.pointerMove(chip!, { clientX: 260, clientY: 100, pointerId: 1 }); // 160 px = two
     expect(document.querySelectorAll('[data-slot="docblocks/table-ghost-column"]').length).toBe(2);
-    fireEvent.pointerUp(chip!, { clientX: 300, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(chip!, { clientX: 260, clientY: 100, pointerId: 1 });
     const after = doc.getBlock(tableId);
     expect(after !== null && after.type === "table" && after.columnOrder.length).toBe(4);
     expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([120, 80, 100, 100]);
@@ -255,22 +255,22 @@ describe("the table's size stand (the columns x the rows' result)", () => {
     expect(badge()).toBeNull();
 
     // The row chip's drag down 48 px (two rows): the stand stands the
-    // resulting size while the preview stands, and is gone on the
-    // release.
+    // resulting size + the drag's delta while the preview stands, and is
+    // gone on the release.
     const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/table-add-row"]');
     fireEvent.pointerDown(chip!, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(chip!, { clientX: 100, clientY: 148, pointerId: 1 });
-    expect(badge()?.textContent).toBe("2 × 4");
+    expect(badge()?.textContent).toBe("2 × 4 + 2");
     fireEvent.pointerUp(chip!, { clientX: 100, clientY: 148, pointerId: 1 });
     expect(doc.getChildren(tableId).length).toBe(4);
     expect(badge()).toBeNull();
 
-    // The column chip's drag right 100 px (one base width): the resulting
+    // The column chip's drag right 100 px (one column): the resulting
     // columns stand.
     const colChip = document.querySelector<HTMLElement>('[data-slot="docblocks/table-add-column"]');
     fireEvent.pointerDown(colChip!, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
     fireEvent.pointerMove(colChip!, { clientX: 200, clientY: 100, pointerId: 1 });
-    expect(badge()?.textContent).toBe("3 × 4");
+    expect(badge()?.textContent).toBe("3 × 4 + 1");
     fireEvent.pointerUp(colChip!, { clientX: 200, clientY: 100, pointerId: 1 });
     const after = doc.getBlock(tableId);
     expect(after !== null && after.type === "table" && after.columnOrder.length).toBe(3);

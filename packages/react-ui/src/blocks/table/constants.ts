@@ -1,6 +1,5 @@
 /** The table block's constants (the handle / add-chip geometry, the drag
  * thresholds and steps, the column-width floor). */
-import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 const EMPTY_IDS: BlockId[] = [];
@@ -17,11 +16,8 @@ const ADD_BUTTON_SIZE = 24;
 // The pointer travel before a handle press becomes a drag (a shorter press
 // is a click and opens the handle's menu).
 const DRAG_THRESHOLD = 4;
-// The add chip's drag step: the rows stand the row's travel (24 px per
-// row), the columns stand the base column's width (a whole column's
-// travel adds one — the ghosts stand the same width).
-const ADD_ROW_DRAG_STEP_PX = 24;
-const ADD_COLUMN_DRAG_STEP_PX = DEFAULT_TABLE_COLUMN_WIDTH;
+// The add chip's drag step falls back to these when the live geometry is
+// unmeasured (the ghost row's height / the base column's width).
 // The ghost row's height (the add preview's rows stand the table's minimum
 // row height — the real rows' heights are content-dependent).
 const GHOST_ROW_HEIGHT = 28;
@@ -46,8 +42,6 @@ const HANDLE_DRAG_TRANSITION = "left 120ms ease-out, top 120ms ease-out";
 export {
   ADD_BUTTON_CLASSES,
   ADD_BUTTON_SIZE,
-  ADD_COLUMN_DRAG_STEP_PX,
-  ADD_ROW_DRAG_STEP_PX,
   DRAG_THRESHOLD,
   EMPTY_IDS,
   GHOST_ROW_HEIGHT,

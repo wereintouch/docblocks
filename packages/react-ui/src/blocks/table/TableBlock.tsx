@@ -33,7 +33,7 @@ import { TableFrameChrome } from "./TableFrameChrome";
 import { TableHandles } from "./TableHandles";
 import { TableRow } from "./TableRow";
 import { TableSeams } from "./TableSeams";
-import { EMPTY_IDS, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
+import { EMPTY_IDS, TABLE_ELEMENT_QUERY } from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleKind, TableHandleSession } from "./models";
 import { columnCentersOf, columnDragTransformOf, rowDragTransformOf, seamXsOf } from "./table-drag-transforms";
 import { TableCellRangeContext } from "./table-range-context";
@@ -85,6 +85,12 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // click must not insert a stray one).
   const addDragClickRef = useRef(false);
 
+  const { rowButtonLeft, rowMetrics, tableHeight, ghostRowHeight } = useTableMetrics({
+    scrollRef,
+    tableWidth,
+    rows,
+  });
+
   const {
     insertTableColumn,
     insertTableRow,
@@ -93,6 +99,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     onAddChipPointerUp,
     onAddChipPointerCancel,
   } = useTableAddChips({
+    rowHeights: rowMetrics.map((row) => row.height),
+    columnWidths: widths,
     addSessionRef,
     sessionRef,
     resizeSessionRef,
@@ -103,8 +111,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     block,
     id,
   });
-
-  const { rowButtonLeft, rowMetrics, tableHeight } = useTableMetrics({ scrollRef, tableWidth, rows });
 
   // The table element (the live DOM — the commit and the hover math read it).
   const tableEl = () => scrollRef.current?.querySelector<HTMLTableElement>(TABLE_ELEMENT_QUERY) ?? null;
@@ -118,13 +124,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // The cell range's grip session (the merge / split gesture's stand).
   const { rangeHandlers } = useTableCellRangeWiring({ doc, tableId: id, tableEl });
 
-  const { ctx, closeCtx, onCellClear, onCellCopy, onCellPaste, onTableContextMenu, ...cellMenuRange } =
-    useTableCellMenu({
-      doc,
-      tableId: id,
-      viewMode,
-      frameRef,
-    });
+  const cellMenu = useTableCellMenu({ doc, tableId: id, viewMode, frameRef });
+
   const { onColumnHandleAction, onColumnHandleColor, onRowHandleAction, onRowHandleColor } = useTableHandleActions({
     doc,
     rows,
@@ -174,7 +175,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
             data-block-id={id}
             className="relative m-0 table-fixed border-collapse"
             style={{ width: tableWidth }}
-            onContextMenu={onTableContextMenu}
+            onContextMenu={cellMenu.onTableContextMenu}
           >
             <colgroup>
               {widths.map((width, index) => (
@@ -207,7 +208,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                               border-(length:--docblocks-table-border-width) border-dashed
                               border-(--docblocks-table-border-color) bg-muted/40
                             "
-                            style={{ height: GHOST_ROW_HEIGHT }}
+                            style={{ height: ghostRowHeight }}
                           />
                         </tr>
                       ))
@@ -278,17 +279,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         addPreview={addPreview}
         columnCount={block.columnOrder.length}
         rowCount={rows.length}
-        cellMenu={{
-          ctx,
-          canMerge: cellMenuRange.canMerge,
-          canSplit: cellMenuRange.canSplit,
-          onMergeCells: cellMenuRange.onMergeCells,
-          onSplitCells: cellMenuRange.onSplitCells,
-          onOpenChange: closeCtx,
-          onCopy: onCellCopy,
-          onPaste: onCellPaste,
-          onClear: onCellClear,
-        }}
+        cellMenu={cellMenu}
       />
     </div>
   );

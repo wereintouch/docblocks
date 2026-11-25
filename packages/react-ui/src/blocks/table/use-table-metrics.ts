@@ -6,7 +6,7 @@
  * ResizeObserver — the metrics keep their initial stand. */
 import { useLayoutEffect, useState } from "react";
 
-import { ADD_BUTTON_SIZE, TABLE_ELEMENT_QUERY } from "./constants";
+import { ADD_BUTTON_SIZE, GHOST_ROW_HEIGHT, TABLE_ELEMENT_QUERY } from "./constants";
 
 interface UseTableMetricsArgs {
   scrollRef: { current: HTMLDivElement | null };
@@ -19,6 +19,8 @@ interface TableMetrics {
   rowMetrics: { top: number; height: number }[];
   /** The table's rendered height (the last row's bottom) — the add-column chip centers on it. */
   tableHeight: number;
+  /** The ghost rows' height (the last real row's; the constant when unmeasured). */
+  ghostRowHeight: number;
 }
 
 function useTableMetrics({ scrollRef, tableWidth, rows }: UseTableMetricsArgs): TableMetrics {
@@ -65,7 +67,8 @@ function useTableMetrics({ scrollRef, tableWidth, rows }: UseTableMetricsArgs): 
 
   const tableHeight =
     rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
-  return { rowButtonLeft, rowMetrics, tableHeight };
+  const ghostRowHeight = rowMetrics[rowMetrics.length - 1]?.height ?? GHOST_ROW_HEIGHT;
+  return { rowButtonLeft, rowMetrics, tableHeight, ghostRowHeight };
 }
 
 export { useTableMetrics };

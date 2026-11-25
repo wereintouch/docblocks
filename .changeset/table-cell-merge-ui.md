@@ -23,3 +23,9 @@ A region's chrome offers nothing it cannot do: no resize seam inside the
 region, no reorder handle over a spanned column / row, and the cell range
 resets over a structural change (its rectangles were read from the cells'
 positions).
+
+The add-row chip's drag counts the rows the pointer actually travels: the
+step is the last row's height (it was a fixed 24 px, so one row's worth of
+drag removed two), the removal walks the real row heights from the last one,
+the ghost rows stand the real row height, and the size stand spells the
+delta out (`3 × 3 − 1`).

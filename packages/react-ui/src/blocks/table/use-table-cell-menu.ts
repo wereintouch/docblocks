@@ -198,16 +198,17 @@ function useTableCellMenu({ doc, tableId, viewMode, frameRef }: UseTableCellMenu
     []
   );
 
+  // The stand the frame chrome renders (the menu's items + the commands).
   return {
     ctx,
     canMerge,
     canSplit,
     onMergeCells,
     onSplitCells,
-    closeCtx,
-    onCellClear,
-    onCellCopy,
-    onCellPaste,
+    onOpenChange: closeCtx,
+    onCopy: onCellCopy,
+    onPaste: onCellPaste,
+    onClear: onCellClear,
     onTableContextMenu,
   };
 }

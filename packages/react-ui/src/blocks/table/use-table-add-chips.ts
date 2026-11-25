@@ -12,12 +12,17 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
+import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
-import { DRAG_THRESHOLD } from "./constants";
+import { DRAG_THRESHOLD, GHOST_ROW_HEIGHT } from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleKind, TableHandleSession } from "./models";
 import { addDragCount, sameSequence } from "./utils";
 
 interface TableAddChipsDeps {
+  /** The rows' live heights (the drag's step + the removal's walk); empty when unmeasured. */
+  rowHeights: number[];
+  /** The columns' widths (the drag's step + the removal's walk). */
+  columnWidths: number[];
   /** The add chip's drag session. */
   addSessionRef: RefObject<AddChipSession | null>;
   /** The handle's drag session (the guard — a press starts at most one
@@ -39,6 +44,8 @@ interface TableAddChipsDeps {
 }
 
 function useTableAddChips({
+  rowHeights,
+  columnWidths,
   addSessionRef,
   sessionRef,
   resizeSessionRef,
@@ -49,6 +56,16 @@ function useTableAddChips({
   block,
   id,
 }: TableAddChipsDeps) {
+  /** The drag's count over the session's kind: the rows' heights / the columns' widths drive the steps. */
+  const dragCount = (session: AddChipSession, dy: number, dx: number): number => {
+    const total = session.kind === "row" ? session.rows.length : session.cols;
+    const steps =
+      session.kind === "row"
+        ? { sizes: rowHeights, fallback: GHOST_ROW_HEIGHT }
+        : { sizes: columnWidths, fallback: DEFAULT_TABLE_COLUMN_WIDTH };
+    return addDragCount(total, session.kind === "row" ? dy : dx, steps);
+  };
+
   const onAddChipPointerDown = (kind: HandleKind) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (
       event.button !== 0 ||
@@ -78,9 +95,7 @@ function useTableAddChips({
       session.dragging = true;
     }
     if (!session.dragging) return;
-    const total = session.kind === "row" ? session.rows.length : session.cols;
-    const delta = session.kind === "row" ? dy : dx;
-    setAddPreview({ kind: session.kind, count: addDragCount(session.kind, total, delta) });
+    setAddPreview({ kind: session.kind, count: dragCount(session, dy, dx) });
   };
 
   const onAddChipPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -109,9 +124,7 @@ function useTableAddChips({
    * stale guard, the handle's contract) — no command, the rows resync.
    */
   const commitAddDrag = (session: AddChipSession, clientX: number, clientY: number) => {
-    const total = session.kind === "row" ? session.rows.length : session.cols;
-    const delta = session.kind === "row" ? clientY - session.startY : clientX - session.startX;
-    const count = addDragCount(session.kind, total, delta);
+    const count = dragCount(session, clientY - session.startY, clientX - session.startX);
     if (count === 0) return;
     const live = doc.getBlock(id);
     if (live === null || live.type !== "table") return;
