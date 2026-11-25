@@ -1,15 +1,15 @@
 /**
  * The materialized block's typed insertion (the `materializePaste`'s
  * helpers): the type's insertion over the core's per-type attrs (the
- * table + its rows + the cells — the ragged rows are padded at the
- * parse), the empty block's in-place conversion (the typed attrs), and
- * the runs' insertion (the per-run marks).
+ * table + its rows + the cells + the merged regions), the empty block's
+ * in-place conversion (the typed attrs), and the runs' insertion (the
+ * per-run marks).
  */
 import { BLOCK_REGISTRY } from "docblocks-core";
 import type { BlockId, BlockType, Doc, TextRun } from "docblocks-core";
 
 import { indentOf } from "../../block-commands";
-import type { MaterializedBlock } from "../models";
+import type { MaterializedBlock, TableMergeRect } from "../models";
 
 /** The registry's content flag: the block types that hold editable text. */
 function isTextType(type: BlockType): boolean {
@@ -121,7 +121,42 @@ function insertBlockWithIndent(
     : doc.insertBlock("paragraph", indent !== 0 ? { indent } : undefined, { parent, after });
 }
 
-/** The table + its rows + the cells (the ragged rows are padded at the parse). */
+/**
+ * The columns a merged region covers in the given row: the anchor's own row
+ * keeps the anchor's column, the rows below lose the region's whole width.
+ */
+function coveredColumnsOf(merges: readonly TableMergeRect[] | undefined, row: number): number[] {
+  return (merges ?? []).flatMap((rect) => {
+    if (row < rect.row || row >= rect.row + rect.rowspan) return [];
+    const first = row === rect.row ? rect.col + 1 : rect.col;
+    return Array.from({ length: rect.col + rect.colspan - first }, (_, index) => first + index);
+  });
+}
+
+/**
+ * The table's row as a plain paragraph (the demotion over a parent that takes
+ * no table): the cells' runs joined by the cell separator. The coordinates a
+ * merged region covers hold no cell of their own, so they are not text either.
+ */
+function demotedTableRow(p: MaterializedBlock, row: number): MaterializedBlock {
+  const covered = coveredColumnsOf(p.merges, row);
+  const cells = p.rows![row]!.filter((_, col) => !covered.includes(col));
+  return {
+    type: "paragraph",
+    indent: p.indent,
+    attrs: {},
+    runs: cells.flatMap((cell, index) => (index === 0 ? cell : [{ text: " | ", marks: {} }, ...cell])),
+  };
+}
+
+/**
+ * The table + its rows + the anchor cells: the merged regions stand the
+ * anchor's own `colspan`/`rowspan` attrs and the coordinates they cover hold
+ * no cell at all (the model's contract — the grid resolver derives the
+ * placement). The cells of a row a region covers are bound to their grid
+ * column explicitly: the insert's automatic binding is the row position, which
+ * only matches while the row is full.
+ */
 function insertTable(
   doc: Doc,
   m: MaterializedBlock,
@@ -129,24 +164,44 @@ function insertTable(
   after: BlockId | undefined,
   indent: number
 ): BlockId {
-  const cols = m.rows![0]!.length;
+  const rows = m.rows!;
+  const cols = rows[0]!.length;
+  const merges = m.merges ?? [];
   const tableId = doc.insertBlock("table", { cols, indent }, { parent, after });
+  const table = doc.getBlock(tableId);
+  const columnIds = table !== null && table.type === "table" ? table.columnOrder : [];
+  const spans: Array<{ cellId: BlockId; rect: TableMergeRect }> = [];
   let prevRow: BlockId | null = null;
-  for (const row of m.rows!) {
+  rows.forEach((line, row) => {
     const rowId: BlockId = doc.insertBlock("table-row", undefined, { parent: tableId, after: prevRow ?? undefined });
+    prevRow = rowId;
+    const covered = coveredColumnsOf(merges, row);
+    const anchorColumns = line.map((_, col) => col).filter((col) => !covered.includes(col));
     let prevCell: BlockId | null = null;
-    for (const cell of row) {
+    anchorColumns.forEach((col, position) => {
       const cellId: BlockId = doc.insertBlock("table-cell", undefined, { parent: rowId, after: prevCell ?? undefined });
+      prevCell = cellId;
+      const columnId = columnIds[col];
+      if (position !== col && columnId !== undefined) doc.updateBlock(cellId, { columnId });
+      const rect = merges.find((merge) => merge.row === row && merge.col === col);
+      if (rect !== undefined) spans.push({ cellId, rect });
       // A cell is a mini-doc: its text stands in a child paragraph (the
       // renderer draws the children sequence, not the cell's own content;
       // a cell without a paragraph stands empty, small, and uneditable).
       const paraId = doc.insertBlock("paragraph", undefined, { parent: cellId });
-      if (cell.length > 0) insertRuns(doc, paraId, 0, cell);
-      prevCell = cellId;
-    }
-    prevRow = rowId;
+      const runs = line[col]!;
+      if (runs.length > 0) insertRuns(doc, paraId, 0, runs);
+    });
+  });
+  // The spans land after every cell exists: a row under a region's row span
+  // takes no cell insert at all, so the writes cannot interleave.
+  for (const { cellId, rect } of spans) {
+    doc.updateBlock(cellId, {
+      ...(rect.colspan > 1 ? { colspan: rect.colspan } : {}),
+      ...(rect.rowspan > 1 ? { rowspan: rect.rowspan } : {}),
+    });
   }
   return tableId;
 }
 
-export { changeToType, insertBlockWithIndent, insertNative, insertRuns, isTextType };
+export { changeToType, demotedTableRow, insertBlockWithIndent, insertNative, insertRuns, isTextType };

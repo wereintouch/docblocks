@@ -22,7 +22,14 @@ import type { BlockId, BlockType, Doc } from "docblocks-core";
 
 import { findParentId, indentOf } from "../../block-commands";
 import type { MaterializedBlock } from "../models";
-import { changeToType, insertBlockWithIndent, insertNative, insertRuns, isTextType } from "./insertion";
+import {
+  changeToType,
+  demotedTableRow,
+  insertBlockWithIndent,
+  insertNative,
+  insertRuns,
+  isTextType,
+} from "./insertion";
 
 function materializePaste(
   doc: Doc,
@@ -58,18 +65,13 @@ function materializePaste(
   // — are supplied at the insertion).
   const material = parsed.flatMap((p): MaterializedBlock[] => {
     if (p.type === "table" && !eligible("table")) {
-      return p.rows!.map((cells): MaterializedBlock => ({
-        type: "paragraph",
-        indent: p.indent,
-        attrs: {},
-        // The row's cells joined by ` | ` (the separator-row omission is
-        // at the parse; the text and the inline marks stand).
-        runs: cells.flatMap((cell, index) => (index === 0 ? cell : [{ text: " | ", marks: {} }, ...cell])),
-      }));
+      // The row's cells joined by ` | ` (the separator-row omission is at
+      // the parse; the text and the inline marks stand).
+      return p.rows!.map((_, row): MaterializedBlock => demotedTableRow(p, row));
     }
     const demoted = p.type === "list-item" || p.type === "quote" ? !eligible(p.type) : false;
     const type: BlockType = demoted ? "paragraph" : p.type;
-    return [{ type, indent: p.indent, attrs: p.attrs, runs: p.runs, rows: p.rows }];
+    return [{ type, indent: p.indent, attrs: p.attrs, runs: p.runs, rows: p.rows, merges: p.merges }];
   });
 
   const delta = seatIndent - parsed[0]!.indent; // the re-base to the caret's level

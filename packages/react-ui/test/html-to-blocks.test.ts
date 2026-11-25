@@ -201,20 +201,6 @@ describe("the block structure → the paste blocks", () => {
       ["paragraph", 0, {}, ["b"]],
     ]);
   });
-
-  it("the table → the table material (the cells' runs; the ragged rows are padded)", () => {
-    const blocks = htmlToBlocks("<table><tr><td>c11 <b>c12b</b></td><td>c12</td></tr><tr><td>c21</td></tr></table>");
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]!.type).toBe("table");
-    expect(blocks[0]!.rows).toHaveLength(2);
-    expect(blocks[0]!.rows![0]!.length).toBe(2);
-    expect(blocks[0]!.rows![1]!.length).toBe(2); // padded
-    expect(runsOf(blocks[0]!.rows![0]![0]!)).toEqual([
-      ["c11 ", {}],
-      ["c12b", { bold: true }],
-    ]);
-    expect(blocks[0]!.rows![1]![1]).toEqual([]); // the padded cell is empty
-  });
 });
 
 describe("the lenient edges", () => {

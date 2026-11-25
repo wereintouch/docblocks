@@ -18,6 +18,7 @@ import {
   runsOf,
   tableRowsOf,
 } from "./html-inline";
+import { tableGridOf } from "./html-table";
 
 /**
  * Parses a list element into list-item materials (the indent is the
@@ -155,24 +156,19 @@ function htmlToBlocks(html: string): MaterializedBlock[] {
         listMaterialsOf(element, indent, blocks);
         return;
       case "TABLE": {
-        const rows: TextRun[][][] = [];
-        for (const tr of tableRowsOf(element)) {
-          const cells: TextRun[][] = [];
-          for (const cell of Array.from(tr.children)) {
-            const cellTag = cell.nodeName.toUpperCase();
-            if (cellTag !== "TD" && cellTag !== "TH") continue;
-            cells.push(runsOf(cell, {}, false));
-          }
-          if (cells.length > 0) rows.push(cells);
-        }
-        if (rows.length === 0) return;
-        // The ragged rows are padded to the widest (the materialization's
-        // table contract is even rows).
-        const cols = Math.max(...rows.map((row) => row.length));
-        for (const row of rows) {
-          while (row.length < cols) row.push([]);
-        }
-        blocks.push({ type: "table", indent, attrs: { cols }, runs: [], rows });
+        // The grid placement (the browser's table model): the even cell
+        // matrix + the merged regions the materialization applies as the
+        // anchor spans.
+        const grid = tableGridOf(tableRowsOf(element));
+        if (grid === null) return;
+        blocks.push({
+          type: "table",
+          indent,
+          attrs: { cols: grid.rows[0]!.length },
+          runs: [],
+          rows: grid.rows,
+          merges: grid.merges,
+        });
         return;
       }
       case "P":

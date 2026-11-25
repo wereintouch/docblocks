@@ -296,6 +296,13 @@ attach(doc, provider);
 
 - `kind: "markdown" | "html"` — the paste parsers' shared materialization
   (the same typed block / table / runs writes the paste pipeline uses);
+- an HTML table's `colspan` / `rowspan` lands as the data model's merged
+  regions — the anchor cell carries the spans, the cells a region covers
+  stand absent from their rows. A malformed span (a non-integer, below 1,
+  an overlap with another region, a span past the last row) degrades to the
+  span the grid fits; the parse never throws and the same payload always
+  imports the same document. The markdown path carries no merged cells (GFM
+  cannot express them);
 - an empty or whitespace-only payload is a no-op (no transaction);
 - a non-fresh document (the root has children) throws the typed
   `ImportDocumentError` — the import fills the root, it never appends;
