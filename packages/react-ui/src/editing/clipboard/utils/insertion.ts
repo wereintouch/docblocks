@@ -72,8 +72,6 @@ function insertBlockOf(
       );
     case "divider":
       return doc.insertBlock("divider", indent !== 0 ? { indent } : undefined, at);
-    case "image":
-      return doc.insertBlock("image", { src: m.attrs.src as string, indent }, at);
     case "table":
       return insertTable(doc, m, parent, after, indent);
     default:

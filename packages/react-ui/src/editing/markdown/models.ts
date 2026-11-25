@@ -4,16 +4,16 @@
 import type { TextRun } from "docblocks-core";
 
 /** The v1 block type a parsed block materializes. */
-type MdBlockType = "paragraph" | "heading" | "quote" | "list-item" | "code" | "divider" | "image" | "table";
+type MdBlockType = "paragraph" | "heading" | "quote" | "list-item" | "code" | "divider" | "table";
 
 /** A parsed paste block: the v1 type, the nesting depth, the attrs, and the text. */
 interface MdPasteBlock {
   type: MdBlockType;
   /** The list/quote nesting depth (0 for the other types). */
   indent: number;
-  /** The block attrs (heading `level`, the list `list` kind, `checked`, the code `language`, the image `src`). */
+  /** The block attrs (heading `level`, the list `list` kind, `checked`, the code `language`). */
   attrs: Record<string, unknown>;
-  /** The text content (empty for divider/image/table). */
+  /** The text content (empty for divider/table). */
   runs: TextRun[];
   /** The table cells (rows → cells → runs); the table type only. */
   rows?: TextRun[][][];

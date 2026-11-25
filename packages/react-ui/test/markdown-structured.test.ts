@@ -1,8 +1,8 @@
 // The markdown paste parser (the `text/plain` paste branch): the
 // structured blocks — the fenced code (the language, the fence's content
-// as data), the GFM tables, the image lines — and the whole-document's
-// integration (the realistic doc, the CRLF, the wrapper tags). Pure
-// function, no DOM — the node environment.
+// as data), the GFM tables, the dropped image lines — and the
+// whole-document's integration (the realistic doc, the CRLF, the wrapper
+// tags). Pure function, no DOM — the node environment.
 import { describe, expect, it } from "vitest";
 
 import type { TextRun } from "docblocks-core";
@@ -115,21 +115,17 @@ describe("mdToBlocks — tables", () => {
 });
 
 describe("mdToBlocks — images", () => {
-  it("the standalone image line is the image block (the src as-is)", () => {
-    const block = single("![alt](img.png)");
-    expect(block.type).toBe("image");
-    expect(block.attrs.src).toBe("img.png");
-    expect(block.runs).toEqual([]);
+  it("the standalone image line drops (the schema's src is a blob key)", () => {
+    expect(mdToBlocks("![alt](img.png)")).toEqual([]);
+    expect(mdToBlocks('![alt](img.png "the title")')).toEqual([]);
+    expect(mdToBlocks("![alt](https://example.com/i.png)")).toEqual([]);
   });
 
-  it("the optional title is dropped from the src", () => {
-    const block = single('![alt](img.png "the title")');
-    expect(block.attrs.src).toBe("img.png");
-  });
-
-  it("the URL src is kept as-is (the consumer BlobResolver resolves)", () => {
-    const block = single("![alt](https://example.com/i.png)");
-    expect(block.attrs.src).toBe("https://example.com/i.png");
+  it("the image line between the paragraphs drops, the text stands", () => {
+    const blocks = mdToBlocks("before\n\n![pic](pic.png)\n\nafter");
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph", "paragraph"]);
+    expect(textOf(blocks[0]!.runs)).toBe("before");
+    expect(textOf(blocks[1]!.runs)).toBe("after");
   });
 
   it("the inline image in the middle of the line degrades to the literal text", () => {
@@ -177,9 +173,8 @@ describe("mdToBlocks — the integration", () => {
       ["code", "", "const x = 1;"],
       ["table", "", ""],
       ["divider", "", ""],
-      ["image", "", ""],
     ]);
-    expect(blocks.map((b) => b.indent)).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+    expect(blocks.map((b) => b.indent)).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
   });
 
   it("the CRLF document is normalized", () => {

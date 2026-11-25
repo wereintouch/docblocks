@@ -2,6 +2,8 @@
  *  tables, the highlight color).
  */
 
+/** A standalone image line (the parser drops it: the schema's image source
+ *  is an opaque blob key, and a markdown payload carries no bytes). */
 const IMAGE_LINE = /^ {0,3}!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)$/;
 
 /** The highlight color of a parsed `<mark>` (the standard HTML `mark` yellow). */

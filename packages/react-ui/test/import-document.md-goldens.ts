@@ -33,6 +33,8 @@ const MD_SOURCE = [
   "",
   "---",
   "",
+  // The standalone image line drops (the schema's src is a blob key): no
+  // block stands over it in the golden.
   "![alt](img.png)",
   "",
 ].join("\n");
@@ -63,7 +65,6 @@ const MD_GOLDEN = {
         "b015",
         "b016",
         "b034",
-        "b035",
       ],
     },
     b001: { type: "heading", attrs: { level: 1, indent: 0 }, content: [{ text: "H1", marks: {} }] },
@@ -176,7 +177,6 @@ const MD_GOLDEN = {
     },
     b033: { type: "paragraph", content: [{ text: "b2", marks: {} }] },
     b034: { type: "divider" },
-    b035: { type: "image", attrs: { src: "img.png", indent: 0 } },
   },
 };
 

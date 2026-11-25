@@ -299,6 +299,11 @@ attach(doc, provider);
 - an empty or whitespace-only payload is a no-op (no transaction);
 - a non-fresh document (the root has children) throws the typed
   `ImportDocumentError` — the import fills the root, it never appends;
+- a standalone markdown image line (`![alt](src)`) is dropped, the same
+  stand as the HTML paste's `img`: the data model's image source is an
+  opaque blob-store key, and a payload carries no bytes to store under one
+  (an imported image becomes a real `image` block only through the
+  consumer's upload);
 - the markdown's YAML frontmatter (a leading `--- … ---` fence, a hand-
   rolled subset) is stripped before the blocks' parse and mapped to the
   meta over the fresh document: `title` → the doc's title, the known
