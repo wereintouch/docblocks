@@ -21,3 +21,8 @@ is re-derived.
 `isMergeableRect(grid, rect)` stands the single mergeability predicate: the
 command validates a rectangle with it and the editor's menu reads the same
 stand, so an offered merge is an applied merge.
+
+The structural commands honour the regions: a column / row move or insert
+that would cut a region is rejected (`InvalidOperationError`), a removal
+inside a span shrinks it, and a removal a region's own cell stands on is
+rejected — the region locks its grid lines until it is split.

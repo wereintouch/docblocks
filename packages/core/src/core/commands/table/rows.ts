@@ -10,7 +10,7 @@
  */
 import * as Y from "yjs";
 
-import { DetachedBlockError, InvalidRangeError } from "../../errors";
+import { DetachedBlockError, InvalidOperationError, InvalidRangeError } from "../../errors";
 import { localTransact, writeBlock } from "../../layout";
 import { removeBlock } from "../blocks";
 import { getBlockMap, getBlocks } from "../structure";
@@ -29,6 +29,13 @@ import {
   tableOf,
   writeSubtreeCopy,
 } from "./common";
+import {
+  assertRowDuplicateAllowed,
+  assertRowInsertAllowed,
+  assertRowMoveAllowed,
+  rowRemovalStand,
+  shrinkRowSpan,
+} from "./region-guards";
 
 /**
  * Inserts an empty row (cells without content blocks — an empty cell has
@@ -46,6 +53,9 @@ function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, 
   const rowCount = rows.length;
   if (at !== undefined) assertInsertIndex(at, rowCount, "Row");
   const index = at ?? rowCount;
+  // A row strictly inside a merged region's row span would land its cells on
+  // covered coordinates; the region's edges stay insertable.
+  assertRowInsertAllowed(ydoc, tableId, index);
   const rowId = generateId();
   const cellIds = Array.from({ length: cols }, () => generateId());
   localTransact(ydoc, () => {
@@ -90,7 +100,16 @@ function removeTableRow(ydoc: Y.Doc, tableId: string, rowId: string): void {
   const rowIds = rows.toArray();
   const index = rowIds.indexOf(rowId);
   if (index === -1) throw new DetachedBlockError(`Row "${rowId}" is not a child of table "${tableId}".`);
+  // A removed row inside a region's row span shrinks the span; the region's
+  // own row rejects the removal.
+  const regions = rowRemovalStand(ydoc, tableId, index);
+  if (regions.blocking !== null) {
+    throw new InvalidOperationError(
+      `Row ${index} carries a merged region's cell (rows ${regions.blocking.row}-${regions.blocking.row + regions.blocking.rowspan - 1}); split the region before removing the row.`
+    );
+  }
   localTransact(ydoc, () => {
+    for (const region of regions.shrink) shrinkRowSpan(ydoc, region);
     removeBlock(ydoc, rowId);
     if (rowsOf(table, tableId).toArray().length === 0) convertToParagraph(ydoc, tableId);
   });
@@ -109,6 +128,8 @@ function moveTableRow(ydoc: Y.Doc, tableId: string, rowId: string, toIndex: numb
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex > ids.length) {
     throw new InvalidRangeError(`toIndex must be an integer in [0, ${ids.length}] (got ${toIndex}).`);
   }
+  // A move through a merged region would shift the region's rectangle.
+  assertRowMoveAllowed(ydoc, tableId, fromIndex, toIndex);
   localTransact(ydoc, () => {
     rows.delete(fromIndex, 1);
     // Pre-move indices: the removal shifts a later target left by one.
@@ -128,6 +149,7 @@ function duplicateTableRow(ydoc: Y.Doc, generateId: () => string, tableId: strin
   const rowIds = rows.toArray();
   const fromIndex = rowIds.indexOf(rowId);
   if (fromIndex === -1) throw new DetachedBlockError(`Row "${rowId}" is not a child of table "${tableId}".`);
+  assertRowDuplicateAllowed(ydoc, tableId, fromIndex);
   const snap = snapshotSubtree(ydoc, generateId, rowId);
   let newRowId = "";
   localTransact(ydoc, () => {

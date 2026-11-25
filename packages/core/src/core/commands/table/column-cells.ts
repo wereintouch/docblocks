@@ -30,6 +30,7 @@ import {
   widthsMap,
   writeSubtreeCopy,
 } from "./common";
+import { assertColumnDuplicateAllowed } from "./region-guards";
 
 /** The cell's `columnId` binding (null when the cell has no attrs / no binding — the legacy positional stand). */
 function readColumnIdOf(ydoc: Y.Doc, cellId: string): string | null {
@@ -80,6 +81,9 @@ function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: st
   const columnOrder = columnOrderOf(table, tableId);
   const cols = columnOrder.length;
   assertIndex(index, cols, "Column");
+  // The copy lands right of the source in every row: a region the pair cuts
+  // would take a cell on a covered coordinate.
+  assertColumnDuplicateAllowed(ydoc, tableId, index);
   const sourceColumnId = columnOrder.toArray()[index]!;
   const newColumnId = generateId();
   const rowIds = rows.toArray();
