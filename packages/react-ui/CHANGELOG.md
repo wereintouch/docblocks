@@ -1,5 +1,40 @@
 # docblocks-react-ui
 
+## 0.21.0
+
+### Minor Changes
+
+- 1dd5577: `EditorProvider` takes a `scrollContainer` prop: the element that scrolls
+  the document when the consumer renders the editor inside its own `overflow`
+  box instead of the page scroll. The lazy blob resolution's preload band is
+  an `IntersectionObserver` — an element clipped by an inner scroller never
+  intersects a window-rooted observer, so the band degenerated to the visible
+  area and the bytes resolved only once an image entered the view. The band
+  and the first screen's eager measure now frame on the passed container; a
+  nested provider inherits it, and `null` (the default) keeps the window
+  frame — the page-scroll consumers are unchanged.
+
+### Patch Changes
+
+- 258233c: The blob placeholder's box stays inside the page column and its content
+  stands centered. A figure whose intrinsic ratio is far wider than the
+  column (a 26:1 banner) let the loading placeholder outgrow the row on
+  Chromium — the box took its width from the inline `aspect-ratio` alone and
+  the document scroller grew a horizontal overflow; the shared placeholder
+  class now clamps the card to the row width. The placeholder's content (the
+  spinner + the label) is centered on both axes inside the reserved height
+  instead of sitting at the top edge — centered with auto margins, so a
+  reserved box shorter than the content keeps its top edge rather than
+  spilling above it.
+- 1e71630: A standalone markdown image line (`![alt](src)`) is dropped by the markdown
+  import and paste, the same stand the `text/html` paste already takes with
+  `<img>`: the document's image source is an opaque blob-store key, and a
+  markdown payload carries no bytes to store under one — the materialized
+  block took the source string verbatim (`img.png`, an external URL) and stood
+  a permanently broken `image` block whose store lookup never resolves. The
+  inline image in the middle of a line keeps its literal text. An imported
+  image becomes a real `image` block only through the consumer's upload.
+
 ## 0.20.0
 
 ### Minor Changes
