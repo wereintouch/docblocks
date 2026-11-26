@@ -60,7 +60,7 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { doc, store, rootBlockId, viewMode, mode, mentionInteractions } = useEditorContext();
+  const { doc, store, rootBlockId, viewMode, mode, publishedCopyable, mentionInteractions } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The frame's tint's read (the cover's presence + the off's stand — the
   // absent's / the `true`'s stand is the on's default): the data attribute
@@ -159,6 +159,11 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           data-view={view}
           data-mode={mode}
           data-readonly={viewMode ? "true" : undefined}
+          // The published stand's selection policy (the consumer's
+          // `publishedCopyable`): the reader's selection stays off by
+          // default; the copyable stand re-enables it (the `view` parity),
+          // the canvas world keeps its own no-select stand in styles.css.
+          data-copyable={mode === "published" && publishedCopyable ? "true" : undefined}
           // The mention chip's interactive stand (the consumer's mention
           // interactions): the hover's cursor + the neutral's background
           // key on the root (the chip's own markup stays the run's).

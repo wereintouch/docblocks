@@ -47,6 +47,7 @@ function SyncPane({
   blobEager,
   innerScroll,
   longdoc,
+  publishedCopyable,
 }: {
   client: "a" | "b";
   syncUrl: string;
@@ -60,6 +61,8 @@ function SyncPane({
   innerScroll: boolean;
   /** The long-document seed's image count (0 when the mode stands off). */
   longdoc: number;
+  /** The published stand's selection policy (`?publishedCopyable=1`). */
+  publishedCopyable: boolean;
 }) {
   const docAreaRef = useRef<HTMLDivElement | null>(null);
 
@@ -193,6 +196,7 @@ function SyncPane({
           mode={mode}
           publishedDoc={publishedDoc}
           publishedSeq={publishedSeq}
+          publishedCopyable={publishedCopyable}
           runtime={runtime}
           syncEmbedResolver={syncEmbedResolver}
           catalog={catalog}

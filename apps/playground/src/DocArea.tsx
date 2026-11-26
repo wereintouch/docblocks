@@ -101,6 +101,7 @@ function DocArea({
   mode,
   publishedDoc,
   publishedSeq,
+  publishedCopyable,
   runtime,
   syncEmbedResolver,
   catalog,
@@ -118,6 +119,8 @@ function DocArea({
   mode: EditorMode;
   publishedDoc: Doc | null;
   publishedSeq: number;
+  /** The published stand's selection policy (the provider's `publishedCopyable`). */
+  publishedCopyable: boolean;
   runtime: Runtime | null;
   syncEmbedResolver: SyncEmbedResolver | undefined;
   catalog: boolean;
@@ -214,6 +217,7 @@ function DocArea({
           mentionInteractions={mentionInteractions}
           {...demos}
           accessLevel="viewer"
+          publishedCopyable={publishedCopyable}
         >
           <Editor view={view} />
           <CoverGlowReporter hostRef={docAreaRef} />
@@ -237,6 +241,7 @@ function DocArea({
             accessLevel={role}
             mode={mode}
             publishedDoc={publishedDoc}
+            publishedCopyable={publishedCopyable}
           >
             <Editor view={view} />
             <CoverGlowReporter hostRef={docAreaRef} />

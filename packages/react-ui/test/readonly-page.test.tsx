@@ -3,7 +3,7 @@ import { cleanup, render } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
+import { createDoc, fromJSON } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
@@ -183,7 +183,7 @@ describe("the read-only modes' copy stand", () => {
     expect(payload.html).toBe("<div>alpha</div><div>beta</div>");
   });
 
-  it("the published's stand stands the copy off (the reader's selection stands no stand)", () => {
+  it("the published's stand stands the copy off by default (the reader's selection stands no stand)", () => {
     const { doc, a, b } = twoParagraphs("doc-copy-2");
     const { container } = render(
       <EditorProvider doc={doc} accessLevel="viewer">
@@ -196,5 +196,78 @@ describe("the read-only modes' copy stand", () => {
     expect(payload.prevented).toBe(false);
     expect(payload.plain).toBe("");
     expect(payload.html).toBe("");
+    // The no-select stand's root hook: the copyable hook stands absent.
+    expect(root.getAttribute("data-copyable")).toBeNull();
+  });
+
+  it("the copyable published stand serves the view's payload (the consumer's per-reader policy)", () => {
+    const { doc, a, b } = twoParagraphs("doc-copy-3");
+    const { container } = render(
+      <EditorProvider doc={doc} accessLevel="viewer" publishedCopyable>
+        <Editor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
+    // The root's hook lifts the no-select stand (styles.css) and the copy
+    // handler intercepts like the view's mode.
+    expect(root.getAttribute("data-copyable")).toBe("true");
+    selectAcross(a, 0, b, 4);
+    const payload = dispatchCopy(root);
+    expect(payload.prevented).toBe(true);
+    expect(payload.plain).toBe("alpha\nbeta");
+    expect(payload.html).toBe("<div>alpha</div><div>beta</div>");
+  });
+
+  it("the copyable published stand copies a mention as the @label (the view's parity)", () => {
+    const doc = createDoc({ id: "doc-copy-4", createdAt: CREATED_AT });
+    const blockId: BlockId = doc.insertBlock("paragraph");
+    doc.insertText(blockId, 0, "see ");
+    doc.insertText(blockId, 4, "Anna");
+    doc.setMark(blockId, 4, 8, { type: "mention", kind: "user", id: "user-1" });
+    const { container } = render(
+      <EditorProvider doc={doc} accessLevel="viewer" publishedCopyable>
+        <Editor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
+    const inner = document.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
+    )!;
+    const range = document.createRange();
+    range.selectNodeContents(inner);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const payload = dispatchCopy(root);
+    // The chip is a contenteditable=false island: the native copy would
+    // take the label alone — the payload stands the `@label` form.
+    expect(payload.prevented).toBe(true);
+    expect(payload.plain).toBe("see @Anna");
+  });
+
+  it("the editor's published stand inherits the policy (the nested provider over the snapshot)", () => {
+    // The editor's published mode mounts a nested provider over the
+    // snapshot (its own store/selection): the policy stands on the outer
+    // provider and the nested one inherits it.
+    const live = createDoc({ id: "doc-copy-5", createdAt: CREATED_AT });
+    const a: BlockId = live.insertBlock("paragraph");
+    live.insertText(a, 0, "alpha");
+    const b: BlockId = live.insertBlock("paragraph");
+    live.insertText(b, 0, "beta");
+    // The consumer's snapshot: the same doc hydrated from its own stored state.
+    const snapshot = fromJSON(JSON.parse(JSON.stringify(live.toJSON())));
+    const { container } = render(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot} publishedCopyable>
+        <Editor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]')!;
+    // The nested published stand: the snapshot's content + the inherited hook.
+    expect(root.getAttribute("data-mode")).toBe("published");
+    expect(root.getAttribute("data-copyable")).toBe("true");
+    selectAcross(a, 0, b, 4);
+    const payload = dispatchCopy(root);
+    expect(payload.prevented).toBe(true);
+    expect(payload.plain).toBe("alpha\nbeta");
   });
 });

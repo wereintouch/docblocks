@@ -74,6 +74,8 @@ interface EditorContextValue {
   accessLevel: AccessLevel;
   /** The effective document mode (resolved: a viewer stands "published" over any stand; a nested provider without its own `mode` inherits the enclosing one). */
   mode: EditorMode;
+  /** The published stand's selection policy (`publishedCopyable`): true makes the published snapshot's page text selectable and copyable — the `view` mode's parity; false (the default) keeps the reader's selection off. The canvas world keeps the no-select stand either way. */
+  publishedCopyable: boolean;
   /** True over the non-edit modes ("view" / "published"): every editing surface gates off (the read-only stand). */
   viewMode: boolean;
   /** The presence identity + cipher (the provider's `presence` prop); null when none was supplied (the legacy's anonymous stand). */

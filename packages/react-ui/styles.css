@@ -402,26 +402,29 @@
  * read-only — the inners stand contenteditable="false" (the caret's
  * editing's affordance is impossible).
  *
- * The PUBLISHED stand also blocks the text selection: the reader's copy
- * stands no stand (the published state is readable over the rendered page
- * only — no range, no copy). The VIEW stand keeps
- * the native selection (the live document is read-only but copyable: the
- * text is the reader's to quote, and the editor's copy payload serves it
- * — see use-editing). The `data-readonly` over the standalone's read-only
- * grid (no `data-mode` — the consumer's own surfaces) keeps the no-select
- * stand.
+ * The PUBLISHED stand blocks the text selection by default: the reader's
+ * copy stands no stand (the published state is readable over the rendered
+ * page only — no range, no copy). The consumer lifts the block per reader
+ * over the `publishedCopyable` prop: the copyable stand marks the root
+ * `data-copyable="true"` and stands the `view` mode's policy (the native
+ * selection over the page's text + the editor's copy payload — see
+ * use-editing). The VIEW stand always keeps the native selection (the live
+ * document is read-only but copyable: the text is the reader's to quote).
+ * The `data-readonly` over the standalone's read-only grid (no
+ * `data-mode` — the consumer's own surfaces) keeps the no-select stand.
  */
-[data-slot="docblocks/editor"][data-readonly="true"]:not([data-mode="view"]) {
+[data-slot="docblocks/editor"][data-readonly="true"]:not([data-mode="view"]):not([data-copyable="true"]) {
   user-select: none;
 }
 
 /*
- * The view's mode over the canvas: the page's text stands selectable, the
- * canvas's world keeps the read-only's no-select stand — the native range
- * would fight the pan's drag (the observing gesture) and the world's text
- * is not an editing surface.
+ * The canvas world keeps the read-only's no-select stand over the
+ * selectable stands (the view's mode, the copyable published stand): the
+ * page's text stands selectable, the canvas's world does not — the native
+ * range would fight the pan's drag (the observing gesture) and the world's
+ * text is not an editing surface.
  */
-[data-slot="docblocks/editor"][data-mode="view"] [data-slot="docblocks/canvas-world"] {
+[data-slot="docblocks/editor"]:is([data-mode="view"], [data-copyable="true"]) [data-slot="docblocks/canvas-world"] {
   user-select: none;
 }
 

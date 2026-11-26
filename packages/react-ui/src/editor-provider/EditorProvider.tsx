@@ -15,27 +15,10 @@ import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
 import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
+import { publishedStandKey } from "./published-stand";
 import { usePresencePublish } from "./use-presence-publish";
 import { usePresenceReceive } from "./use-presence-receive";
 import { useTrailingParagraph } from "./use-trailing-paragraph";
-
-// The published snapshot's stand key (a module stand, one seq per snapshot
-// instance): the nested published provider remounts over a NEW snapshot
-// (the doc's stand must not change over a mounted provider — the doc's
-// stand guard) and keeps its stand over the same snapshot (no re-mount
-// over the re-render).
-const SNAPSHOT_KEYS = new WeakMap<object, number>();
-let SNAPSHOT_KEY_SEQ = 0;
-
-function publishedStandKey(doc: Doc): string {
-  let key = SNAPSHOT_KEYS.get(doc);
-  if (key === undefined) {
-    key = SNAPSHOT_KEY_SEQ;
-    SNAPSHOT_KEY_SEQ += 1;
-    SNAPSHOT_KEYS.set(doc, key);
-  }
-  return `published-${key}`;
-}
 
 /**
  * The stand: owns the per-instance editor lifecycle — the zustand store
@@ -67,6 +50,7 @@ function EditorProviderStand({
   accessLevel,
   mode,
   publishedDoc,
+  publishedCopyable,
   presence,
   hiddenAttributes,
   renderAttribute,
@@ -167,6 +151,10 @@ function EditorProviderStand({
   // the enclosing one; null stands the absent contract.
   const effectiveDatabaseTableSection = databaseTableSection ?? parentContext?.databaseTableSection ?? null;
 
+  // The published stand's selection policy: the explicit stand wins, else the
+  // enclosing one, else the reader's selection stands off (the default).
+  const effectivePublishedCopyable = publishedCopyable ?? parentContext?.publishedCopyable ?? false;
+
   const value = useMemo(() => {
     const parent = parentContext;
     return {
@@ -196,6 +184,7 @@ function EditorProviderStand({
       commandPalettePlaceholder: commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? null,
       accessLevel: effectiveAccessLevel,
       mode: effectiveMode,
+      publishedCopyable: effectivePublishedCopyable,
       viewMode: effectiveMode !== "edit",
       presence: presence ?? null,
     };
@@ -218,6 +207,7 @@ function EditorProviderStand({
     embedSandbox,
     effectiveAccessLevel,
     effectiveMode,
+    effectivePublishedCopyable,
     presence,
     hiddenAttributes,
     renderAttribute,

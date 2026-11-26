@@ -66,6 +66,7 @@ function App() {
   const catalog = params.get("catalog") === "1";
   const blobEager = params.get("blobEager") === "1";
   const innerScroll = params.get("innerScroll") === "1";
+  const publishedCopyable = params.get("publishedCopyable") === "1";
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
   const tables = params.get("tables") === "1";
@@ -85,6 +86,7 @@ function App() {
       attrDemo={attrDemo}
       blobEager={blobEager}
       innerScroll={innerScroll}
+      publishedCopyable={publishedCopyable}
     />
   );
 }

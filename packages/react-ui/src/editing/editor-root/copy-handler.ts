@@ -1,6 +1,6 @@
 /** The editor root's copy handler: the selection's payload (the cross-block
  *  range / the blocks selection — `cross-copy`), the mention's `@label`
- *  stand for a same-block range, and the published stand's off. */
+ *  stand for a same-block range, and the published stand's default off. */
 import type { ClipboardEvent } from "react";
 import type { RefObject } from "react";
 
@@ -14,6 +14,9 @@ interface CopyHandlerDeps {
   doc: Doc;
   mode: EditorMode;
   viewMode: boolean;
+  /** The published stand's selection policy (the provider's
+   *  `publishedCopyable`): false keeps the reader's copy off. */
+  publishedCopyable: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
   selectionRef: SelectionRef;
 }
@@ -27,12 +30,13 @@ interface CopyHandlerDeps {
  * selection view (the mapping owns it); the view's mode maps the DOM
  * selection at copy time — the read-only stand keeps no live view (the
  * browser's native range is the only selection there). The published
- * stand never intercepts (no selection, no copy).
+ * stand intercepts only over the consumer's copyable policy — the default
+ * keeps the reader's selection and copy off.
  */
 function createCopyHandler(deps: CopyHandlerDeps): (event: ClipboardEvent<HTMLDivElement>) => void {
-  const { doc, mode, viewMode, rootRef, selectionRef } = deps;
+  const { doc, mode, viewMode, publishedCopyable, rootRef, selectionRef } = deps;
   return (event) => {
-    if (mode === "published") return;
+    if (mode === "published" && !publishedCopyable) return;
     // A copy from a nested editor (a sync-embed) bubbles up to this root;
     // that editor's own copy handler owns its payload.
     const root = rootRef.current;

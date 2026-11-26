@@ -33,6 +33,18 @@ interface EditorProviderAccessProps {
    */
   publishedDoc?: Doc | null;
   /**
+   * The published stand's selection policy (default `false`): `true` makes
+   * the published snapshot's page text selectable and copyable — the
+   * `view` mode's parity (the native range over the non-editable inners,
+   * the editor's copy payload: marks, `@label` mentions, cross-block
+   * ranges, and the table's grid serialization), so the consumer decides
+   * per reader whether the published state may be quoted. The canvas
+   * world keeps the no-select stand in every mode. Session state supplied
+   * by the consumer — never document data. A nested provider without its
+   * own stand inherits the enclosing one.
+   */
+  publishedCopyable?: boolean;
+  /**
    * Optional presence identity + the selection-sharing cipher (consumer
    * session state, never document data): the local user's stable `userId`
    * (the addressable identity on the wire), the optional roster label, and

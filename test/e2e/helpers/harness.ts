@@ -73,6 +73,7 @@ async function openPane(
     attrDemo?: boolean;
     blobEager?: boolean;
     innerScroll?: boolean;
+    publishedCopyable?: boolean;
   } = {}
 ): Promise<void> {
   // The Home/End stand installs over the page when the context's init
@@ -89,7 +90,7 @@ async function openPane(
   }
   const url =
     options.url ??
-    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}${options.attrDemo ? "&attrDemo=1" : ""}${options.blobEager ? "&blobEager=1" : ""}${options.innerScroll ? "&innerScroll=1" : ""}`;
+    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}${options.attrDemo ? "&attrDemo=1" : ""}${options.blobEager ? "&blobEager=1" : ""}${options.innerScroll ? "&innerScroll=1" : ""}${options.publishedCopyable ? "&publishedCopyable=1" : ""}`;
   await page.goto(url);
   const status = options.first ? page.getByTestId(`status-${client}`).first() : page.getByTestId(`status-${client}`);
   await connectedStatus(page, client, status, options.settle?.timeout ?? 15_000);
@@ -149,6 +150,7 @@ async function twoPanes(
     first?: boolean;
     viewerB?: boolean;
     attrDemo?: boolean;
+    publishedCopyable?: boolean;
   } = {}
 ): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const contextA = await browser.newContext();
@@ -165,6 +167,7 @@ async function twoPanes(
     light: options.light,
     first: options.first,
     attrDemo: options.attrDemo,
+    publishedCopyable: options.publishedCopyable,
   });
   await openPane(b, "b", uniqueRoom, {
     cycle: options.cycle,
@@ -172,6 +175,7 @@ async function twoPanes(
     first: options.first,
     role: options.viewerB ? "viewer" : undefined,
     attrDemo: options.attrDemo,
+    publishedCopyable: options.publishedCopyable,
   });
   return {
     a,

@@ -36,7 +36,7 @@ interface EditingHandle {
 }
 
 function useEditing(): EditingHandle {
-  const { doc, rootBlockId, selection: selectionRef, viewMode, mode } = useEditorContext();
+  const { doc, rootBlockId, selection: selectionRef, viewMode, mode, publishedCopyable } = useEditorContext();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const crossDrag = useCrossDrag(rootRef, doc, viewMode);
 
@@ -97,7 +97,7 @@ function useEditing(): EditingHandle {
     [doc, rootBlockId, selectionRef, viewMode]
   );
 
-  const onCopy = createCopyHandler({ doc, mode, viewMode, rootRef, selectionRef });
+  const onCopy = createCopyHandler({ doc, mode, viewMode, publishedCopyable, rootRef, selectionRef });
 
   return {
     rootRef,
