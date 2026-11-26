@@ -6,7 +6,13 @@
 // stand (`view-mode.spec.ts` pins it).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { editorContext, openPane } from "./helpers";
+import {
+  editorContext,
+  grantClipboardPermissions,
+  interceptClipboardWrites,
+  openPane,
+  readClipboardPayload,
+} from "./helpers";
 
 /** Switch the pane's mode to the view's mode and pin the read-only's stand. */
 async function toViewMode(page: Page): Promise<void> {
@@ -20,7 +26,7 @@ test("the view mode's text stands selectable and copyable (the table copies as t
   browser: Browser;
 }) => {
   const context = await editorContext(browser);
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await grantClipboardPermissions(context);
   const page = await context.newPage();
   await openPane(page, "a", "vm-copy");
   try {
@@ -46,6 +52,7 @@ test("the view mode's text stands selectable and copyable (the table copies as t
       });
     });
     await toViewMode(page);
+    await interceptClipboardWrites(page);
     const pageColumn = page.locator('[data-slot="docblocks/page"]').first();
     // The read-only's copy stand: the native selection stands over the
     // view's mode (the published's stand keeps the ban).
@@ -70,18 +77,10 @@ test("the view mode's text stands selectable and copyable (the table copies as t
     // TSV over the plain text).
     await page.keyboard.press("Control+a");
     await page.keyboard.press("Control+c");
+    // The clipboard's read: the OS clipboard over the chromium, the
+    // intercepted write over the engines without a readable clipboard.
     await expect
-      .poll(async () =>
-        page.evaluate(async () => {
-          const items = await navigator.clipboard.read();
-          const textOf = async (type: string) => {
-            const matching = items.filter((item) => item.types.includes(type));
-            return matching[0] === undefined ? null : await matching[0].getType(type).then((blob) => blob.text());
-          };
-          const [html, plain] = await Promise.all([textOf("text/html"), textOf("text/plain")]);
-          return { html, plain };
-        })
-      )
+      .poll(async () => readClipboardPayload(page))
       .toEqual({
         html: "<div>before</div><table><tbody><tr><td>r0c0</td><td>r0c1</td></tr><tr><td>r1c0</td><td>r1c1</td></tr></tbody></table><div>after</div>",
         plain: "before\nr0c0\tr0c1\nr1c0\tr1c1\nafter",
