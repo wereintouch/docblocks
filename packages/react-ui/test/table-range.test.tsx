@@ -188,8 +188,7 @@ describe("the merged regions over the range", () => {
     // The region covers the columns 0..1: the seam at its interior boundary
     // (the right edge of column 0) stands and resizes the covered column —
     // the region's width follows the columns' sum.
-    const interior =
-      document.querySelector<HTMLElement>('[data-slot="docblocks/table-col-resize"][data-index="0"]');
+    const interior = document.querySelector<HTMLElement>('[data-slot="docblocks/table-col-resize"][data-index="0"]');
     expect(interior, "the region's interior seam should render").not.toBeNull();
     fireEvent.pointerDown(interior!, { button: 0, clientX: 100, clientY: 50, pointerId: 1 });
     fireEvent.pointerMove(interior!, { clientX: 140, clientY: 50, pointerId: 1 });

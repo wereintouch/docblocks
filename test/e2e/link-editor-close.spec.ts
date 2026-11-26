@@ -85,9 +85,7 @@ test("the popover's close over the outside's click (the no-write's stand)", asyn
   }
 });
 
-test("the popover's input's focus stand over a lost focus (the typing's land over the input)", async ({
-  browser,
-}) => {
+test("the popover's input's focus stand over a lost focus (the typing's land over the input)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "link-editor-input-focus");
   try {
     await seedText(a, "a");

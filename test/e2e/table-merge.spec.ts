@@ -137,16 +137,19 @@ test("a merged region locks its columns' handles and the range resets over a res
     await page.mouse.move(sx + (60 * step) / 8, sy);
   }
   await page.mouse.up();
-  await expect.poll(
-    async () =>
-      page.evaluate((id) => {
-        const doc = window.__paneDocs?.a ?? null;
-        const table = doc === null ? null : doc.getBlock(id);
-        const widths = table !== null && table.type === "table" ? (table.attrs?.columnWidths as number[] | undefined) : undefined;
-        return widths?.[0] ?? null;
-      }, tableId),
-    SETTLE
-  ).toBe(160);
+  await expect
+    .poll(
+      async () =>
+        page.evaluate((id) => {
+          const doc = window.__paneDocs?.a ?? null;
+          const table = doc === null ? null : doc.getBlock(id);
+          const widths =
+            table !== null && table.type === "table" ? (table.attrs?.columnWidths as number[] | undefined) : undefined;
+          return widths?.[0] ?? null;
+        }, tableId),
+      SETTLE
+    )
+    .toBe(160);
 
   // The range over the region, then a structural change: the selection resets.
   const anchor = page.locator(`${paneOf("a")} td[data-slot="docblocks/table-cell"]`).first();
