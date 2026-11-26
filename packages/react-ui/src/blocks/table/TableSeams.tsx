@@ -18,8 +18,6 @@ import { ADD_BUTTON_CLASSES, HANDLE_ZONE } from "./constants";
 import type { HandleKind } from "./models";
 
 interface TableSeamsProps {
-  /** The column boundaries standing INSIDE a merged region (no seam there: the region resizes as one). */
-  blockedSeams: ReadonlySet<number>;
   widths: number[];
   tableWidth: number;
   tableHeight: number;
@@ -39,7 +37,6 @@ interface TableSeamsProps {
 }
 
 function TableSeams({
-  blockedSeams,
   widths,
   tableWidth,
   tableHeight,
@@ -63,9 +60,10 @@ function TableSeams({
       {widths.map((_, col) => {
         // The seam stands at the column's RIGHT edge (the interior
         // boundary, or the table's right edge for the last column —
-        // the last column resizes there too).
+        // the last column resizes there too). A boundary standing inside
+        // a merged region stands anyway: it resizes its covered column,
+        // and the region's width follows the columns' sum.
         const seamIndex = col + 1;
-        if (blockedSeams.has(seamIndex)) return null;
         const x = col + 1 < widths.length ? (seamXs[seamIndex] ?? HANDLE_ZONE + tableWidth) : HANDLE_ZONE + tableWidth;
         return (
           <div

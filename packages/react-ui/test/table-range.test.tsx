@@ -183,12 +183,22 @@ describe("the table cell range", () => {
 });
 
 describe("the merged regions over the range", () => {
-  it("stands no seam inside a region (the interior boundary is not resizable)", () => {
-    renderTable({ merge: true });
+  it("stands the seam at a region's interior boundary; the drag resizes the covered column", () => {
+    const { doc, tableId } = renderTable({ merge: true });
     // The region covers the columns 0..1: the seam at its interior boundary
-    // (the right edge of column 0) is gone; the region's outer edge stays.
-    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="0"]')).toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="1"]')).not.toBeNull();
+    // (the right edge of column 0) stands and resizes the covered column —
+    // the region's width follows the columns' sum.
+    const interior =
+      document.querySelector<HTMLElement>('[data-slot="docblocks/table-col-resize"][data-index="0"]');
+    expect(interior, "the region's interior seam should render").not.toBeNull();
+    fireEvent.pointerDown(interior!, { button: 0, clientX: 100, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(interior!, { clientX: 140, clientY: 50, pointerId: 1 });
+    fireEvent.pointerUp(interior!, { clientX: 140, clientY: 50, pointerId: 1 });
+    const after = doc.getBlock(tableId);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths?.[0]).toBe(140);
+    // The region stands over the resized column (the anchor's span is intact).
+    const anchorCell = doc.getBlock(doc.getChildren(doc.getChildren(tableId)[0]!)[0]!);
+    expect(anchorCell?.type === "table-cell" && anchorCell.attrs?.colspan).toBe(2);
   });
 
   it("selects whole regions: a rectangle never cuts a merged cell", async () => {

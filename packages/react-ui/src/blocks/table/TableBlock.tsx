@@ -138,9 +138,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // source — no DOM measurement for the columns) + the column seams' x.
   const columnCenters = columnCentersOf(widths);
   const seamXs = seamXsOf(widths);
-  // The regions' chrome stands (no seam inside; no reorder handle over a
-  // spanned column / row).
-  const { blockedSeams, lockedColumns, lockedRows } = useTableRegions({ doc, tableId: id });
+  // The regions' chrome stands (no reorder handle over a spanned column / row).
+  const { lockedColumns, lockedRows } = useTableRegions({ doc, tableId: id });
 
   // The open menu's structural guard (a concurrent restructure closes it).
   const closeMenuRef = (): void => setMenu(null);
@@ -246,7 +245,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 palette={palette}
               />
               <TableSeams
-                blockedSeams={blockedSeams}
                 widths={widths}
                 tableWidth={tableWidth}
                 tableHeight={tableHeight}

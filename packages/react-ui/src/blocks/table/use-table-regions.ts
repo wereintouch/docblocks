@@ -1,9 +1,10 @@
 /**
- * The table's merged regions over the renderer's chrome: the stands the chrome
- * must honour — no resize seam and no reorder handle on a region's interior,
- * and no handle to drag at all for a column / row the region spans (a reorder
- * through a region would shift its rectangle; the core rejects it, and the
- * chrome simply offers nothing).
+ * The table's merged regions over the renderer's chrome: no reorder handle
+ * for a column / row the region spans (a reorder through a region would shift
+ * its rectangle; the core rejects it, and the chrome simply offers nothing).
+ * The region's column seams stand unblocked — a covered column resizes on its
+ * own seam, and the region's width follows the columns' sum (the core's
+ * width set has no region guard).
  */
 import { useStore } from "zustand";
 
@@ -20,8 +21,6 @@ interface UseTableRegionsArgs {
 }
 
 interface TableRegionStands {
-  /** The column boundaries standing INSIDE a region (the seam index = the boundary's left column). */
-  blockedSeams: ReadonlySet<number>;
   /** The columns a region spans (their handles offer no reorder). */
   lockedColumns: ReadonlySet<number>;
   /** The rows a region spans (their handles offer no reorder). */
@@ -39,19 +38,17 @@ function useTableRegions({ doc, tableId }: UseTableRegionsArgs): TableRegionStan
   const chromeStamp = useStore(store, (state) => state.chromeStamp);
   return useMemo(() => {
     const grid = resolveTableGrid(doc.raw, tableId);
-    const blockedSeams = new Set<number>();
     const lockedColumns = new Set<number>();
     const lockedRows = new Set<number>();
     for (const anchor of grid?.rows.flat() ?? []) {
       if (anchor.colspan > 1) {
-        for (let col = anchor.col + 1; col < anchor.col + anchor.colspan; col += 1) blockedSeams.add(col);
         for (let col = anchor.col; col < anchor.col + anchor.colspan; col += 1) lockedColumns.add(col);
       }
       if (anchor.rowspan > 1) {
         for (let row = anchor.row; row < anchor.row + anchor.rowspan; row += 1) lockedRows.add(row);
       }
     }
-    return { blockedSeams, lockedColumns, lockedRows };
+    return { lockedColumns, lockedRows };
   }, [doc, tableId, chromeStamp]);
 }
 

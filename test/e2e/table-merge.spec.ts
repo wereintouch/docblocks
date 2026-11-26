@@ -123,8 +123,30 @@ test("a merged region locks its columns' handles and the range resets over a res
   await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="0"]`)).toHaveCount(0);
   await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="1"]`)).toHaveCount(0);
   await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-handle"][data-index="2"]`)).toHaveCount(1);
-  // ...and no resize seam inside the region (its interior boundary).
-  await expect(page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-resize"][data-index="0"]`)).toHaveCount(0);
+  // ...and the resize seam at the region's interior boundary stands: the
+  // drag resizes the covered column (the region's width follows the sum).
+  const seam = page.locator(`${paneOf("a")} [data-slot="docblocks/table-col-resize"][data-index="0"]`);
+  await expect(seam).toHaveCount(1);
+  const seamBox = await seam.boundingBox();
+  if (seamBox === null) throw new Error("the seam has no box");
+  const sx = seamBox.x + seamBox.width / 2;
+  const sy = seamBox.y + seamBox.height / 2;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(sx + (60 * step) / 8, sy);
+  }
+  await page.mouse.up();
+  await expect.poll(
+    async () =>
+      page.evaluate((id) => {
+        const doc = window.__paneDocs?.a ?? null;
+        const table = doc === null ? null : doc.getBlock(id);
+        const widths = table !== null && table.type === "table" ? (table.attrs?.columnWidths as number[] | undefined) : undefined;
+        return widths?.[0] ?? null;
+      }, tableId),
+    SETTLE
+  ).toBe(160);
 
   // The range over the region, then a structural change: the selection resets.
   const anchor = page.locator(`${paneOf("a")} td[data-slot="docblocks/table-cell"]`).first();
