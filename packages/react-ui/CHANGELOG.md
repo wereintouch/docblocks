@@ -1,5 +1,40 @@
 # docblocks-react-ui
 
+## 0.25.0
+
+### Minor Changes
+
+- b113562: The external-form database grid's header row is resizable: dragging the strip
+  over its lower edge sets the height of every header cell at once, with the
+  live preview and one commit on the release. The height lands in the block's
+  `headerHeight` attr (document data — undoable, synced, restored on reload) or,
+  over the `EditorProvider.databaseTableSection` contract, in the consumer's
+  per-table value (one height over every block referencing the table; the
+  block's own attr wins). The auto height is the drag's floor and read-only
+  modes render no handle. The standalone `DatabaseTable` takes the same
+  `tableSection` contract.
+- 58dfce7: The published stand's selection policy is the consumer's: the new
+  `publishedCopyable` provider prop makes the published snapshot's page text
+  selectable and copyable — the `view` mode's parity (the editor's copy
+  payload: marks, `@label` mentions, cross-block ranges, the table's grid
+  serialization). The default keeps the reader's selection and copy off; the
+  canvas world keeps the no-select stand either way.
+
+### Patch Changes
+
+- 4d8da14: The floating format toolbar never paints over the consumer's chrome above the
+  editor: a selection the DOM carries no rect for (the canvas/page switch
+  re-seats it over a re-mounted page) keeps the bar's last position instead of
+  anchoring off an empty rect, and the bar's own stand never lands above the
+  editor root's upper edge.
+- 86d46fa: The column seam at a merged region's interior boundary stands and resizes
+  its covered column: a drag over the seam of a column a `colspan` region
+  covers commits that column's width (the region's width follows the
+  columns' sum). The region's reorder handles stay hidden (the core's
+  move/insert guards stand).
+- Updated dependencies [b113562]
+  - docblocks-core@0.10.0
+
 ## 0.24.1
 
 ### Patch Changes
