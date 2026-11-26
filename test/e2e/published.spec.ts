@@ -86,9 +86,12 @@ test("the viewer's pane stands the snapshot over the publish's handoff (the swit
     await expect(b.locator('[data-slot="docblocks/doc-header-title"]')).toContainText("PUBLISHED TITLE");
     // The published's copy stand: the snapshot's text stands no selection
     // (the view mode's selectable/copyable stand is off over the
-    // published's one — the reader's copy stands no stand).
+    // published's one — the reader's copy stands no stand). The stand is
+    // read on the editor root, where the rule declares it: `user-select`
+    // is not an inherited property, so a descendant's computed value is
+    // the engine's own report.
     const userSelect = await bDoc
-      .locator('[data-slot="docblocks/page"]')
+      .locator('[data-slot="docblocks/editor"]')
       .first()
       .evaluate((el) => getComputedStyle(el).userSelect);
     expect(userSelect).toBe("none");
