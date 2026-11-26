@@ -4,14 +4,19 @@
  * absolutely-positioned div inside the editor root (the root is the
  * positioning context), like the slash / the mention's menus. Enter / the
  * apply stands the commit (the `applyLinkHref`'s one transaction), the
- * Escape stands the close (the no-write's stand), the invalid's stand
+ * Escape stands the close (the no-write's stand — the document's stand
+ * over the input's no-focus's, the LinkMenu's parity), the invalid's stand
  * stands the destructive's border + the message. The popover's mousedown
- * stands the default's suppress (the selection's life over the edit).
+ * stands the default's suppress (the selection's life over the edit) over
+ * the non-form-control's stand only — the input's press keeps its default
+ * (the focus + the caret's seat, the typing's stand over a lost focus).
+ * The outside's press stands the close (the capture's document's stand,
+ * the LinkMenu's parity).
  */
 import { useTranslation } from "react-i18next";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import type { RefObject } from "react";
+import type { MouseEvent as ReactMouseEvent, RefObject } from "react";
 
 import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui/Button";
@@ -54,6 +59,38 @@ function LinkPopover({ rootRef, state, onClose }: LinkPopoverProps) {
     input.focus();
     input.select();
   }, []);
+
+  // The close's explicit's paths (the LinkMenu's parity over the popover's
+  // gap): the outside's pointerdown (the capture's document's stand over
+  // the popover's own press's exclusion) + the Escape (the capture's
+  // document's stand — the input's own key's no-double's stand over it).
+  useLayoutEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const el = popoverRef.current;
+      const target = event.target instanceof Element ? event.target : null;
+      if (el !== null && target !== null && !el.contains(target)) onClose();
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [onClose]);
+
+  // The form control's press stands the default's stand (the input's focus
+  // + the caret's seat over the click — the suppression would keep a lost
+  // focus on the body / the doc, and the typing would land nowhere / in
+  // the doc). The other's stands the selection's life over the edit (the
+  // button's / the padding's press's no-clobber).
+  const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target !== null && target.closest("input, textarea") !== null) return;
+    preventDefault(event);
+  };
 
   // Anchor at the open's point (below it, over the above's flip when there
   // is no room), clamped inside the editor root (measured over the layout
@@ -105,7 +142,7 @@ function LinkPopover({ rootRef, state, onClose }: LinkPopoverProps) {
           ? { width: POPOVER_WIDTH_PX }
           : { width: POPOVER_WIDTH_PX, left: position.left, top: position.top }
       }
-      onMouseDown={preventDefault}
+      onMouseDown={handleMouseDown}
     >
       <Input
         ref={inputRef}
@@ -120,16 +157,13 @@ function LinkPopover({ rootRef, state, onClose }: LinkPopoverProps) {
         }}
         onKeyDown={(event) => {
           // The no-bubble's stand over the editor root's keys (the Enter's
-          // line-break's / the Escape's selection's clear's double-fire's
-          // off — the popover's commit's / the close's stand only).
+          // line-break's double-fire's off — the popover's commit's stand
+          // only). The Escape stands the document's stand over the capture
+          // (the single's owner's stand — the input's own key's no-double).
           if (event.key === "Enter") {
             event.preventDefault();
             event.stopPropagation();
             apply();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            onClose();
           }
         }}
       />

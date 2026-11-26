@@ -2,8 +2,10 @@
 /**
  * The link popover's component behavior: the prefill's stand, the commit's
  * write (the mark over the target's range), the invalid's stand (the no-
- * write + the open's stand), the removal's write, and the Escape's
- * no-write's close.
+ * write + the open's stand), the removal's write, and the close's stands
+ * (the Escape's no-write's close, the outside's press's close, the
+ * document's Escape over the input's no-focus's stand) + the input's
+ * mousedown's default's stand (the focus's stand over the other's suppress).
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -115,5 +117,56 @@ describe("LinkPopover", () => {
 
     expect(f.closes).toEqual(["close"]);
     expect(f.doc.getRuns(f.blockId)).toEqual([{ text: "hello world", marks: {} }]);
+  });
+
+  it("the outside's press stands the close over the no-write (the document's stand)", () => {
+    const f = fixture(true);
+    renderPopover(f);
+
+    fireEvent.pointerDown(document.body);
+
+    expect(f.closes).toEqual(["close"]);
+    expect(f.doc.getRuns(f.blockId)).toEqual([
+      { text: "hello ", marks: {} },
+      { text: "world", marks: { link: { href: "https://old.example" } } },
+    ]);
+  });
+
+  it("the popover's own press stands the open's stand (the input's exclusion)", () => {
+    const f = fixture(true);
+    renderPopover(f);
+
+    const input = screen.getByPlaceholderText("Paste or type a link address") as HTMLInputElement;
+    fireEvent.pointerDown(input);
+
+    expect(f.closes).toEqual([]);
+  });
+
+  it("the document's Escape stands the close (the input's no-focus's stand, the no-write's stand)", () => {
+    const f = fixture(true);
+    renderPopover(f);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(f.closes).toEqual(["close"]);
+    expect(f.doc.getRuns(f.blockId)).toEqual([
+      { text: "hello ", marks: {} },
+      { text: "world", marks: { link: { href: "https://old.example" } } },
+    ]);
+  });
+
+  it("the input's press keeps the mousedown's default (the focus's stand); the other's stands the suppress", () => {
+    const f = fixture(true);
+    renderPopover(f);
+
+    const input = screen.getByPlaceholderText("Paste or type a link address") as HTMLInputElement;
+    const inputEvent = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    input.dispatchEvent(inputEvent);
+    expect(inputEvent.defaultPrevented).toBe(false);
+
+    const popoverEl = document.querySelector("[data-slot='docblocks/link-popover']") as HTMLElement;
+    const chromeEvent = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    popoverEl.dispatchEvent(chromeEvent);
+    expect(chromeEvent.defaultPrevented).toBe(true);
   });
 });
