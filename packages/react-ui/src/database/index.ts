@@ -68,3 +68,4 @@ export type { EnumOptionDraft } from "./grid";
 export { DatabaseTable, useTableList } from "./standalone";
 export type { DatabaseTableView, UseTableList } from "./standalone";
 export type { DatabaseTableProps } from "./standalone";
+export type { DatabaseTableSection } from "./table-section";

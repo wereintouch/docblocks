@@ -104,4 +104,22 @@ interface GridColumnResizeSession {
   widths: number[];
 }
 
-export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, GridColumnResizeSession, EnumOptionDraft };
+/** The in-flight header-row resize press: the press's y and the height at
+ *  the press (the delta's base), the auto height the clamp's floor reads,
+ *  and the live (clamped) height the preview renders and the release
+ *  commits. */
+interface GridHeaderResizeSession {
+  startY: number;
+  startHeight: number;
+  natural: number;
+  height: number;
+}
+
+export type {
+  AddColumnFormDraft,
+  AddColumnTypeEntry,
+  ColumnDragSession,
+  GridColumnResizeSession,
+  GridHeaderResizeSession,
+  EnumOptionDraft,
+};

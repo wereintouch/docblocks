@@ -88,6 +88,7 @@ export type {
   DatabaseTablePhase,
   DatabaseTableProps,
   DatabaseTableRow,
+  DatabaseTableSection,
   DatabaseTableView,
   DomainEvent,
   FilterConditionInput,

@@ -60,7 +60,7 @@ function DatabaseDisconnected({ name }: { name?: string }) {
 }
 
 function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) {
-  const { doc, databaseBridge, viewMode } = useEditorContext();
+  const { doc, databaseBridge, databaseTableSection, viewMode } = useEditorContext();
   const tableId = block.attrs.tableId;
   if (tableId === undefined) {
     // The inline form: the built-in placeholder card stands (the caller
@@ -81,6 +81,14 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       columnOrder={block.attrs.columnOrder}
       hiddenColumns={block.attrs.hiddenColumns}
       columnWidths={block.attrs.columnWidths}
+      // The header-row height: the block's own attr (the document-level
+      // stand) over the table section's value (the consumer's per-table
+      // persistence — one height over every block of the table).
+      headerHeight={block.attrs.headerHeight}
+      sectionHeaderHeight={databaseTableSection?.getHeaderHeight?.(tableId)}
+      // The drag's commit: the block's attr over the document (CRDT data,
+      // one undo step, the wire update).
+      onHeaderHeightChange={(height) => doc.updateBlock(id, { headerHeight: height })}
       // The view-attrs' write stand: one `updateBlock` (the CRDT data,
       // the undo step, the wire update).
       onViewChange={(patch) => doc.updateBlock(id, patch)}

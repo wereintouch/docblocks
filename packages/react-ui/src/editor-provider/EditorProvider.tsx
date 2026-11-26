@@ -56,6 +56,7 @@ function EditorProviderStand({
   blobLoading,
   scrollContainer,
   databaseBridge,
+  databaseTableSection,
   syncEmbedResolver,
   pdfPreview,
   mentionProvider,
@@ -162,6 +163,10 @@ function EditorProviderStand({
     [databaseBridge, parentContext]
   );
 
+  // The effective per-table section settings: the explicit stand wins, else
+  // the enclosing one; null stands the absent contract.
+  const effectiveDatabaseTableSection = databaseTableSection ?? parentContext?.databaseTableSection ?? null;
+
   const value = useMemo(() => {
     const parent = parentContext;
     return {
@@ -173,6 +178,7 @@ function EditorProviderStand({
       blobLoading: effectiveBlobLoading,
       scrollContainer: effectiveScrollContainer,
       databaseBridge: effectiveDatabaseBridge,
+      databaseTableSection: effectiveDatabaseTableSection,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
       mentionProvider: mentionProvider ?? parent?.mentionProvider ?? null,
@@ -201,6 +207,7 @@ function EditorProviderStand({
     effectiveBlobLoading,
     effectiveScrollContainer,
     effectiveDatabaseBridge,
+    effectiveDatabaseTableSection,
     syncEmbedResolver,
     rootId,
     parentContext,

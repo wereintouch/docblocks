@@ -6,27 +6,21 @@
  * model (the cell / column selection — the native text selection over the
  * drag is suppressed).
  */
-import { useTranslation } from "react-i18next";
-
 import { useState } from "react";
 import type { ClipboardEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { Button } from "../../shared/ui/Button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
-import { cn } from "../../shared/ui/cn";
-import { Plus } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
 import { useDatabaseTable } from "../use-database-table";
 import type { DatabaseTableRow } from "../use-database-table/models";
-import { AddColumnForm } from "./AddColumnForm";
+import { AddColumnCell } from "./AddColumnCell";
 import { GridRows } from "./GridRows";
 import { HeaderCell } from "./HeaderCell";
-import { columnTypeIcon } from "./column-type-icon";
-import { ADD_COLUMN_TYPES, GRID_CHROME_FRAME } from "./constants";
+import { HeaderResizeHandle } from "./HeaderResizeHandle";
 import type { useColumnForm } from "./use-column-form";
 import { useGridColumnDrag } from "./use-grid-column-drag";
+import { useGridHeaderResize } from "./use-grid-header-resize";
 import { useGridSeamResize } from "./use-grid-seam-resize";
 import type { RefTableDataMap } from "./use-ref-tables";
 
@@ -54,6 +48,12 @@ interface GridTableProps {
   refTableData: RefTableDataMap;
   filter?: DatabaseFilterPayload;
   readOnly?: boolean;
+  /** The resolved header-row height (the block's attr over the table
+   *  section's value); undefined = the auto height. */
+  headerHeight?: number;
+  /** The header resize's release commit (the block attr / the section
+   *  value — the caller's write stand). */
+  onHeaderHeightChange?: (height: number) => void;
   tableRef: { current: HTMLDivElement | null };
   onTableKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onTablePaste: (event: ClipboardEvent<HTMLDivElement>) => void;
@@ -84,6 +84,8 @@ function GridTable({
   refTableData,
   filter,
   readOnly = false,
+  headerHeight,
+  onHeaderHeightChange,
   tableRef,
   onTableKeyDown,
   onTablePaste,
@@ -91,7 +93,6 @@ function GridTable({
   form,
   OptionsEditor,
 }: GridTableProps) {
-  const { t } = useTranslation("database");
   const [columnMenu, setColumnMenu] = useState<string | null>(null);
 
   const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
@@ -106,6 +107,11 @@ function GridTable({
     updateView: onViewChange,
     tableRef,
   });
+
+  const commitHeaderHeight = onHeaderHeightChange ?? (() => undefined);
+  const { headerPreview, onHeaderPointerDown, onHeaderPointerMove, onHeaderPointerUp, onHeaderPointerCancel } =
+    useGridHeaderResize({ tableRef, headerHeight, onCommit: commitHeaderHeight });
+  const headerRowHeight = headerPreview ?? headerHeight;
 
   // The parting preview: the stationary columns' shift (px) over the live
   // drop index (the dragged column's own cells stand the pointer's dx).
@@ -160,11 +166,12 @@ function GridTable({
       onBlur={onTableBlur}
       // The fixed row track (the standard row height): every row —
       // over any column type mix — stands the one height (the header
-      // stands its own auto row; the enum's trigger fits the content
-      // box, so a new enum column grows no row). The multi-line's
-      // editor stands the portaled layer (no track's shift).
+      // stands its own row: the auto height, or the resized / the
+      // committed one; the enum's trigger fits the content box, so a new
+      // enum column grows no row). The multi-line's editor stands the
+      // portaled layer (no track's shift).
       style={{
-        gridTemplateRows: "auto",
+        gridTemplateRows: headerRowHeight !== undefined ? `${headerRowHeight}px` : "auto",
         gridAutoRows: "var(--docblocks-database-row-height)",
         gridTemplateColumns: `${columns
           .map((_, index) => {
@@ -208,67 +215,19 @@ function GridTable({
           onPointerUp={columnPointerUp(column)}
         />
       ))}
-      <div
-        data-slot="docblocks/database-add-column"
-        className="
-          relative flex items-center justify-center border-b-(length:--docblocks-table-border-width)
-          border-(--docblocks-table-border-color)
-        "
-      >
-        {!readOnly && (
-          <DropdownMenu modal={false} open={form.addingColumn} onOpenChange={form.setAddingColumn}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                data-slot="docblocks/database-add-column-trigger"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  GRID_CHROME_FRAME,
-                  "size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent",
-                  "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-                )}
-              >
-                <Plus className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-32">
-              {ADD_COLUMN_TYPES.map((entry) => {
-                const EntryIcon = columnTypeIcon(entry.type, entry.refKind, entry.refMany);
-                return (
-                  <DropdownMenuItem
-                    key={entry.key}
-                    data-column-entry={entry.key}
-                    onClick={() => form.openCreateForm(entry)}
-                  >
-                    <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
-                    {t(entry.labelKey)}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-        <AddColumnForm
-          open={form.columnFormOpen}
-          onOpenChange={form.onColumnFormOpenChange}
-          form={form.columnForm}
-          formNumber={form.columnFormNumber}
-          formRef={form.columnFormRef}
-          error={form.columnFormError}
-          bridgeTables={form.bridgeTables}
-          OptionsEditor={OptionsEditor}
-          onCommit={form.commitColumnForm}
-          onNameChange={form.onColumnNameChange}
-          onDecimalsChange={form.onColumnDecimalsChange}
-          onThousandsChange={form.onColumnThousandsChange}
-          onPrefixChange={form.onColumnPrefixChange}
-          onSuffixChange={form.onColumnSuffixChange}
-          onAllowNegativeChange={form.onColumnAllowNegativeChange}
-          onEnumOptionsChange={form.onColumnEnumOptionsChange}
-          onRefPickChange={form.onColumnRefPickChange}
-          onNewTableNameChange={form.onColumnNewTableNameChange}
+      {/* The handle stands only where a write target exists (the block's
+          attr / the section's settings) — the read-only modes' height
+          still applies. */}
+      {!readOnly && onHeaderHeightChange !== undefined && (
+        <HeaderResizeHandle
+          resizing={headerPreview !== null}
+          onPointerDown={onHeaderPointerDown}
+          onPointerMove={onHeaderPointerMove}
+          onPointerUp={onHeaderPointerUp}
+          onPointerCancel={onHeaderPointerCancel}
         />
-      </div>
+      )}
+      <AddColumnCell gridColumn={columns.length + 1} readOnly={readOnly} form={form} OptionsEditor={OptionsEditor} />
       <GridRows
         rows={rows}
         columns={columns}

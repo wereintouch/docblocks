@@ -223,6 +223,10 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       // The per-visible-column widths (px; absent entry = the reader's
       // default width), like the table's columnWidths.
       columnWidths: { kind: "array", items: { kind: "number", min: 50 } },
+      // The header row's height (px; absent = the auto height). The auto
+      // height is a rendering stand, not a data bound: the data level
+      // checks the positivity only.
+      headerHeight: { kind: "number", positive: true },
       views: { kind: "array" },
       viewType: { kind: "enum", values: ["table", "kanban", "calendar"] },
     },

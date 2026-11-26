@@ -105,6 +105,7 @@ mention catalog). The full props list:
 | `blobStore?`                 | The blob bridge for image / pdf / file blocks and the document-attributes' cover (see below).                                                                                                                                                                                                                                                                          |
 | `coverPresets?`              | The cover's upload modal's preset gallery: the consumer's ready-made cover's file ids (the consumer's blob store's ids) per placement mode — the `tile` / the `center`'s set. A pick commits the id over the mode without an upload (see Blobs below).                                                                                                                 |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                                                 |
+| `databaseTableSection?`      | The per-table section settings: `getHeaderHeight(tableId)` + `setHeaderHeight(tableId, height)` (see Database below). The grid reads the header-row height per table; a block's own attr wins over it.                                                                                                                                                                 |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                                                            |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). Over an untrusted URL stand the `""`'s return (the opaque origin, no scripts); the opaque-origin's restriction stands over this policy. |
 | `pdfPreview?`                | A first-page preview component for PDF file blocks (and legacy PDF image blocks).                                                                                                                                                                                                                                                                                      |
@@ -597,6 +598,19 @@ and reorders them by dragging their grips or pressing ArrowUp/ArrowDown on a
 focused grip. Header drag and the popover share one full column order, and
 visible column widths follow the moved column.
 
+The header row's **height** is adjustable: dragging the lower edge of the
+header row (the full-width strip over its bottom border) sets the height of
+every header cell at once, with the live preview and one commit on the
+release. The drag cannot go below the header's own auto height (the column
+names never render clipped) and stops at a 600 px ceiling. The height has
+two persistence levels: the block's `headerHeight` attr (document data —
+survives the reload, reaches the other participants over the wire, undoes),
+and the table-level value of the consumer's tables section (the
+`databaseTableSection` provider prop, see the props table). A block's own
+attr wins over the table-level value; a block without one follows the table
+and falls back to the auto height. Read-only modes apply the height and
+render no handle.
+
 The grid's **Filter** control edits a recursive and/or condition tree: one
 row per condition (the field / the operator / the value over the column's
 annotation, a single line), the nested groups over bordered cards, and the
@@ -640,7 +654,7 @@ function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
 ```
 
 - `DatabaseTable({ bridge, tableId, readOnly?, view?, onViewChange?,
-className? })` —
+className?, tableSection? })` —
   the live grid over the bridge's table id (the same data stand as the
   document block: the schema, the rows, the live events, the optimistic
   cell layer). The view's settings (`filter`, `columnOrder`,
@@ -648,7 +662,13 @@ className? })` —
   the optional `view` prop at mount); `onViewChange(patch)` receives one
   patch per change for the consumer's persistence (the controlled mode
   stands absent — the state is never external). `readOnly` gates the
-  editing's paths (the read-only block's parity). The standalone's grid
+  editing's paths (the read-only block's parity). `tableSection` is the
+  same per-table contract the `EditorProvider` takes: the header row's
+  height comes from `getHeaderHeight(tableId)` and the grid's drag commits
+  it back over `setHeaderHeight(tableId, height)`, so the section's value and
+  the document blocks over the same table stand one height. Without the
+  contract the grid renders no header handle (the header keeps the auto
+  height). The standalone's grid
   stands no table-name display — the consumer's own visual element (the
   section's list / the heading) stands the name; the document block's
   grid keeps the live name + the rename over it. The sizing's stand is

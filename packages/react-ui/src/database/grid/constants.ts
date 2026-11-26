@@ -49,6 +49,11 @@ const CHECKBOX_TOGGLE_GUARD_MS = 600;
 // `minmax(7rem, 1fr)`) and the resize floor (like the table block's seam).
 const DEFAULT_DATABASE_COLUMN_WIDTH_PX = 112;
 const MIN_DATABASE_COLUMN_WIDTH_PX = 50;
+// The header row's height (px): the resize clamp's floor when the auto
+// height stands unmeasured (the header's one-line stand) and the drag's
+// generous ceiling.
+const MIN_DATABASE_HEADER_HEIGHT_PX = 28;
+const MAX_DATABASE_HEADER_HEIGHT_PX = 600;
 /** The shared cell wrapper classes (the left border + the padding). */
 const CELL_WRAP =
   "flex min-h-6 min-w-0 items-center overflow-hidden border-(--docblocks-table-border-color) p-(--docblocks-table-cell-padding)";
@@ -111,7 +116,9 @@ export {
   CHECKBOX_TOGGLE_GUARD_MS,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
   DRAG_START_THRESHOLD_PX,
+  MAX_DATABASE_HEADER_HEIGHT_PX,
   MIN_DATABASE_COLUMN_WIDTH_PX,
+  MIN_DATABASE_HEADER_HEIGHT_PX,
   NEW_TABLE_PICK,
   REF_NONE_PICK,
 };

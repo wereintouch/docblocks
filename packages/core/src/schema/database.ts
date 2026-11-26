@@ -81,6 +81,10 @@ interface DatabaseAttrs {
    *  reader's default width. The widths are positional over the visible
    *  sequence (the column-order / hidden-column changes re-base them). */
   columnWidths?: number[];
+  /** The header row's height in px (the external-form view state; absent =
+   *  the auto height). The auto height is the floor: the header's content
+   *  (the column names over the wrapped cells) never renders clipped. */
+  headerHeight?: number;
   /** The saved views (the per-block instance). */
   views?: DatabaseSavedView[];
   /** The current view type (the v1 set; an unknown value falls back to

@@ -57,6 +57,7 @@ describe("the view attrs (the external-form view state)", () => {
         "columnWidths",
         "columns",
         "filter",
+        "headerHeight",
         "hiddenColumns",
         "indent",
         "name",
@@ -71,6 +72,9 @@ describe("the view attrs (the external-form view state)", () => {
     expect(attrs.hiddenColumns).toEqual({ kind: "array", items: { kind: "string", nonEmpty: true } });
     // The per-visible-column widths: px with the 50 floor (like the table's).
     expect(attrs.columnWidths).toEqual({ kind: "array", items: { kind: "number", min: 50 } });
+    // The header row's height: px, the positivity only (the auto height is
+    // the rendering floor, not a data bound).
+    expect(attrs.headerHeight).toEqual({ kind: "number", positive: true });
     expect(attrs.views).toEqual({ kind: "array" });
     // The display name: the absent-or-empty string (the empty is the
     // "remove the override" idiom), so no nonEmpty constraint.
@@ -156,6 +160,31 @@ describe("the view attrs (the external-form view state)", () => {
     // Below the 50 px floor (or a non-number) the validator rejects the patch.
     expect(() => doc.updateBlock(db, { columnWidths: [40] })).toThrow();
     expect(() => doc.updateBlock(db, { columnWidths: ["wide"] as unknown as number[] })).toThrow();
+  });
+
+  it("the headerHeight attr round-trips (the drag's commit; the positive floor stands)", () => {
+    const doc: Doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const db = doc.insertBlock("database", { tableId: "t1" });
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.headerHeight).toBeUndefined();
+
+    doc.updateBlock(db, { headerHeight: 96 });
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.headerHeight).toBe(96);
+
+    // One undo step reverts the height (the header height is the doc's data).
+    doc.undo();
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.headerHeight).toBeUndefined();
+
+    // The JSON round-trip keeps the height.
+    doc.updateBlock(db, { headerHeight: 96 });
+    const json = JSON.parse(JSON.stringify(doc.toJSON()));
+    expect((fromJSON(json).getBlock(db)! as DatabaseBlock).attrs.headerHeight).toBe(96);
+
+    // The data level checks the positivity only; the auto height is the
+    // rendering floor (the UI's clamp), not a stored bound.
+    expect(() => doc.updateBlock(db, { headerHeight: 0 })).toThrow();
+    expect(() => doc.updateBlock(db, { headerHeight: -10 })).toThrow();
+    expect(() => doc.updateBlock(db, { headerHeight: "tall" as unknown as number })).toThrow();
+    expect(() => doc.updateBlock(db, { headerHeight: 28 })).not.toThrow();
   });
 });
 

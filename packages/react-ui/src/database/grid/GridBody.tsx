@@ -24,6 +24,7 @@ import { GridBrokenCard, GridLoadingCard } from "./GridStateCards";
 import { GridTable } from "./GridTable";
 import { GridToolbar } from "./GridToolbar";
 import { GRID_CHROME_FRAME } from "./constants";
+import { resolveDatabaseHeaderHeight } from "./header-height";
 import { useColumnForm } from "./use-column-form";
 import { useEnumOptionsMotion } from "./use-enum-options-motion";
 import { useGridCellInteraction } from "./use-grid-cell-interaction";
@@ -42,6 +43,15 @@ interface GridBodyProps {
   columnOrder?: string[];
   hiddenColumns?: string[];
   columnWidths?: number[];
+  /** The block's own header-row height (px — the document-level stand). */
+  headerHeight?: number;
+  /** The table section's header-row height (the consumer's per-table
+   *  value): the block's own attr wins over it. */
+  sectionHeaderHeight?: number;
+  /** The header resize's release commit (the caller's write stand: the
+   *  block's attr over the document, the section's value over its own
+   *  grid). */
+  onHeaderHeightChange?: (height: number) => void;
   /** The view-attrs' write stand (the block's stand: one `updateBlock` —
    *  the CRDT data, the undo step, the wire update; the standalone's
    *  stand: the internal state's merge + the consumer's `onViewChange`
@@ -62,6 +72,9 @@ function GridBody({
   columnOrder,
   hiddenColumns,
   columnWidths,
+  headerHeight,
+  sectionHeaderHeight,
+  onHeaderHeightChange,
   onViewChange,
   readColumnOrder,
   readOnly = false,
@@ -96,6 +109,8 @@ function GridBody({
   const form = useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, onViewChange });
 
   const columns = visibleColumns(data.table?.columns, columnOrder, hiddenColumns);
+
+  const resolvedHeaderHeight = resolveDatabaseHeaderHeight(headerHeight, sectionHeaderHeight);
 
   const updateView = (patch: Record<string, unknown>) => {
     onViewChange(patch);
@@ -182,6 +197,8 @@ function GridBody({
             refTableData={refTableData}
             filter={filter}
             readOnly={readOnly}
+            headerHeight={resolvedHeaderHeight}
+            onHeaderHeightChange={onHeaderHeightChange}
             tableRef={tableRef}
             onTableKeyDown={onTableKeyDown}
             onTablePaste={onTablePaste}

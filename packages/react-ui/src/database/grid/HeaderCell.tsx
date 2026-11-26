@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next";
 
 import { useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "../../shared/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
@@ -81,6 +81,17 @@ function HeaderCell({
   // The type's mark (the type's icon set — the header's name-line's left
   // stand; a separate element, never part of the rename's input).
   const ColumnIcon = columnTypeIcon(column.type, column.refKind, column.refMany);
+  // The in-flight drag's live stand (the parting preview / the dragged
+  // column's own shift).
+  const dragStyle: CSSProperties | null =
+    dragDx !== 0
+      ? {
+          transform: `translateX(${dragDx}px)`,
+          position: "relative",
+          zIndex: dragShifted ? undefined : 10,
+          transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
+        }
+      : null;
   const commitRename = () => {
     const trimmed = nameDraft.trim();
     if (trimmed !== "" && trimmed !== column.name) onRename(trimmed);
@@ -111,16 +122,10 @@ function HeaderCell({
     <div
       data-slot="docblocks/database-header-cell"
       data-column-id={column.id}
-      style={
-        dragDx !== 0
-          ? {
-              transform: `translateX(${dragDx}px)`,
-              position: "relative",
-              zIndex: dragShifted ? undefined : 10,
-              transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
-            }
-          : undefined
-      }
+      // The header row's explicit placement: the row's resize strip spans
+      // every track of the same row, so the header cells never stand the
+      // auto-placement's flow (the data rows fill from the next row).
+      style={{ gridRow: 1, gridColumn: colIndex + 1, ...dragStyle }}
       className={cn(
         `
           relative flex min-w-0 items-center gap-1 border-b-(length:--docblocks-table-border-width)

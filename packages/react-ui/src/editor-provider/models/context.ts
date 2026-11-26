@@ -4,7 +4,7 @@ import type { BlockId, Doc } from "docblocks-core";
 
 import type { BlobStore } from "../../blob-store";
 import type { BlockRendererMap } from "../../blocks";
-import type { DatabaseBridge } from "../../database";
+import type { DatabaseBridge, DatabaseTableSection } from "../../database";
 import type { EditorStore } from "../../state";
 import type { AttributeTypePicker, RenderAttribute } from "./attributes";
 import type { MentionInteractions, MentionProvider } from "./mentions";
@@ -36,6 +36,10 @@ interface EditorContextValue {
    *  undefined when none was supplied — the external-form database blocks
    *  render the disconnected placeholder. */
   databaseBridge: DatabaseBridge | undefined;
+  /** The consumer's per-table section settings (the `databaseTableSection`
+   *  prop): the table-level values the grid reads as the block's fallback;
+   *  null when none was supplied. */
+  databaseTableSection: DatabaseTableSection | null;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The consumer's PDF first-page preview renderer; null when none was supplied (the native iframe stands). */

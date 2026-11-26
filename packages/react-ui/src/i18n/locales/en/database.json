@@ -56,7 +56,8 @@
     "editOptions": "Edit options",
     "show": "Show column",
     "hide": "Hide column",
-    "delete": "Delete column"
+    "delete": "Delete column",
+    "resizeHeight": "Resize the header row"
   },
   "row": {
     "moveUp": "Move up",

@@ -7,7 +7,7 @@ import type { BlockId, Doc, SyncProvider } from "docblocks-core";
 
 import type { BlobStore } from "../../blob-store";
 import type { BlockRendererMap } from "../../blocks";
-import type { DatabaseBridge } from "../../database";
+import type { DatabaseBridge, DatabaseTableSection } from "../../database";
 import type { PdfPreview } from "./pdf";
 
 /** The blob loading policy: the viewport-gated lazy stand (the default) or
@@ -81,6 +81,21 @@ interface EditorProviderBaseProps {
    * none inherits the enclosing bridge.
    */
   databaseBridge?: DatabaseBridge;
+  /**
+   * Optional per-table section settings: the values the consumer keeps for
+   * the table itself instead of a document block, keyed by the bridge's
+   * table id. `getHeaderHeight` feeds the external-form grid's header-row
+   * height as the block's fallback — a block's own `headerHeight` attr wins
+   * over it, an absent stand is the auto height; `setHeaderHeight` is the
+   * section's own grid's commit (the standalone `DatabaseTable` over the
+   * same table id). Without the prop the grid keeps the document-level
+   * stand only (the block's attr).
+   *
+   * Like `databaseBridge`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies none
+   * inherits the enclosing stand.
+   */
+  databaseTableSection?: DatabaseTableSection;
   /**
    * Optional PDF first-page preview renderer for file blocks and legacy PDF
    * image blocks. The component receives the library-owned object URL and the

@@ -4,6 +4,7 @@ import { DocblocksI18nProvider } from "../../i18n";
 import { cn } from "../../shared/ui/cn";
 import type { DatabaseBridge } from "../bridge";
 import { GridBody } from "../grid/GridBody";
+import type { DatabaseTableSection } from "../table-section";
 import type { DatabaseTableView } from "./models";
 
 /** The stable absent-seed's stand (the `view` prop's absent stand). */
@@ -26,6 +27,10 @@ interface DatabaseTableProps {
    *  constrained root stands the grid's inner scroll (the unconstrained's
    *  stand is the content's height, as over the document's block). */
   className?: string;
+  /** The consumer's per-table section settings: the header-row height the
+   *  table itself carries (the document blocks reference the same table id
+   *  and read the same stand over their provider's `databaseTableSection`). */
+  tableSection?: DatabaseTableSection;
 }
 
 /**
@@ -42,12 +47,39 @@ interface DatabaseTableProps {
  * stands the grid's inner scroll; the unconstrained's stand is the
  * content's height).
  */
-function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange, className }: DatabaseTableProps) {
+function DatabaseTable({
+  bridge,
+  tableId,
+  readOnly = false,
+  view,
+  onViewChange,
+  className,
+  tableSection,
+}: DatabaseTableProps) {
   const [viewState, setViewState] = useState<Partial<DatabaseTableView>>(view ?? EMPTY_VIEW);
   // The ref mirror stands the async tail's fresh read (the render-time
   // state stands stale over the await).
   const viewRef = useRef(viewState);
   viewRef.current = viewState;
+
+  // The section's header-row height: the consumer's persistent stand (the
+  // same value the document blocks over this table read) with the local
+  // commit's echo — the section's interface stands a read, not a
+  // subscription, so the drag's release stands this instance's display
+  // until the consumer's value lands (the echo drops over any other
+  // value: the persisted stand / a change made elsewhere wins).
+  const [headerEcho, setHeaderEcho] = useState<{ tableId: string; base: number | undefined; height: number } | null>(
+    null
+  );
+  const sectionHeight = tableSection?.getHeaderHeight?.(tableId);
+  const sectionHeaderHeight =
+    headerEcho !== null && headerEcho.tableId === tableId && headerEcho.base === sectionHeight
+      ? headerEcho.height
+      : sectionHeight;
+  const commitHeaderHeight = (height: number) => {
+    setHeaderEcho({ tableId, base: sectionHeight, height });
+    tableSection?.setHeaderHeight?.(tableId, height);
+  };
 
   const handleViewChange = useCallback(
     (patch: Record<string, unknown>) => {
@@ -82,6 +114,10 @@ function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange, 
           columnOrder={viewState.columnOrder}
           hiddenColumns={viewState.hiddenColumns}
           columnWidths={viewState.columnWidths}
+          sectionHeaderHeight={sectionHeaderHeight}
+          // The handle stands only over the section contract (the table-level
+          // persistence's write stand); the plain stand keeps the auto height.
+          onHeaderHeightChange={tableSection === undefined ? undefined : commitHeaderHeight}
           onViewChange={handleViewChange}
           readColumnOrder={() => viewRef.current.columnOrder}
           readOnly={readOnly}
