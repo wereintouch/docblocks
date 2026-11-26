@@ -8,7 +8,10 @@
  * (below it when there is no room above) and disappears as soon as the
  * selection collapses, leaves the target, or becomes a blocks selection —
  * the visibility is derived from the selection state, so no key or mouse
- * capture is needed.
+ * capture is needed. A model range the DOM carries no rect for (the
+ * canvas/page switch re-seats the selection over a re-mounted page) keeps the
+ * bar's last position — never the page origin's stand above the editor's own
+ * box, over the consumer's chrome.
  *
  * Controls (shared/ui primitives): the five toggle marks (bold, monospace
  * = the exclusive code mark, italic, underline, strikethrough) and the
@@ -33,13 +36,14 @@ import { Button } from "../../shared/ui/Button";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Link } from "../../shared/ui/icons";
-import { clamp, preventDefault } from "../../shared/utils";
+import { preventDefault } from "../../shared/utils";
 import { TOOLBAR_BLOCK_TYPES, toolbarRangeOf } from "../format-range";
 import { useLinkPopoverApi } from "../link";
 import { FormatListMenu } from "./FormatListMenu";
 import { FormatPalette } from "./FormatPalette";
 import { ACTIVE_ITEM_CLASS, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
 import { createFormatToolbarActions } from "./format-toolbar-actions";
+import { anchorFormatToolbar } from "./format-toolbar-anchor";
 import type { FormatToolbarProps, PaletteTarget } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
@@ -71,33 +75,14 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     setListMenuOpen(false);
   }, [selectionKey]);
 
-  // Anchor the bar above the selection rect (below it when there is no
-  // room) and clamp it horizontally inside the editor root. The rect of a
+  // Anchor the bar over the selection rect (below it when there is no
+  // room), never above the editor root's upper edge. The rect of a
   // cross-block DOM selection works the same way as a single-block one.
   useLayoutEffect(() => {
     const el = barRef.current;
     const root = rootRef.current;
     if (el === null || root === null) return;
-    const domSelection = window.getSelection();
-    if (domSelection === null || domSelection.rangeCount === 0) return;
-    if (!root.contains(domSelection.anchorNode)) return;
-    const range = domSelection.getRangeAt(0);
-    // Environments without layout (jsdom) have no range geometry: the bar
-    // stays at its default position there.
-    if (typeof range.getBoundingClientRect !== "function") return;
-    const rect = range.getBoundingClientRect();
-    const rootRect = root.getBoundingClientRect();
-    const width = el.offsetWidth;
-    const height = el.offsetHeight;
-    const left = clamp(
-      rect.left + rect.width / 2 - width / 2 - rootRect.left,
-      8,
-      Math.max(8, rootRect.width - width - 8)
-    );
-    const above = rect.top - rootRect.top - height - 8;
-    const top = above < 4 ? rect.bottom - rootRect.top + 8 : above;
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+    anchorFormatToolbar(el, root);
   });
 
   if (range === null) return null;
