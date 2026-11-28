@@ -44,7 +44,7 @@ afterEach(() => {
 
 describe("embed height (the stretched stand)", () => {
   const HANDLE_SELECTOR = "[data-slot='docblocks/embed-resize']";
-  const WRAPPER_SELECTOR = '[data-block-type="embed"]';
+  const WRAPPER_SELECTOR = '[data-block-type="embed"]:not([data-slot="docblocks/row"])';
   const MIN = 300; // the token's default (jsdom's fallback)
 
   function renderEmbedStretched() {

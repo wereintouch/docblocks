@@ -44,7 +44,7 @@ test("a database inserted in A renders in both panes and reaches the JSON", asyn
     [b, "b"],
   ] as const) {
     const doc = pane.locator(`[data-testid="doc-${client}"]`);
-    const wrapper = doc.locator('[data-block-type="database"]');
+    const wrapper = doc.locator('[data-block-type="database"]:not([data-slot="docblocks/row"])');
 
     // The placeholder card in both panes: the column names (from the
     // harness seed) and the row count 2 (the seed rows synced over the
@@ -83,7 +83,7 @@ test("the row commands over the wire: insertRow / setCell / moveRow / removeRow 
   const { a, b, close } = await twoPanes(browser, "db-wire");
 
   await insertType(a, "a", "database");
-  const cardB = b.locator('[data-block-type="database"]');
+  const cardB = b.locator('[data-block-type="database"]:not([data-slot="docblocks/row"])');
   await expect.poll(async () => cardB.count(), SETTLE).toBe(1);
   await expect(cardB.locator("[data-slot='docblocks/database-count']")).toHaveText("2 rows");
 

@@ -65,7 +65,7 @@ describe("canvas scene: the render", () => {
   it("positions the elements by geometry (the center-anchor coordinate model)", () => {
     renderScene({ view: "canvas" });
     const rect = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]:not([data-slot="docblocks/row"])`
     )!;
     // The center-anchor model: the wrapper is placed at (center + x,
     // center + y) and centered over the point (jsdom normalizes the
@@ -79,7 +79,9 @@ describe("canvas scene: the render", () => {
 
   it("renders the shapes as SVGs (the variant figures, the dash style, the fill attr)", () => {
     renderScene({ view: "canvas" });
-    const rect = document.querySelector<SVGElement>(`[data-slot="docblocks/shape"][data-block-id="${IDS.rect}"]`)!;
+    const rect = document.querySelector<SVGElement>(
+      `[data-slot="docblocks/shape"][data-block-id="${IDS.rect}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(rect.getAttribute("data-variant")).toBe("rect");
     expect(rect.querySelector("rect")).not.toBeNull();
     expect(rect.querySelector("ellipse")).toBeNull();
@@ -87,7 +89,7 @@ describe("canvas scene: the render", () => {
     expect(rect.querySelector("g")!.getAttribute("fill")).toBe("rgba(9, 105, 218, 0.2)");
 
     const ellipse = document.querySelector<SVGElement>(
-      `[data-slot="docblocks/shape"][data-block-id="${IDS.ellipse}"]`
+      `[data-slot="docblocks/shape"][data-block-id="${IDS.ellipse}"]:not([data-slot="docblocks/row"])`
     )!;
     expect(ellipse.querySelector("ellipse")).not.toBeNull();
     expect(ellipse.querySelector("g")!.getAttribute("stroke-dasharray")).toBe("8 4");
@@ -100,7 +102,7 @@ describe("canvas scene: the render", () => {
     // direct-children' stand).
     const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]')!;
     const wrapper = world.querySelector<HTMLElement>(
-      `:scope > [data-slot="docblocks/canvas-item"][data-block-id="${IDS.text}"]`
+      `:scope > [data-slot="docblocks/canvas-item"][data-block-id="${IDS.text}"]:not([data-slot="docblocks/row"])`
     )!;
     expect(wrapper.style.fontSize).toBe("20px");
     expect(wrapper.style.textAlign).toBe("center");
@@ -111,7 +113,7 @@ describe("canvas scene: the render", () => {
     // caret).
     expect(screen.getAllByText("Canvas text").length).toBe(1);
     const editable = wrapper.querySelector<HTMLElement>(
-      `[data-slot="docblocks/block-content"][data-block-id="${IDS.text}"]`
+      `[data-slot="docblocks/block-content"][data-block-id="${IDS.text}"]:not([data-slot="docblocks/row"])`
     )!;
     expect(editable.getAttribute("contenteditable")).toBe("false");
   });

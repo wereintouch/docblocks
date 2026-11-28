@@ -111,11 +111,17 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
         for (const point of caretPointsOf(peer.selection)) {
           // A text-editable block measures inside its inner editable (a
           // nested list's text must not corrupt the flat offset); a
-          // non-text block falls back to the wrapper element.
+          // non-text block falls back to the wrapper element. The row's
+          // row-level anchor stands out of its block's exit clone (the
+          // row outlives the removed block's content), so the fallback
+          // skips the row's slot.
           const block =
             root.querySelector<HTMLElement>(
               `[data-block-id="${CSS.escape(point.blockId)}"][data-slot="docblocks/block-content"]`
-            ) ?? root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(point.blockId)}"]`);
+            ) ??
+            root.querySelector<HTMLElement>(
+              `[data-block-id="${CSS.escape(point.blockId)}"]:not([data-slot="docblocks/row"])`
+            );
           if (block === null) continue;
           next.push({
             key: `${peer.peerId}:caret:${point.blockId}:${point.offset}`,

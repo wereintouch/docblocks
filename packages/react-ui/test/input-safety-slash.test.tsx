@@ -72,7 +72,9 @@ describe("slash trigger (the page text blocks)", () => {
 
   it("commits the / and opens the menu (the doc is the source of truth)", () => {
     const doc = renderTrigger("paragraph", "");
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${triggerId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the trigger should be rendered").not.toBeNull();
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the trigger should carry the inner editable").not.toBeNull();
@@ -88,7 +90,9 @@ describe("slash trigger (the page text blocks)", () => {
 
   it("opens on a block that owns a derived segment (the apply never cascades)", () => {
     const doc = renderTrigger("paragraph", "", true);
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${triggerId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the trigger should be rendered").not.toBeNull();
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the trigger should carry the inner editable").not.toBeNull();
@@ -102,7 +106,9 @@ describe("slash trigger (the page text blocks)", () => {
 
   it("opens on a non-empty, indented block (any position and indent of the page sequence)", () => {
     const doc = renderTrigger("list-item", "ab", false, 1);
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${triggerId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the trigger should be rendered").not.toBeNull();
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the trigger should carry the inner editable").not.toBeNull();
@@ -116,7 +122,9 @@ describe("slash trigger (the page text blocks)", () => {
 
   it("does not open on a code block (a / in code is plain text)", () => {
     const doc = renderTrigger("code", "ab");
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${triggerId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the trigger should be rendered").not.toBeNull();
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the trigger should carry the inner editable").not.toBeNull();

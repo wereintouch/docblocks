@@ -14,7 +14,7 @@ function pane(page: Page, client: "a" | "b") {
 
 /** The pane's block wrappers (the inner editables are not wrappers). */
 function wrappers(page: Page, client: "a" | "b") {
-  return pane(page, client).locator('[data-block-id]:not([data-slot="docblocks/block-content"])');
+  return pane(page, client).locator('[data-slot="docblocks/row"]');
 }
 
 /** The delete button of the row owning the block (the row hosts the block's
@@ -34,7 +34,9 @@ function rowGutter(page: Page, client: "a" | "b", id: string) {
 
 /** The wrapper of the block (the flat page carries no nesting). */
 function wrapper(page: Page, client: "a" | "b", id: string) {
-  return pane(page, client).locator(`[data-block-id="${id}"]:not([data-slot="docblocks/block-content"])`);
+  return pane(page, client).locator(
+    `[data-block-id="${id}"]:not([data-slot="docblocks/row"]):not([data-slot="docblocks/block-content"])`
+  );
 }
 
 /** The block ids the pane's doc still carries. */

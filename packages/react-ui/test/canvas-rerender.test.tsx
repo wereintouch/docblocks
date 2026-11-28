@@ -46,7 +46,7 @@ function setup() {
   const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   const wrapperA = utils.container.querySelector<HTMLElement>(
-    `[data-slot="docblocks/canvas-item"][data-block-id="${a}"]`
+    `[data-slot="docblocks/canvas-item"][data-block-id="${a}"]:not([data-slot="docblocks/row"])`
   );
   if (wrapperA === null) throw new Error("the canvas item is missing");
   return { doc, page, a, b, c, seen, view, utils, wrapperA };
@@ -124,7 +124,7 @@ describe("the canvas re-render contract", () => {
   it("stands the unselected items on a click-select (the tint stands the two items only)", () => {
     const { doc, page, a, b, c, seen, view, utils } = setup();
     const wrapperB = utils.container.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${b}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${b}"]:not([data-slot="docblocks/row"])`
     );
     if (wrapperB === null) throw new Error("the canvas item is missing");
     const beforeA = seen[`shape:${a}`] ?? 0;

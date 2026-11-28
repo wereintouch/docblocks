@@ -16,7 +16,7 @@ function pane(page: Page, client: "a" | "b") {
 
 /** The pane's block wrappers (the inner editables are not blocks). */
 function wrappers(page: Page, client: "a" | "b") {
-  return pane(page, client).locator('[data-block-id]:not([data-slot="docblocks/block-content"])');
+  return pane(page, client).locator('[data-slot="docblocks/row"]');
 }
 
 function gutter(page: Page, client: "a" | "b", index: number) {

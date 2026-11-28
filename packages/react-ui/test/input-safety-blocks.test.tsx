@@ -39,7 +39,7 @@ describe("the blocks (gutter) selection removal", () => {
       view!.set({ kind: "blocks", ids: [p1], anchorId: p1 });
     });
 
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p1}"]`);
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p1}"]:not([data-slot="docblocks/row"])`);
     expect(wrapper, "the selected row should render").not.toBeNull();
     wrapper!.focus();
     act(() => {
@@ -48,7 +48,7 @@ describe("the blocks (gutter) selection removal", () => {
 
     expect(doc.getBlock(p1)).toBeNull();
     expect(doc.getBlock(p2)).not.toBeNull();
-    expect(document.querySelector(`[data-block-id="${p1}"]`)).toBeNull();
+    expect(document.querySelector(`[data-block-id="${p1}"]:not([data-slot="docblocks/row"])`)).toBeNull();
 
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -79,7 +79,9 @@ describe("the blocks (gutter) selection removal", () => {
       view!.set({ kind: "blocks", ids: [divider], anchorId: divider });
     });
 
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${divider}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${divider}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the selected row should render").not.toBeNull();
     wrapper!.focus();
     act(() => {

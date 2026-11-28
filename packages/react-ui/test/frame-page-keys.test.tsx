@@ -15,7 +15,9 @@ import { CREATED_AT } from "./frame-page.helpers";
 describe("the Backspace-merge's guard (no merge into the frame)", () => {
   /** Place the DOM caret at `offset` of the block's inner and press Backspace on the wrapper. */
   function backspaceAt(blockId: BlockId, offset: number): void {
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(wrapper, "the block should stand").not.toBeNull();
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the block should carry the inner editable").not.toBeNull();
@@ -89,7 +91,7 @@ describe("the Delete's stand (the reference's removal; the canvas frame's surviv
       probe.current!([pageFrame]);
     });
     const wrapper = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/frame-page"][data-block-id="${pageFrame}"]`
+      `[data-slot="docblocks/frame-page"][data-block-id="${pageFrame}"]:not([data-slot="docblocks/row"])`
     )!;
     fireEvent.keyDown(wrapper, { key: "Delete" });
     // The reference's removal (the standard page's selection-delete — the

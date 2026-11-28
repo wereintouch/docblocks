@@ -11,7 +11,9 @@ const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 /** The rendered block wrappers (the inner editables are not wrappers). */
 function wrappersOf(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]")).filter(
+  // The block wrappers (the rows carry the block id as their row-level
+  // anchor too — the row's slot stands excluded over the count).
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-block-id]:not([data-slot="docblocks/row"])')).filter(
     (el) => el.getAttribute("data-slot") !== "docblocks/block-content"
   );
 }

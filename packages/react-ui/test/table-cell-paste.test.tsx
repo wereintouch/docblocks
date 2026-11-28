@@ -101,7 +101,9 @@ describe("the slash Table command", () => {
       </EditorProvider>
     );
 
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${pageId}"]`)!;
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-block-id="${pageId}"]:not([data-slot="docblocks/row"])`
+    )!;
     const inner = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]')!;
     // The caret at the block's end ("keep|" — the "/" lands at the end).
     caretAt(inner, 4);

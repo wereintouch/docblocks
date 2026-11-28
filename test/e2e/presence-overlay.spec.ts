@@ -27,8 +27,11 @@ test("the remote caret renders inside the peer's block and clears on blur", asyn
       // The wrapper and the inner editable both carry the block id; the
       // geometry anchor is the block's wrapper.
       const blockBox =
-        (await b.locator(`[data-block-id="${blockId}"]:not([data-slot="docblocks/block-content"])`).boundingBox()) ??
-        undefined;
+        (await b
+          .locator(
+            `[data-block-id="${blockId}"]:not([data-slot="docblocks/row"]):not([data-slot="docblocks/block-content"])`
+          )
+          .boundingBox()) ?? undefined;
       if (barBox === undefined || blockBox === undefined) return false;
       const barCenterX = barBox.x + barBox.width / 2;
       const barCenterY = barBox.y + barBox.height / 2;

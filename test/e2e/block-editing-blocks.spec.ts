@@ -18,13 +18,13 @@ function inners(page: Page, client: "a" | "b") {
 /** The pane's block wrappers (the inner editables are not blocks). */
 
 function wrappers(page: Page, client: "a" | "b") {
-  return pane(page, client).locator('[data-block-id]:not([data-slot="docblocks/block-content"])');
+  return pane(page, client).locator('[data-slot="docblocks/row"]');
 }
 
 /** The pane's list item rows (the flat model: each item is its own row — no list element wraps it in the motion view). */
 
 function listItems(page: Page, client: "a" | "b") {
-  return pane(page, client).locator('[data-block-type="list-item"]');
+  return pane(page, client).locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])');
 }
 
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {

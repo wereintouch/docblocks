@@ -84,7 +84,7 @@ function renderOuter(ref: { docId: string; blockId?: string }, options?: RenderO
 
 /** The first sync-embed wrapper in document order (the outermost one). */
 function wrapperOf(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-block-type="sync-embed"]');
+  return document.querySelector<HTMLElement>('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])');
 }
 
 afterEach(() => {

@@ -138,7 +138,9 @@ describe("FrameWindowContent's render (the offset / the content's parity)", () =
     // anchor's stand — the world's origin parity over the anchor): the
     // shape at (10, 20) stands at calc(50% + 10) / calc(50% + 20) over the
     // zero-size anchor (the 50%'s stand over the zero's box).
-    const copy = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)!;
+    const copy = content.querySelector<HTMLElement>(
+      `[data-slot='docblocks/canvas-item'][data-block-id="${a}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(copy.style.left).toBe("calc(50% + 10px)");
     expect(copy.style.top).toBe("calc(50% + 20px)");
   });
@@ -151,11 +153,23 @@ describe("the content's exclusion (the referenced frame's stand out)", () => {
     // The frame1's window: the surface's children minus frame1 (the
     // referenced frame stands out of its own window).
     const content = renderWindow(doc, surface, { left: 50, top: 50 }, [frame1]);
-    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame2}"]`)).not.toBeNull();
-    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)).not.toBeNull();
+    expect(
+      content.querySelector(
+        `[data-slot='docblocks/canvas-item'][data-block-id="${frame2}"]:not([data-slot="docblocks/row"])`
+      )
+    ).not.toBeNull();
+    expect(
+      content.querySelector(
+        `[data-slot='docblocks/canvas-item'][data-block-id="${a}"]:not([data-slot="docblocks/row"])`
+      )
+    ).not.toBeNull();
     // The frame1 does not stand inside its own window (the self's
     // exclusion).
-    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame1}"]`)).toBeNull();
+    expect(
+      content.querySelector(
+        `[data-slot='docblocks/canvas-item'][data-block-id="${frame1}"]:not([data-slot="docblocks/row"])`
+      )
+    ).toBeNull();
   });
 
   it("stands the labeled connector's chip over the window's content", () => {
@@ -199,7 +213,9 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
       </EditorProvider>
     );
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
-    const groupItem = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${group}"]`)!;
+    const groupItem = view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${group}"]:not([data-slot="docblocks/row"])`
+    )!;
     // The group's chip stands the group's slots (the extraction keeps the
     // slots' stand — the container's parity) over the screen layer's seat.
     const chip = view.querySelector<HTMLElement>(
@@ -225,7 +241,9 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
     // The chip stands over the screen layer's seat on the frame's box.
     const seat = () =>
-      view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]`)!;
+      view.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]:not([data-slot="docblocks/row"])`
+      )!;
     const chip = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title']");
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toBe("The frame");
@@ -260,7 +278,9 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
     fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
     fireEvent.pointerUp(view, { pointerId: 1 });
     const seat = () =>
-      view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]`)!;
+      view.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]:not([data-slot="docblocks/row"])`
+      )!;
     const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
     expect(menu).not.toBeNull();
     // The commit (the Enter's one updateBlock — the chip's stand).

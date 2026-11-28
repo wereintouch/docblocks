@@ -14,10 +14,12 @@ test("the embed's toolbar zoom persists over the doc's attrs (the panes share th
 }) => {
   const { a, b, close } = await twoPanes(browser, "embed-panzoom");
   await insertType(a, "a", "embed");
-  const embed = a.locator("[data-block-type='embed']");
+  const embed = a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
   await expect(embed).toHaveCount(1, SETTLE);
   const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
-  const iframeB = b.locator('[data-testid="doc-b"] [data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
+  const iframeB = b.locator(
+    '[data-testid="doc-b"] [data-block-type="embed"]:not([data-slot="docblocks/row"]) iframe[data-slot="docblocks/embed"]'
+  );
   await expect(iframe).toHaveAttribute("style", /scale\(1\)/);
 
   // The persisted view's read over the block's attrs (the null idiom: the
@@ -57,7 +59,7 @@ test("the embed's toolbar zoom persists over the doc's attrs (the panes share th
 test("the embed's wheel: ctrl/cmd zooms at the cursor, a plain wheel pans (view state)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "embed-wheel");
   await insertType(a, "a", "embed");
-  const embed = a.locator("[data-block-type='embed']");
+  const embed = a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
   await expect(embed).toHaveCount(1, SETTLE);
   const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
 
@@ -94,7 +96,7 @@ test("the embed's wheel: ctrl/cmd zooms at the cursor, a plain wheel pans (view 
 test("the embed's modifier drag-pan: an Alt-held drag pans the overflow (view state)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "embed-dragpan");
   await insertType(a, "a", "embed");
-  const embed = a.locator("[data-block-type='embed']");
+  const embed = a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
   await expect(embed).toHaveCount(1, SETTLE);
   const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
 
@@ -142,7 +144,7 @@ test("the embed's pan/zoom survives the reload (the persisted view's restore)", 
   await expect(page.getByTestId("status-a")).toHaveText("connected");
 
   await insertType(page, "a", "embed");
-  const embed = page.locator("[data-block-type='embed']");
+  const embed = page.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
   await expect(embed).toHaveCount(1, SETTLE);
   const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
 
@@ -170,6 +172,8 @@ test("the embed's pan/zoom survives the reload (the persisted view's restore)", 
   // persisted view (the transform stands it — no flash of the identity).
   await page.reload();
   await expect(page.getByTestId("status-a")).toHaveText("connected");
-  const restored = page.locator('[data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
+  const restored = page.locator(
+    '[data-block-type="embed"]:not([data-slot="docblocks/row"]) iframe[data-slot="docblocks/embed"]'
+  );
   await expect(restored).toHaveAttribute("style", /scale\(1\.44\)/, SETTLE);
 });

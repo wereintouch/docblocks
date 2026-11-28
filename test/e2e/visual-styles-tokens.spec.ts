@@ -50,7 +50,9 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
   // is not pinned — it is seed-dependent). The left padding stands the
   // icon's gutter (the padding-x + the icon zone); the other sides stand the
   // padding tokens.
-  const callout = doc.locator('[data-block-type="callout"]:not([data-variant])').first();
+  const callout = doc
+    .locator('[data-block-type="callout"]:not([data-variant]):not([data-slot="docblocks/row"])')
+    .first();
   await expect(callout).toHaveCount(1);
   const calloutStyle = await styleProps(callout, "border-left-width", "border-left-style", "padding", "border-radius");
   expect(calloutStyle).toEqual({
@@ -100,7 +102,7 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
 
   // The embed: the wrapper box carries the height token (the iframe fills
   // it) + the divider border.
-  const embed = doc.locator('[data-block-type="embed"]');
+  const embed = doc.locator('[data-block-type="embed"]:not([data-slot="docblocks/row"])');
   await expect(embed).toHaveCount(1);
   const embedStyle = await styleProps(embed, "height", "border-style", "overflow");
   expect(embedStyle).toEqual({ height: "300px", "border-style": "solid", overflow: "hidden" });
@@ -112,7 +114,7 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   expect(imgStyle).toEqual({ display: "block", "max-width": "100%" });
 
   // The sync-embed: the wrapper frame's border + the scrolling body cap.
-  const syncEmbed = doc.locator('[data-block-type="sync-embed"]');
+  const syncEmbed = doc.locator('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])');
   await expect(syncEmbed).toHaveCount(1);
   expect((await styleProps(syncEmbed, "border-width"))["border-width"]).toBe("1px");
   const bodyStyle = await styleProps(

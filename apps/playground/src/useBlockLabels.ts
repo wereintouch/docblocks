@@ -6,9 +6,10 @@ import type { PaneBlock } from "./pane-blocks";
 /**
  * Label the pane's rendered blocks for the e2e specs: a testid per block
  * and `data-current` on the pane's current block (the editor renders the
- * real blocks; the pane adds these harness attributes). Text-editable
- * blocks carry the id on the wrapper and the inner editable — only the
- * wrapper is labeled.
+ * real blocks; the pane adds these harness attributes). A block's id
+ * travels on the row, the wrapper and the inner editable of a text
+ * block — only the wrapper is labeled (one labeled element per block,
+ * the specs' single-match locators).
  */
 function useBlockLabels(
   docAreaRef: RefObject<HTMLDivElement | null>,
@@ -22,6 +23,7 @@ function useBlockLabels(
     const ids = new Set(blocks.map((block) => block.id));
     for (const el of Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]"))) {
       if (el.getAttribute("data-slot") === "docblocks/block-content") continue;
+      if (el.getAttribute("data-slot") === "docblocks/row") continue;
       const id = el.getAttribute("data-block-id");
       // Write only on a value change: a text edit re-runs the effect over
       // the whole sequence, and the no-op re-stamp (remove + set) is a

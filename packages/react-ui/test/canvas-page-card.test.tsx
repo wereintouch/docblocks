@@ -126,7 +126,7 @@ describe("the two-click contract", () => {
     // The seeded shape's press (the block's own zone): the item's
     // selection (not the card's).
     const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]:not([data-slot="docblocks/row"])`
     );
     if (wrapper === null) throw new Error("the shape's wrapper is missing");
     pressBlock(r.view, r.doc, r.shape);
@@ -157,7 +157,7 @@ describe("the box handles", () => {
   it("stands the eight box handles (no rotate handle) for the shape and the page miniature", () => {
     const r = renderCanvas();
     const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]:not([data-slot="docblocks/row"])`
     );
     if (wrapper === null) throw new Error("the shape's wrapper is missing");
 

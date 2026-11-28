@@ -56,7 +56,7 @@ describe("the render conditions", () => {
     // toolbar follows the selection and hides.
     selectBlock(view as HTMLElement, doc, shape);
     const shapeSel = (view as HTMLElement).querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${shape}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${shape}"]:not([data-slot="docblocks/row"])`
     );
     expect(shapeSel?.hasAttribute("data-selected")).toBe(true);
     expect(toolbar()).toBeNull();

@@ -126,7 +126,7 @@ test("the embed's toolbar stands over the keyboard (the focus's reveal, the zoom
   try {
     // Seed the embed (the slash's form, over the wire).
     await insertEmbed(a);
-    const wrapper = a.locator("[data-block-type='embed']");
+    const wrapper = a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
     await expect(wrapper).toHaveCount(1, SETTLE);
     const toolbar = wrapper.locator('[data-slot="docblocks/embed-toolbar"]');
     const zoom = wrapper.locator('[data-slot="docblocks/embed-zoom"]');

@@ -23,7 +23,8 @@ function renderCallout(prepare: (doc: TestDoc) => void) {
   return doc;
 }
 
-const calloutEl = () => document.querySelector<HTMLElement>("[data-block-type='callout']");
+const calloutEl = () =>
+  document.querySelector<HTMLElement>("[data-block-type='callout']:not([data-slot='docblocks/row'])");
 const iconEl = () => document.querySelector<HTMLElement>("[data-slot='docblocks/callout-icon']");
 
 afterEach(cleanup);

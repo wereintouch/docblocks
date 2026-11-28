@@ -55,7 +55,9 @@ describe("structural data-slot attributes", () => {
     );
 
     expect(document.querySelector('[data-slot="docblocks/editor"]')).not.toBeNull();
-    expect(document.querySelector(`[data-block-id="${p}"]`)?.getAttribute("data-slot")).toBe("docblocks/block");
+    expect(
+      document.querySelector(`[data-block-id="${p}"]:not([data-slot="docblocks/row"])`)?.getAttribute("data-slot")
+    ).toBe("docblocks/block");
     expect(document.querySelector('[data-slot="docblocks/block"][data-block-type="heading"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-slot="docblocks/list-item"]').length).toBe(2);
     // The flat stand: the list's marker stands the kind (no list element —
@@ -97,7 +99,7 @@ describe("the presence overlay's stands (the crafted frame, the re-render contra
     });
     // The tree stands intact (the crafted frame draws no box — the block
     // stands absent — the selector stands no throw).
-    expect(document.querySelector(`[data-block-id="${p}"]`)).not.toBeNull();
+    expect(document.querySelector(`[data-block-id="${p}"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/presence-caret"]')).toBeNull();
   });
 

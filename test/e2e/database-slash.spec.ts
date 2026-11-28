@@ -88,7 +88,7 @@ test("the slash Database picker inserts a block referencing a table", async ({ b
   // (the `tableId` reference) — the ready grid renders from the bridge.
   await demoTable.click();
 
-  const wrapper = a.locator("[data-block-type='database']");
+  const wrapper = a.locator("[data-block-type='database']:not([data-slot='docblocks/row'])");
   await expect(wrapper).toHaveCount(1, SETTLE);
   await expect(wrapper.locator("[data-slot='docblocks/database-name']")).toHaveText("Demo", SETTLE);
   await expect(wrapper.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows", SETTLE);
@@ -149,12 +149,12 @@ test("the slash Database picker's create-new: the auto-focused form, the Enter c
     // The block with the tableId reference lands (the phrase strips) and
     // resolves in the pane's own grid (the pane's bridge stands the
     // created table).
-    const wrapperA = a.locator("[data-block-type='database']");
+    const wrapperA = a.locator("[data-block-type='database']:not([data-slot='docblocks/row'])");
     await expect(wrapperA).toHaveCount(1, SETTLE);
     await expect(wrapperA.locator("[data-slot='docblocks/database-name']")).toHaveText("My Board", SETTLE);
     // The block stands in the other pane over the doc's wire (its grid
     // stands the broken state — the pane's own bridge lacks the table).
-    const wrapperB = b.locator("[data-block-type='database']");
+    const wrapperB = b.locator("[data-block-type='database']:not([data-slot='docblocks/row'])");
     await expect(wrapperB).toHaveCount(1, SETTLE);
     // The table's state stands the shared snapshot over the other pane's
     // reload: the pane's bridge's save stands the snapshot's table, the

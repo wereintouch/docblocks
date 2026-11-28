@@ -71,7 +71,9 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   await expect(marker).toHaveCount(1);
   expect(await marker.textContent()).toBe("1.");
   await expect(
-    pane(a, "a").locator(`[data-block-id="${id}"]:not([data-slot="docblocks/block-content"])`)
+    pane(a, "a").locator(
+      `[data-block-id="${id}"]:not([data-slot="docblocks/row"]):not([data-slot="docblocks/block-content"])`
+    )
   ).toContainText("hello world");
 
   // The other pane sees the same block over the wire.

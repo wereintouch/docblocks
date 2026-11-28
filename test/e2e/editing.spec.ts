@@ -195,7 +195,12 @@ test("undo of a type change re-seats the caret in the remounted block", async ({
   }, id!);
   await expect
     .poll(
-      async () => a.locator(`[data-testid="doc-a"] [data-block-type="list-item"][data-block-id="${id}"]`).count(),
+      async () =>
+        a
+          .locator(
+            `[data-testid="doc-a"] [data-block-type="list-item"]:not([data-slot="docblocks/row"])[data-block-id="${id}"]`
+          )
+          .count(),
       SETTLE
     )
     .toBe(1);
@@ -210,7 +215,12 @@ test("undo of a type change re-seats the caret in the remounted block", async ({
   // the document.
   await expect
     .poll(
-      async () => a.locator(`[data-testid="doc-a"] [data-block-type="paragraph"][data-block-id="${id}"]`).count(),
+      async () =>
+        a
+          .locator(
+            `[data-testid="doc-a"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])[data-block-id="${id}"]`
+          )
+          .count(),
       SETTLE
     )
     .toBe(1);
@@ -221,7 +231,12 @@ test("undo of a type change re-seats the caret in the remounted block", async ({
   await a.keyboard.press("Control+Shift+z");
   await expect
     .poll(
-      async () => a.locator(`[data-testid="doc-a"] [data-block-type="list-item"][data-block-id="${id}"]`).count(),
+      async () =>
+        a
+          .locator(
+            `[data-testid="doc-a"] [data-block-type="list-item"]:not([data-slot="docblocks/row"])[data-block-id="${id}"]`
+          )
+          .count(),
       SETTLE
     )
     .toBe(1);

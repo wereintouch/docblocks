@@ -172,7 +172,7 @@ describe("built-in renderer: embed", () => {
     // seed stands its iframe (the control).
     for (const id of ["embed-unsafe", "embed-unsafe-data"]) {
       const wrapper = document.querySelector<HTMLElement>(
-        `[data-slot="docblocks/block"][data-block-type="embed"][data-block-id="${id}"]`
+        `[data-slot="docblocks/block"][data-block-type="embed"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
       );
       expect(wrapper).not.toBeNull();
       expect(wrapper!.querySelector('iframe[data-slot="docblocks/embed"]')).toBeNull();

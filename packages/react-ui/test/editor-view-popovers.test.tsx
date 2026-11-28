@@ -37,7 +37,7 @@ function pressSlash(blockId: string): void {
   const inner = document.querySelector<HTMLElement>(
     `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
   )!;
-  const wrapper = inner.closest<HTMLElement>(`[data-block-id="${blockId}"]`)!;
+  const wrapper = inner.closest<HTMLElement>(`[data-block-id="${blockId}"]:not([data-slot="docblocks/row"])`)!;
   const range = document.createRange();
   range.setStart(inner, 0);
   range.collapse(true);

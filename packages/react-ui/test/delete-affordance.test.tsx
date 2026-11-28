@@ -28,7 +28,10 @@ function deleteButtonOf(container: HTMLElement, blockId: string): HTMLElement | 
       const host = button.closest('[data-slot="docblocks/row"]') ?? button.closest<HTMLElement>("[data-block-id]");
       if (host === null) return false;
       const ownId = host instanceof HTMLElement ? host.dataset.blockId : undefined;
-      return ownId === blockId || host.querySelector(`[data-block-id="${blockId}"]`) !== null;
+      return (
+        ownId === blockId ||
+        host.querySelector(`[data-block-id="${blockId}"]:not([data-slot="docblocks/row"])`) !== null
+      );
     }) ?? undefined
   );
 }

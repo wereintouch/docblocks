@@ -47,7 +47,9 @@ describe("the container's membership (the shape's parity)", () => {
       text,
       group,
       inner: () => {
-        const el = view.querySelector<HTMLElement>(`[data-slot="docblocks/block-content"][data-block-id="${text}"]`);
+        const el = view.querySelector<HTMLElement>(
+          `[data-slot="docblocks/block-content"][data-block-id="${text}"]:not([data-slot="docblocks/row"])`
+        );
         if (el === null) throw new Error("the canvas-text's inner is missing");
         return el;
       },

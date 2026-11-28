@@ -12,7 +12,9 @@ afterEach(cleanup);
 describe("canvas: frame (the viewport window)", () => {
   it("renders the boundary (the border) and stands no content copy", () => {
     const doc = renderScene({ view: "canvas" });
-    const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
+    const frame = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(frame).not.toBeNull();
     const box = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-boundary']")!;
     // The boundary: a transparent region marker (no content copy, no
@@ -36,7 +38,7 @@ describe("canvas: frame (the viewport window)", () => {
     const doc = renderScene({ view: "canvas" });
     const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
     const wrapper = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]:not([data-slot="docblocks/row"])`
     )!;
     const box = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-boundary']")!;
     expect(wrapper.hasAttribute("data-selected")).toBe(false);
@@ -61,7 +63,9 @@ describe("canvas: frame (the viewport window)", () => {
     // The chip stands over the screen layer, seated on the frame's own box
     // (the occlusion-free stand — not inside the item's wrapper).
     const seat = () =>
-      document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]`);
+      document.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]:not([data-slot="docblocks/row"])`
+      );
     expect(seat()?.querySelector("[data-slot='docblocks/frame-title']") ?? null).toBeNull(); // the absent's off
     act(() => {
       doc.updateBlock(IDS.frame, { title: "My frame" });
@@ -106,7 +110,9 @@ describe("canvas: frame (the viewport window)", () => {
     fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
     fireEvent.pointerUp(view, { pointerId: 1 });
     const seat = () =>
-      document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]`)!;
+      document.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]:not([data-slot="docblocks/row"])`
+      )!;
     const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
     expect(menu).not.toBeNull();
     expect(menu!.getAttribute("aria-label")).toBe("Set frame title");

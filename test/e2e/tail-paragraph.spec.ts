@@ -104,7 +104,9 @@ test("a removal that leaves a non-text tail stands the trailing paragraph", asyn
   // Pane B's view matches over the wire (three blocks stand: the image's
   // unresolvable blob renders the placeholder card, the paragraphs their
   // lines).
-  await expect.poll(async () => b.locator("[data-block-type]").count(), SETTLE).toBe(3);
+  await expect
+    .poll(async () => b.locator('[data-block-type]:not([data-slot="docblocks/row"])').count(), SETTLE)
+    .toBe(3);
 
   await close();
 });

@@ -79,7 +79,9 @@ function renderScene(): Scene {
 
 /** The page-frame's window's box (the query's helper — the missing's error). */
 function windowOf(pageFrame: string): HTMLElement {
-  const row = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame-page"][data-block-id="${pageFrame}"]`);
+  const row = document.querySelector<HTMLElement>(
+    `[data-slot="docblocks/frame-page"][data-block-id="${pageFrame}"]:not([data-slot="docblocks/row"])`
+  );
   expect(row, "the page-frame's row should stand").not.toBeNull();
   const box = row!.querySelector<HTMLElement>('[data-slot="docblocks/frame-page-window"]');
   expect(box, "the window's box should stand").not.toBeNull();

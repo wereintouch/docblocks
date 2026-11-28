@@ -56,7 +56,7 @@ describe("the lenient render of unknown enum values", () => {
         <Editor />
       </EditorProvider>
     );
-    const el = document.querySelector<HTMLElement>('[data-block-id="h7"]');
+    const el = document.querySelector<HTMLElement>('[data-block-id="h7"]:not([data-slot="docblocks/row"])');
     expect(el).not.toBeNull();
     expect(el!.tagName).toBe("H6");
     expect(el!.textContent).toContain("deep heading");

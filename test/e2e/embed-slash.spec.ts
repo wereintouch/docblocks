@@ -34,7 +34,7 @@ test("the slash Embed form inserts an embed block (the phrase strip, one undo st
   await urlInput.fill("https://example.com/embedded");
   await form.locator("[data-slot='docblocks/slash-embed-insert']").click();
 
-  const wrapper = a.locator("[data-block-type='embed']");
+  const wrapper = a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])");
   await expect(wrapper).toHaveCount(1, SETTLE);
   await expect(wrapper).toHaveAttribute("data-kind", "iframe");
   const iframe = wrapper.locator('iframe[data-slot="docblocks/embed"]');
@@ -50,11 +50,14 @@ test("the slash Embed form inserts an embed block (the phrase strip, one undo st
   expect(attrs).toEqual({ kind: "iframe", src: "https://example.com/embedded" });
 
   // Pane B receives the embed over the wire.
-  await expect(b.locator("[data-block-type='embed'][data-kind='iframe']")).toHaveCount(1, SETTLE);
+  await expect(b.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])[data-kind='iframe']")).toHaveCount(
+    1,
+    SETTLE
+  );
 
   // The insert is one undo step: Ctrl+Z removes the embed block.
   await a.keyboard.press("Control+z");
-  await expect(a.locator("[data-block-type='embed']")).toHaveCount(0, SETTLE);
+  await expect(a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])")).toHaveCount(0, SETTLE);
 
   await close();
 });
@@ -77,7 +80,7 @@ test("the slash Embed form's Escape cancels (commits nothing, the phrase stands)
   // embed block lands.
   await form.locator("[data-slot='docblocks/slash-embed-url']").press("Escape");
   await expect(form).toBeHidden(SETTLE);
-  expect(await a.locator("[data-block-type='embed']").count()).toBe(0);
+  expect(await a.locator("[data-block-type='embed']:not([data-slot='docblocks/row'])").count()).toBe(0);
   // The phrase is intact (the "/embed" still stands in the text).
   const text = await inner.innerText();
   expect(text).toContain("/embed");

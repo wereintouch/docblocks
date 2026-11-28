@@ -204,9 +204,13 @@ describe("MermaidCodeRenderer", () => {
     // content (the flat model's "children") stands as the sequence's own
     // row — the row's threading stands no nested slot over the flat page,
     // and the child is never dropped.
-    const codeWrapper = container.querySelector<HTMLElement>(`[data-block-id="${code}"]`)!;
+    const codeWrapper = container.querySelector<HTMLElement>(
+      `[data-block-id="${code}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(codeWrapper.nextElementSibling).toBeNull();
-    const childRow = container.querySelector<HTMLElement>(`[data-block-id="${child}"]`);
+    const childRow = container.querySelector<HTMLElement>(
+      `[data-block-id="${child}"]:not([data-slot="docblocks/row"])`
+    );
     expect(childRow, "the child renders as its own row").not.toBeNull();
     expect(childRow?.textContent).toContain("nested");
   });

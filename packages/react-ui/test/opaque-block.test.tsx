@@ -43,10 +43,10 @@ describe("the cross-minor reader's UI stand", () => {
       </EditorProvider>
     );
     // The known block renders.
-    expect(document.querySelector(`[data-block-id="${paraId}"]`)).not.toBeNull();
+    expect(document.querySelector(`[data-block-id="${paraId}"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
     // The unknown block stands absent (the renderer has no type for it) —
     // not rendered, not corrupt.
-    expect(document.querySelector(`[data-block-id="${futureId}"]`)).toBeNull();
+    expect(document.querySelector(`[data-block-id="${futureId}"]:not([data-slot="docblocks/row"])`)).toBeNull();
     // The data is preserved in the export (no loss on the round trip).
     expect(doc.toJSON().blocks[futureId]).toMatchObject({ type: "future-block", attrs: { futureFlag: "keep" } });
   });
@@ -80,8 +80,8 @@ describe("the cross-minor reader's UI stand", () => {
     );
     // The known block renders; the hostile one stands absent — not the
     // render-error stand.
-    expect(document.querySelector(`[data-block-id="para"]`)).not.toBeNull();
-    expect(document.querySelector(`[data-block-id="hostile"]`)).toBeNull();
+    expect(document.querySelector(`[data-block-id="para"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
+    expect(document.querySelector(`[data-block-id="hostile"]:not([data-slot="docblocks/row"])`)).toBeNull();
     expect(document.querySelector('[data-slot="docblocks/render-error"]')).toBeNull();
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();

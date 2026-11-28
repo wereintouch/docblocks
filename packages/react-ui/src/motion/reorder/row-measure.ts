@@ -33,8 +33,9 @@ function measureSeamCandidate(
   const segmentIds = new Set(doc.getChildren(containerId).slice(segment.start, segment.end));
   const rows: DropRow[] = [];
   for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-slot="docblocks/row"]'))) {
-    // The row's block id stands on its direct child (the block wrapper
-    // — the row itself carries no id attribute).
+    // The row's block id stands on its direct child (the block wrapper —
+    // the descendant query stands the wrapper's own attribute over the
+    // row's row-level anchor).
     const wrapperId = el.querySelector<HTMLElement>("[data-block-id]")?.getAttribute("data-block-id") ?? null;
     if (wrapperId === null) continue;
     const node = nodesById.get(wrapperId);

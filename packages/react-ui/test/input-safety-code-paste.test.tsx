@@ -32,7 +32,7 @@ describe("the code paste target (the raw text)", () => {
   }
 
   function codeInner(): HTMLElement {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${codeId}"]`);
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${codeId}"]:not([data-slot="docblocks/row"])`);
     const inner = el?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(inner, "the code block should carry the inner editable").not.toBeNull();
     return inner!;

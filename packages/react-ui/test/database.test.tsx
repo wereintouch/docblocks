@@ -110,7 +110,9 @@ describe("built-in renderer: database (the placeholder card)", () => {
   });
   it("renders the zero-rows state", () => {
     renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }));
-    const wrapper = document.querySelector<HTMLElement>('[data-block-type="database"]');
+    const wrapper = document.querySelector<HTMLElement>(
+      '[data-block-type="database"]:not([data-slot="docblocks/row"])'
+    );
     expect(wrapper).not.toBeNull();
     expect(wrapper!.querySelector("[data-slot='docblocks/database-count']")?.textContent).toBe("0 rows");
   });
@@ -121,12 +123,16 @@ describe("built-in renderer: database (the placeholder card)", () => {
       const row = doc.insertRow(db);
       doc.setCell(db, row, "name", "first");
     });
-    const wrapper = document.querySelector<HTMLElement>('[data-block-type="database"]');
+    const wrapper = document.querySelector<HTMLElement>(
+      '[data-block-type="database"]:not([data-slot="docblocks/row"])'
+    );
     expect(wrapper!.querySelector("[data-slot='docblocks/database-count']")?.textContent).toBe("1 row");
   });
   it("the wrapper contract: not text-editable, no gutter", () => {
     renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }));
-    const wrapper = document.querySelector<HTMLElement>('[data-block-type="database"]');
+    const wrapper = document.querySelector<HTMLElement>(
+      '[data-block-type="database"]:not([data-slot="docblocks/row"])'
+    );
     expect(wrapper).not.toBeNull();
     expect(wrapper!.querySelector("[data-slot='docblocks/block-content']")).toBeNull();
     expect(wrapper!.querySelector("[contenteditable]")).toBeNull();
@@ -154,7 +160,9 @@ describe("built-in renderer: database (the placeholder card)", () => {
     renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
     await settleGrid();
 
-    const wrapper = document.querySelector<HTMLElement>("[data-block-type='database']");
+    const wrapper = document.querySelector<HTMLElement>(
+      "[data-block-type='database']:not([data-slot='docblocks/row'])"
+    );
     expect(wrapper).not.toBeNull();
     // The grid card (the ready phase) — not the inline placeholder card.
     const card = wrapper!.querySelector("[data-slot='docblocks/database']");
@@ -178,7 +186,9 @@ describe("built-in renderer: database (the placeholder card)", () => {
     });
     await settleGrid();
 
-    const wrapper = document.querySelector<HTMLElement>("[data-block-type='database']");
+    const wrapper = document.querySelector<HTMLElement>(
+      "[data-block-type='database']:not([data-slot='docblocks/row'])"
+    );
     // The inline column header is gone; the live grid card stands.
     expect(wrapper!.querySelector("[data-slot='docblocks/database-column']")).toBeNull();
     expect(wrapper!.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Migrated");

@@ -48,7 +48,7 @@ test("the external form (the tableId reference) syncs over the wire and renders 
     [b, "b"],
   ] as const) {
     const doc = pane.locator(`[data-testid="doc-${client}"]`);
-    const wrapper = doc.locator("[data-block-type='database']");
+    const wrapper = doc.locator("[data-block-type='database']:not([data-slot='docblocks/row'])");
     await expect(wrapper).toHaveCount(1, SETTLE);
     // The ready grid stands (not the broken state): the table name from the
     // pane's own bridge + the demo row count (3 rows).

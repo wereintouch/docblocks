@@ -58,7 +58,9 @@ function renderCanvas(): Rendered {
     connector,
     view,
     wrapperOf: (id: string) => {
-      const el = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+      const el = container.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
+      );
       if (el === null) throw new Error(`the canvas item ${id} is missing`);
       return el;
     },

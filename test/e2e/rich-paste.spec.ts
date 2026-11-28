@@ -208,7 +208,7 @@ test("the rich table paste stands the native table (the cells' marks; the traili
     .toBe(true);
 
   // The other pane converges (the table over the wire).
-  const tableInB = b.locator('[data-testid="doc-b"] [data-block-type="table"]');
+  const tableInB = b.locator('[data-testid="doc-b"] [data-block-type="table"]:not([data-slot="docblocks/row"])');
   await expect.poll(async () => tableInB.count(), SETTLE).toBe(1);
 
   await close();

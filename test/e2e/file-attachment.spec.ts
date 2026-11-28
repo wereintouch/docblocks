@@ -107,7 +107,9 @@ test("deleting an attachment seats the caret in the next block and one undo rest
       .toBe(true);
 
     await page.keyboard.press("Control+z");
-    await expect(page.locator(`[data-testid="doc-a"] [data-block-id="${attachmentId}"]`)).toBeVisible(SETTLE);
+    await expect(
+      page.locator(`[data-testid="doc-a"] [data-block-id="${attachmentId}"]:not([data-slot="docblocks/row"])`)
+    ).toBeVisible(SETTLE);
     expect(await rootBlockIds(page)).toEqual([attachmentId, nextId]);
   } finally {
     await context.close();

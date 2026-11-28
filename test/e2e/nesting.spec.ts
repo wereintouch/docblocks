@@ -61,7 +61,7 @@ function innerOf(page: Page, client: "a" | "b", id: string) {
 /** The row's left step (the per-level indent): the computed paddingLeft of the block's flat row. */
 async function rowPadding(page: Page, client: "a" | "b", id: string): Promise<string> {
   return pane(page, client)
-    .locator(`[data-block-id="${id}"]`)
+    .locator(`[data-block-id="${id}"]` + `:not([data-slot="docblocks/row"])`)
     .first()
     .evaluate((el) => {
       const row = el.parentElement;

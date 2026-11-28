@@ -49,7 +49,9 @@ function renderCanvas(): Rendered {
     shapeB,
     text,
     itemOf: (id: string) => {
-      const el = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+      const el = container.querySelector<HTMLElement>(
+        `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
+      );
       if (el === null) throw new Error(`the canvas item ${id} is missing`);
       return el;
     },
@@ -76,7 +78,9 @@ describe("the canvas's keyboard contract", () => {
 
   it("the items stand the label's stand (the type's stand, the selection's data's stand)", () => {
     const { view, shapeA } = renderCanvas();
-    const item = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]`)!;
+    const item = view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(item.getAttribute("aria-label")).toBe("Shape block");
     expect(item.hasAttribute("data-selected")).toBe(false);
   });
@@ -105,7 +109,9 @@ describe("the canvas's keyboard contract", () => {
     await act(async () => {
       fireEvent.keyDown(view, { key: "Enter" });
     });
-    const item = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]`)!;
+    const item = view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(item.hasAttribute("data-selected")).toBe(true);
     // The selection stands the shared view (the pointer click's parity).
     expect(doc.getBlock(shapeA)).not.toBeNull();

@@ -263,7 +263,9 @@ describe("the list-type menu's quote option", () => {
     expect(doc.getBlock(p)?.type).toBe("quote");
     expect(doc.getText(p)).toBe("borrowed");
     // The rule element stands (the wrapper carries the marker zone).
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p}"][data-block-type="quote"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/block"][data-block-id="${p}"][data-block-type="quote"]`
+    );
     expect(wrapper).not.toBeNull();
     expect(wrapper?.querySelector('[data-slot="docblocks/quote-rule"]')).not.toBeNull();
     await flushFrames();

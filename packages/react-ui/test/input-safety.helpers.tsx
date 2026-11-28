@@ -30,7 +30,7 @@ function renderParagraph(text = "hello") {
 
 /** The rendered paragraph wrapper element. */
 function paragraphEl(): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
+  const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]:not([data-slot="docblocks/row"])`);
   expect(el, "the paragraph should be rendered").not.toBeNull();
   return el!;
 }

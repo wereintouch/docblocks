@@ -91,12 +91,12 @@ describe("states", () => {
 
     // The master's content is not in the outer block list: the blocks
     // rendered outside the wrapper are the outer doc's own only.
-    const outerHeadings = Array.from(document.querySelectorAll<HTMLElement>('[data-block-type="heading"]')).filter(
-      (el) => !wrapper.contains(el)
-    );
-    const outerParagraphs = Array.from(document.querySelectorAll<HTMLElement>('[data-block-type="paragraph"]')).filter(
-      (el) => !wrapper.contains(el)
-    );
+    const outerHeadings = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-block-type="heading"]:not([data-slot="docblocks/row"])')
+    ).filter((el) => !wrapper.contains(el));
+    const outerParagraphs = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])')
+    ).filter((el) => !wrapper.contains(el));
     expect(outerHeadings).toHaveLength(0);
     // The outer doc ends with the sync-embed (a non-text last block) — the
     // editor's tail guarantee stands the trailing empty paragraph over it.
@@ -147,7 +147,9 @@ describe("states", () => {
       </EditorProvider>
     );
 
-    const wrappers = Array.from(document.querySelectorAll<HTMLElement>('[data-block-type="sync-embed"]'));
+    const wrappers = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])')
+    );
     expect(wrappers).toHaveLength(2);
     const states = wrappers.map((el) => el.getAttribute("data-state"));
     expect(states).toContain("resolved");
@@ -174,7 +176,9 @@ describe("states", () => {
       </EditorProvider>
     );
 
-    const wrappers = Array.from(document.querySelectorAll<HTMLElement>('[data-block-type="sync-embed"]'));
+    const wrappers = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])')
+    );
     expect(wrappers).toHaveLength(COUNT - 1);
     const states = wrappers.map((el) => el.getAttribute("data-state"));
     // Depths 0..MAX_EMBED_DEPTH resolve; the next one shows the cycle placeholder.

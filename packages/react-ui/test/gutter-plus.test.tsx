@@ -107,7 +107,9 @@ describe("the gutter's quick insert (the plus under the item)", () => {
     // no plus (the canvas-text is moved by the drag over its own body —
     // the shape's parity; the plus's click would write a page paragraph
     // into the surface's children).
-    const canvasText = container.querySelector<HTMLElement>(`[data-block-id="${textId}"]`);
+    const canvasText = container.querySelector<HTMLElement>(
+      `[data-block-id="${textId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(canvasText).not.toBeNull();
     expect(canvasText?.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
     expect(canvasText?.querySelector('[data-slot="docblocks/gutter-plus"]')).toBeNull();
@@ -128,7 +130,9 @@ describe("the gutter's quick insert (the plus under the item)", () => {
     );
     // The cell's text block renders with the inCell context: no gutter and
     // no plus in its subtree (the affordance is a page-sequence one).
-    const cellPara = container.querySelector<HTMLElement>(`[data-block-id="${paraId}"]`);
+    const cellPara = container.querySelector<HTMLElement>(
+      `[data-block-id="${paraId}"]:not([data-slot="docblocks/row"])`
+    );
     expect(cellPara).not.toBeNull();
     expect(cellPara?.querySelector('[data-slot="docblocks/gutter-plus"]')).toBeNull();
   });

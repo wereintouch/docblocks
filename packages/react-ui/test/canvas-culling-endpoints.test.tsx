@@ -58,12 +58,12 @@ describe("the surface layer's culling's keep set (the endpoint's resolution's st
     const { container } = renderLayer(doc, surfaceId, [a, b, line], new Set([a, line]));
     // The endpoint's b stands out of the keep set: no wrapper of its own
     // (the culling's own stand intact).
-    expect(container.querySelector(`[data-block-id="${b}"]`)).toBeNull();
+    expect(container.querySelector(`[data-block-id="${b}"]:not([data-slot="docblocks/row"])`)).toBeNull();
     // The line's wrapper stands (its cull box's stand — over both
     // endpoints' boxes), and the line stands DRAWN: the endpoint's b
     // resolves over the committed geometry (the full children's context),
     // not over the keep set.
-    const item = container.querySelector(`[data-block-id="${line}"]`);
+    const item = container.querySelector(`[data-block-id="${line}"]:not([data-slot="docblocks/row"])`);
     expect(item).not.toBeNull();
     expect(item!.hasAttribute("data-missing")).toBe(false);
     const path = container.querySelector<SVGPathElement>(`[data-connector-id="${line}"]`);
@@ -74,9 +74,9 @@ describe("the surface layer's culling's keep set (the endpoint's resolution's st
   it("both endpoints culled — the line stands drawn over the committed geometry", () => {
     const { doc, surfaceId, a, b, line } = seededDoc();
     const { container } = renderLayer(doc, surfaceId, [a, b, line], new Set([line]));
-    expect(container.querySelector(`[data-block-id="${a}"]`)).toBeNull();
-    expect(container.querySelector(`[data-block-id="${b}"]`)).toBeNull();
-    const item = container.querySelector(`[data-block-id="${line}"]`);
+    expect(container.querySelector(`[data-block-id="${a}"]:not([data-slot="docblocks/row"])`)).toBeNull();
+    expect(container.querySelector(`[data-block-id="${b}"]:not([data-slot="docblocks/row"])`)).toBeNull();
+    const item = container.querySelector(`[data-block-id="${line}"]:not([data-slot="docblocks/row"])`);
     expect(item).not.toBeNull();
     expect(item!.hasAttribute("data-missing")).toBe(false);
     const path = container.querySelector<SVGPathElement>(`[data-connector-id="${line}"]`);
@@ -88,7 +88,7 @@ describe("the surface layer's culling's keep set (the endpoint's resolution's st
     const { doc, surfaceId, a, b, line } = seededDoc();
     const { container } = renderLayer(doc, surfaceId, [a, b, line]);
     for (const id of [a, b, line]) {
-      expect(container.querySelector(`[data-block-id="${id}"]`)).not.toBeNull();
+      expect(container.querySelector(`[data-block-id="${id}"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
     }
   });
 });

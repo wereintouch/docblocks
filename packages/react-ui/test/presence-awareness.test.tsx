@@ -66,7 +66,7 @@ describe("awareness publishing (EditorProvider)", () => {
       expect(published).toHaveLength(0);
 
       // A caret inside the block (the inner editable holds the text).
-      const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]`);
+      const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]:not([data-slot="docblocks/row"])`);
       expect(el).not.toBeNull();
       const inner = el!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
       expect(inner).not.toBeNull();
@@ -225,7 +225,7 @@ describe("awareness publishing (EditorProvider)", () => {
       // A local selection change publishes after the debounce; the fake
       // self-echo re-emits the same remote list and must not re-render the
       // consumer (no slice identity churn).
-      const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]`)!;
+      const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]:not([data-slot="docblocks/row"])`)!;
       const inner = el.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]')!;
       const range = document.createRange();
       range.setStart(inner.firstChild!, 1);

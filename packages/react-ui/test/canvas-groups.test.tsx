@@ -48,7 +48,7 @@ describe("the container's render (the reworked group)", () => {
     const r = renderCanvas(true);
     // The group stands a positioned canvas item : the wrapper at its own free box, the border inside.
     const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]:not([data-slot="docblocks/row"])`
     );
     expect(wrapper).not.toBeNull();
     const border = r.view.querySelector<HTMLElement>(
@@ -79,7 +79,7 @@ describe("the container's selection + move", () => {
   it("the border's press selects the container (the no-op release commits nothing)", () => {
     const r = renderCanvas(true);
     const wrapper = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]:not([data-slot="docblocks/row"])`
     );
     const border = wrapper!.querySelector<HTMLElement>("[data-slot='docblocks/group-border']");
     expect(wrapper?.hasAttribute("data-selected")).toBe(false);

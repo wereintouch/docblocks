@@ -98,12 +98,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // copies INSIDE the window's slot, never as rows. The motion view renders
   // the flat page sequence: the nesting is the row step (no nested slot),
   // and the list markers stand as rendered row labels (no list element).
-  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(12);
-  expect(await doc.locator('[data-block-type="quote"]').count()).toBe(2);
-  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(7);
-  expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(17);
-  expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
-  expect(await doc.locator('[data-block-type="code"]').count()).toBe(3);
+  expect(await doc.locator('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])').count()).toBe(12);
+  expect(await doc.locator('[data-block-type="quote"]:not([data-slot="docblocks/row"])').count()).toBe(2);
+  expect(await doc.locator('[data-block-type="heading"]:not([data-slot="docblocks/row"])').count()).toBe(7);
+  expect(await doc.locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])').count()).toBe(17);
+  expect(await doc.locator('[data-block-type="callout"]:not([data-slot="docblocks/row"])').count()).toBe(4);
+  expect(await doc.locator('[data-block-type="code"]:not([data-slot="docblocks/row"])').count()).toBe(3);
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
   // The curated-language code block renders the highlight layer behind the
   // inner (the plain/unknown-language blocks stand no layer).
@@ -117,10 +117,10 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator('[data-block-type="code"][data-language="mermaid"] [data-slot="docblocks/code-line-numbers"]')
       .count()
   ).toBe(1);
-  expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
-  expect(await doc.locator('[data-block-type="image"]').count()).toBe(1);
-  expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
-  expect(await doc.locator('[data-block-type="divider"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="table"]:not([data-slot="docblocks/row"])').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="image"]:not([data-slot="docblocks/row"])').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="embed"]:not([data-slot="docblocks/row"])').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="divider"]:not([data-slot="docblocks/row"])').count()).toBe(1);
 
   // Headings 1..6 as their own tags; the master's h1 adds a second h1.
   expect(await doc.locator('h1[data-block-type="heading"]').count()).toBe(2);
@@ -152,7 +152,9 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="callout"][data-variant="info"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="callout"][data-variant="warning"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="callout"][data-variant="danger"]').count()).toBe(1);
-  expect(await doc.locator('[data-block-type="callout"]:not([data-variant])').count()).toBe(1);
+  expect(
+    await doc.locator('[data-block-type="callout"]:not([data-variant]):not([data-slot="docblocks/row"])').count()
+  ).toBe(1);
 
   // Table 2x2, the cell text via its child paragraph; the first cell also
   // carries its own runs (the text-cell shape — the runs layer stands
@@ -191,12 +193,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
 
   // Sync-embed: the resolved master content renders inside the wrapper
   // (the outer JSON carries the ref only, pinned by the JSON golden).
-  const syncEmbed = doc.locator('[data-block-type="sync-embed"]');
+  const syncEmbed = doc.locator('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])');
   expect(await syncEmbed.count()).toBe(1);
   expect(await syncEmbed.locator('[data-slot="docblocks/sync-embed-body"]').count()).toBe(1);
   expect((await syncEmbed.getAttribute("data-doc-id")) ?? "").toBe("master-catalog");
   expect(await syncEmbed.locator('h1[data-block-type="heading"]').count()).toBe(1);
-  expect(await syncEmbed.locator('[data-block-type="paragraph"]').count()).toBe(3);
+  expect(await syncEmbed.locator('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])').count()).toBe(3);
 
   // Canvas (v2): the seeded demo scene is a canvas layer — the page view
   // carries none of it as page rows (no surface viewport, no shapes /
@@ -208,7 +210,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="surface"]').count()).toBe(0);
   // The page-frame block's row (the window's wrapper + the box over the
   // canvas's background; the reference's title stands the box's aria).
-  expect(await doc.locator('[data-block-type="frame"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="frame"]:not([data-slot="docblocks/row"])').count()).toBe(1);
   expect(await doc.locator('[data-slot="docblocks/frame-page"]').count()).toBe(1);
   const pageWindow = doc.locator('[data-slot="docblocks/frame-page-window"]');
   expect(await pageWindow.count()).toBe(1);
@@ -248,7 +250,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // step plus its marker zone (the row's first character, 24px + 24px).
   const rowPaddingOf = (id: string) =>
     doc
-      .locator(`[data-block-id="${id}"]`)
+      .locator(`[data-block-id="${id}"]` + `:not([data-slot="docblocks/row"])`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
   expect(await rowPaddingOf("c0065")).toBe("24px");

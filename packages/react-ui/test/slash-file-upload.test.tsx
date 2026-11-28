@@ -38,7 +38,7 @@ function renderScene(store: BlobStore): Scene {
 
 /** Seat a collapsed caret at the paragraph's start and press "/". */
 function pressSlash(para: BlockId): void {
-  const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${para}"]`);
+  const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${para}"]:not([data-slot="docblocks/row"])`);
   expect(wrapper, "the trigger should be rendered").not.toBeNull();
   const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
   expect(inner, "the trigger should carry the inner editable").not.toBeNull();

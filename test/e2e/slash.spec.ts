@@ -142,7 +142,7 @@ test("code does not trigger (a / there is plain text)", async ({ browser }) => {
   await expect(menu(a).getByRole("menuitem", { name: "Code block", exact: true })).toBeVisible();
   await menu(a).getByRole("menuitem", { name: "Code block", exact: true }).click();
   await expect(menu(a)).toHaveCount(0);
-  const code = a.locator('[data-block-type="code"]');
+  const code = a.locator('[data-block-type="code"]:not([data-slot="docblocks/row"])');
   await expect(code).toHaveCount(1);
 
   // Inside the code block: the "/" is a plain character (no menu).

@@ -134,7 +134,7 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     // The line stands inside its own wrapper (the per-line svg), so the
     // interleaving stands over the real line, not a placeholder.
     const wrapper = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${connector}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${connector}"]:not([data-slot="docblocks/row"])`
     );
     expect(wrapper).not.toBeNull();
     expect(wrapper?.querySelector(`[data-connector-id="${connector}"]`)).not.toBeNull();

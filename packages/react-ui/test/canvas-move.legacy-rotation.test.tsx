@@ -44,7 +44,9 @@ describe("the move preview on a legacy-rotated item", () => {
       </EditorProvider>
     );
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
-    const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+    const wrapper = container.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
+    );
     if (view === null || wrapper === null) throw new Error("the canvas view / the item is missing");
 
     // The stored rotation stands no transform term (the render ignores

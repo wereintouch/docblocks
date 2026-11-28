@@ -67,7 +67,7 @@ describe("block renderer registry", () => {
     // The consumer renderer wins for divider...
     expect(screen.getByTestId("custom-divider")).toBeDefined();
     // ...and the paragraph keeps its built-in contenteditable inner.
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]:not([data-slot="docblocks/row"])`);
     const inner = el?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(el?.textContent).toBe("hello");
     expect(inner?.getAttribute("contenteditable")).toBe("true");
@@ -114,7 +114,7 @@ describe("block renderer registry", () => {
     // The built-in element is gone with it (the page's container editable
     // stands — the built-in's block-content inner is what is asserted
     // absent, not any contenteditable of the page).
-    expect(document.querySelector(`[data-block-id="${paragraphId}"]`)).toBeNull();
+    expect(document.querySelector(`[data-block-id="${paragraphId}"]:not([data-slot="docblocks/row"])`)).toBeNull();
     expect(document.querySelector('[data-slot="docblocks/block-content"]')).toBeNull();
   });
 });

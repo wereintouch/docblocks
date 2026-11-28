@@ -34,7 +34,7 @@ describe("the code block body", () => {
     expect(caption!.value).toBe("The figure");
     expect(caption!.className).toContain("text-center");
     // The line sits below the block (a sibling of the wrapper, not inside it).
-    const wrapper = document.querySelector<HTMLElement>("[data-block-type='code']");
+    const wrapper = document.querySelector<HTMLElement>("[data-block-type='code']:not([data-slot='docblocks/row'])");
     expect(wrapper!.contains(caption)).toBe(false);
   });
 

@@ -121,6 +121,12 @@ function mapBlocksSelection(
   const range = domSelection.getRangeAt(0);
   const ids: BlockId[] = [];
   for (const element of Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]"))) {
+    // The page row stands between the wrapper and the container and
+    // carries the block's own id (the row's anchor): it is not a block
+    // element, and a range over the row's own zone (a form control's
+    // focus residue inside the row) would flag the block for the
+    // Delete/Backspace gesture over it.
+    if (element.getAttribute("data-slot") === "docblocks/row") continue;
     const blockId = element.dataset.blockId as BlockId;
     // A text-editable block carries the id on both the wrapper and the
     // inner editable: count each block once, in document order.

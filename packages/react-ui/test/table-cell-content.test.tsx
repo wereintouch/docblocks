@@ -72,7 +72,7 @@ describe("the cell's own content layer", () => {
 
   it("renders the runs above the children blocks (both stand)", () => {
     const { cellId } = renderCellDoc(true);
-    const td = document.querySelector<HTMLElement>(`td[data-block-id="${cellId}"]`);
+    const td = document.querySelector<HTMLElement>(`td[data-block-id="${cellId}"]:not([data-slot="docblocks/row"])`);
     const inner = cellInner(cellId);
     const child = document.querySelector<HTMLElement>(`td[data-block-id="${cellId}"] [data-block-type="paragraph"]`);
     expect(child?.textContent).toBe("child paragraph");

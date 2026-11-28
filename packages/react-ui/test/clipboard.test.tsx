@@ -30,7 +30,9 @@ function renderParagraph(text = "hello") {
 
 /** The paragraph's inner editable (the contenteditable element). */
 function innerEl(): HTMLElement {
-  const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
+  const wrapper = document.querySelector<HTMLElement>(
+    `[data-block-id="${paragraphId}"]:not([data-slot="docblocks/row"])`
+  );
   const inner = wrapper?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
   expect(inner, "the wrapper should carry the inner editable").not.toBeNull();
   return inner!;
@@ -195,7 +197,7 @@ describe("rich clipboard paste", () => {
         <Editor />
       </EditorProvider>
     );
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${codeId}"]`);
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${codeId}"]:not([data-slot="docblocks/row"])`);
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]')!;
     const range = document.createRange();
     range.setStart(inner, 0);

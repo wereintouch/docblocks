@@ -20,7 +20,9 @@ type TestDoc = ReturnType<typeof createDoc>;
 
 /** The title chip's seat (the screen layer's positioned box per block). */
 function seatOf(root: ParentNode, id: string): HTMLElement | null {
-  return root.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${id}"]`);
+  return root.querySelector<HTMLElement>(
+    `[data-slot="docblocks/canvas-title-chip"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
+  );
 }
 
 /** The seeded scene: one surface with a titled container. */

@@ -73,7 +73,7 @@ describe("the ghost text block (the double-click's empty-canvas entry)", () => {
     // The caret reseats into the real block's inner (the frame flush —
     // the focusCaretIn's after-frame stand).
     const committedInner = r.view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/block-content"][data-block-id="${committed}"]`
+      `[data-slot="docblocks/block-content"][data-block-id="${committed}"]:not([data-slot="docblocks/row"])`
     );
     expect(committedInner).not.toBeNull();
     await act(async () => {

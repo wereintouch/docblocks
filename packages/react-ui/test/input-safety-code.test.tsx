@@ -33,7 +33,7 @@ describe("code gestures (the soft-line family: Enter line break / exit, Backspac
   }
 
   function blockEl(): HTMLElement {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]:not([data-slot="docblocks/row"])`);
     expect(el, "the block should be rendered").not.toBeNull();
     return el!;
   }

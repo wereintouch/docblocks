@@ -205,7 +205,7 @@ test("a trailing divider deletes through its row's gutter (the blocks selection'
   // Escape clears the selection (the row stands, the divider survives).
   await a.keyboard.press("Escape");
   await expect(row).not.toHaveAttribute("data-selected");
-  await expect(a.locator(`[data-block-id="${divId}"]`)).toHaveCount(1);
+  await expect(a.locator(`[data-block-id="${divId}"]:not([data-slot="docblocks/row"])`)).toHaveCount(1);
   await row.locator('[data-slot="docblocks/gutter"]').click();
   await a.keyboard.press("Delete");
 

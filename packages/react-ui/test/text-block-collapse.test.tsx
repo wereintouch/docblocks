@@ -20,12 +20,15 @@ describe("Collapse toggle", () => {
       d.insertText(child, 0, "child");
     });
     const before = JSON.stringify(doc.toJSON());
-    const wrapper = document.querySelector(`[data-block-id="${parent}"]`);
+    const wrapper = document.querySelector(`[data-block-id="${parent}"]:not([data-slot="docblocks/row"])`);
     expect(wrapper, "the parent list item should be rendered").not.toBeNull();
     const toggle = wrapper!.querySelector<HTMLButtonElement>(':scope > button[data-slot="docblocks/collapse"]');
     expect(toggle, "a list item with children should render a collapse toggle").not.toBeNull();
     expect(toggle!.getAttribute("aria-expanded")).toBe("true");
-    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be visible").not.toBeNull();
+    expect(
+      document.querySelector(`[data-block-id="${child}"]:not([data-slot="docblocks/row"])`),
+      "the child should be visible"
+    ).not.toBeNull();
 
     act(() => toggle!.click());
 
@@ -33,15 +36,22 @@ describe("Collapse toggle", () => {
     // The row's exit animation keeps the element in the DOM while it
     // collapses; the unmount stands once it completes (the motion page's
     // row list stands the visible rows only).
-    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).toBeNull(), {
-      timeout: 5000,
-    });
+    await waitFor(
+      () => expect(document.querySelector(`[data-block-id="${child}"]:not([data-slot="docblocks/row"])`)).toBeNull(),
+      {
+        timeout: 5000,
+      }
+    );
     expect(JSON.stringify(doc.toJSON()), "a collapse must not touch the doc").toBe(before);
 
     act(() => toggle!.click());
-    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).not.toBeNull(), {
-      timeout: 5000,
-    });
+    await waitFor(
+      () =>
+        expect(document.querySelector(`[data-block-id="${child}"]:not([data-slot="docblocks/row"])`)).not.toBeNull(),
+      {
+        timeout: 5000,
+      }
+    );
   });
 
   it("renders no toggle for a childless list item", () => {

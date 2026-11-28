@@ -134,6 +134,11 @@ const RowItem = memo(
         as="div"
         ref={rowRef}
         data-slot="docblocks/row"
+        // The row-level block anchor (the consumer's navigation over the
+        // block id — a table of contents scrolling to a heading): every
+        // page row carries it, not only the block wrapper inside.
+        data-block-id={node.id}
+        data-block-type={block !== undefined ? block.type : undefined}
         data-selected={selected ? "true" : undefined}
         // The divider's row marker: the row's gutter controls center over
         // the row's box (the line's axis) instead of the first line's box.

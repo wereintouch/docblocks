@@ -88,7 +88,9 @@ describe("the font attrs' render (the shape text's parity)", () => {
         <Editor view="canvas" />
       </EditorProvider>
     );
-    const item = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+    const item = container.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]:not([data-slot="docblocks/row"])`
+    );
     if (item === null) throw new Error("the canvas-text item is missing");
     return item;
   }

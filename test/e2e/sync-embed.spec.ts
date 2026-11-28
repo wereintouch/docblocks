@@ -13,7 +13,7 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
 
 /** The pane's sync-embed wrapper (the first in DOM order: nested ones sit inside it). */
 const wrapper = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-block-type="sync-embed"]`).first();
+  page.locator(`[data-testid="doc-${client}"] [data-block-type="sync-embed"]:not([data-slot="docblocks/row"])`).first();
 
 test("a sync-embed inserted in A shows the master content in both panes and the JSON carries the ref", async ({
   browser,
@@ -34,8 +34,12 @@ test("a sync-embed inserted in A shows the master content in both panes and the 
     await expect(w.getByText("Master paragraph three")).toBeVisible();
     // …and not in the outer block list: the pane's own doc carries no
     // heading, so the pane's single one is the master's, inside the wrapper.
-    expect(await pane.locator(`[data-testid="doc-${client}"] [data-block-type="heading"]`).count()).toBe(1);
-    expect(await w.locator('[data-block-type="heading"]').count()).toBe(1);
+    expect(
+      await pane
+        .locator(`[data-testid="doc-${client}"] [data-block-type="heading"]:not([data-slot="docblocks/row"])`)
+        .count()
+    ).toBe(1);
+    expect(await w.locator('[data-block-type="heading"]:not([data-slot="docblocks/row"])').count()).toBe(1);
   }
 
   // The outer JSON inspector shows the ref (the master id only).
@@ -160,8 +164,8 @@ test("a subtree embed: the split gesture commits to the master and a peer's nest
 
   // Both panes' embed region shows the nested row — pane A without a
   // local edit to its master client — and the embeds stay resolved.
-  await expect(wa.locator('[data-block-type="paragraph"]')).toHaveCount(2);
-  await expect(wb.locator('[data-block-type="paragraph"]')).toHaveCount(2);
+  await expect(wa.locator('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])')).toHaveCount(2);
+  await expect(wb.locator('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])')).toHaveCount(2);
   await expect(wa).toHaveAttribute("data-state", "resolved");
   await expect(wb).toHaveAttribute("data-state", "resolved");
 
@@ -207,12 +211,19 @@ test("a master that embeds the outer doc renders the cycle placeholder", async (
     await expect(w).toHaveAttribute("data-state", "resolved");
     // The master's own sync-embed (the ref points at the outer doc's id)
     // re-enters the ancestor doc chain: the visited-set stops it.
-    await expect(w.locator('[data-block-type="sync-embed"]')).toHaveCount(1);
-    await expect(w.locator('[data-block-type="sync-embed"]')).toHaveAttribute("data-state", "cycle");
+    await expect(w.locator('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])')).toHaveCount(1);
+    await expect(w.locator('[data-block-type="sync-embed"]:not([data-slot="docblocks/row"])')).toHaveAttribute(
+      "data-state",
+      "cycle"
+    );
     await expect(w.locator('[data-slot="docblocks/sync-embed-placeholder"][data-state="cycle"]')).toBeVisible();
     // Finite depth: exactly two wrappers (the outer one + the inner cycle),
     // the page alive.
-    expect(await pane.locator(`[data-testid="doc-${client}"] [data-block-type="sync-embed"]`).count()).toBe(2);
+    expect(
+      await pane
+        .locator(`[data-testid="doc-${client}"] [data-block-type="sync-embed"]:not([data-slot="docblocks/row"])`)
+        .count()
+    ).toBe(2);
     await expect(pane.getByTestId(`status-${client}`)).toHaveText("connected");
   }
 

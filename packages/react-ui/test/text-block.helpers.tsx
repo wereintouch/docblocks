@@ -49,7 +49,7 @@ function renderDoc(prepare: (doc: TestDoc) => void) {
 
 /** The (single) paragraph wrapper element of the rendered editor. */
 function paragraphOf(doc: TestDoc): HTMLElement {
-  const el = document.querySelector(`[data-block-id="${paragraphIdOf(doc)}"]`);
+  const el = document.querySelector(`[data-block-id="${paragraphIdOf(doc)}"]:not([data-slot="docblocks/row"])`);
   expect(el, "the paragraph should be rendered").not.toBeNull();
   return el as HTMLElement;
 }

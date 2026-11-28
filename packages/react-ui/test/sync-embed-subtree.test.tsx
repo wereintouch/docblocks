@@ -41,7 +41,7 @@ describe("subtree projection (the derived segment)", () => {
     });
     expect(wrapper.querySelector('[data-block-id="m0003"]')).toBe(firstM0003);
     expect(wrapper.textContent).toContain("Master subtree child");
-    expect(editor.querySelector(`[data-block-id="${childId}"]`)).not.toBeNull();
+    expect(editor.querySelector(`[data-block-id="${childId}"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
 
     // A second deeper block after the child: the segment grows again.
     let grandchildId = "";
@@ -49,7 +49,7 @@ describe("subtree projection (the derived segment)", () => {
       grandchildId = master.insertBlock("paragraph", { indent: 2 }, { parent: master.meta.id, after: childId });
     });
     expect(wrapper.textContent).toContain("Master subtree child");
-    expect(editor.querySelector(`[data-block-id="${grandchildId}"]`)).not.toBeNull();
+    expect(editor.querySelector(`[data-block-id="${grandchildId}"]:not([data-slot="docblocks/row"])`)).not.toBeNull();
 
     // The removal shrinks the segment back to the root (the core
     // removeBlock cascades the derived segment — one call removes both):
@@ -59,8 +59,8 @@ describe("subtree projection (the derived segment)", () => {
       master.removeBlock(childId);
     });
     expect(wrapper.querySelector('[data-block-id="m0003"]')).toBe(firstM0003);
-    expect(editor.querySelector(`[data-block-id="${childId}"]`)).toBeNull();
-    expect(editor.querySelector(`[data-block-id="${grandchildId}"]`)).toBeNull();
+    expect(editor.querySelector(`[data-block-id="${childId}"]:not([data-slot="docblocks/row"])`)).toBeNull();
+    expect(editor.querySelector(`[data-block-id="${grandchildId}"]:not([data-slot="docblocks/row"])`)).toBeNull();
     expect(wrapper.textContent).not.toContain("Master subtree child");
   });
 });

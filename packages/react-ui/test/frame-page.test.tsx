@@ -28,7 +28,9 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
     expect(anchor?.style.top).toBe("50px");
     // The shape's copy stands over its world coordinates (the center
     // anchor's stand — the world's origin parity over the anchor).
-    const copyA = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)!;
+    const copyA = content.querySelector<HTMLElement>(
+      `[data-slot='docblocks/canvas-item'][data-block-id="${a}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(copyA.style.left).toBe("calc(50% + 10px)");
     expect(copyA.style.top).toBe("calc(50% + 20px)");
     // The box's chrome: the container's border on the window's box, the
@@ -51,7 +53,9 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
     // The far shape's copy stands over its world coordinates (outside the
     // box's region — the box's overflow hidden clips it; the copy stands
     // at the world's parity, the clip is the visual's stand).
-    const copyB = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${b}"]`)!;
+    const copyB = content.querySelector<HTMLElement>(
+      `[data-slot='docblocks/canvas-item'][data-block-id="${b}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(copyB.style.left).toBe("calc(50% + 1000px)");
     expect(copyB.style.top).toBe("calc(50% + 1000px)");
     expect(box.className).toContain("overflow-hidden");
@@ -62,7 +66,9 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
     const box = windowOf(pageFrame);
     // The frame-chain's stand ({frameId}): the referenced frame does not
     // render its own box inside its own page window.
-    expect(box.querySelector(`[data-slot='docblocks/frame'][data-block-id="${frame}"]`)).toBeNull();
+    expect(
+      box.querySelector(`[data-slot='docblocks/frame'][data-block-id="${frame}"]:not([data-slot="docblocks/row"])`)
+    ).toBeNull();
   });
 });
 
@@ -105,7 +111,9 @@ describe("the live's stand (the canvas's changes re-stand the window)", () => {
     const { a, doc, pageFrame } = renderScene();
     const box = windowOf(pageFrame);
     const content = box.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
-    const copyA = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)!;
+    const copyA = content.querySelector<HTMLElement>(
+      `[data-slot='docblocks/canvas-item'][data-block-id="${a}"]:not([data-slot="docblocks/row"])`
+    )!;
     expect(copyA.style.left).toBe("calc(50% + 10px)");
     act(() => {
       doc.setGeometry(a, { x: 25, y: 20, w: 50, h: 50 });

@@ -39,15 +39,32 @@ test("the gutter plus inserts an empty paragraph under the item", async ({ brows
   // (and the text) over the wire.
   await a.keyboard.type("two");
   await expect
-    .poll(async () => a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').count(), SETTLE)
+    .poll(
+      async () =>
+        a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])').count(),
+      SETTLE
+    )
     .toBe(2);
-  const second = a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').nth(1);
+  const second = a
+    .locator('[data-testid="doc-a"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])')
+    .nth(1);
   await expect.poll(async () => second.innerText(), SETTLE).toBe("two");
   await expect
-    .poll(async () => b.locator('[data-testid="doc-b"] [data-block-type="paragraph"]').count(), SETTLE)
+    .poll(
+      async () =>
+        b.locator('[data-testid="doc-b"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])').count(),
+      SETTLE
+    )
     .toBe(2);
   await expect
-    .poll(async () => b.locator('[data-testid="doc-b"] [data-block-type="paragraph"]').nth(1).innerText(), SETTLE)
+    .poll(
+      async () =>
+        b
+          .locator('[data-testid="doc-b"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])')
+          .nth(1)
+          .innerText(),
+      SETTLE
+    )
     .toBe("two");
 
   // Each keystroke is its own undo step (the single-region input commit):
@@ -59,7 +76,11 @@ test("the gutter plus inserts an empty paragraph under the item", async ({ brows
   await expect.poll(async () => second.innerText(), SETTLE).toBe("");
   await a.keyboard.press("Control+z");
   await expect
-    .poll(async () => a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').count(), SETTLE)
+    .poll(
+      async () =>
+        a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]:not([data-slot="docblocks/row"])').count(),
+      SETTLE
+    )
     .toBe(1);
   await expect.poll(async () => para.innerText(), SETTLE).toBe("hello");
 

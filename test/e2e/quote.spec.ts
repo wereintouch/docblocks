@@ -99,7 +99,7 @@ test("the slash menu's Quote converts the block and the rule stands in both pane
 
   // The block converted in place: a quote, the phrase stripped (the text
   // stands), the rule rendered in both panes (one command — one wire update).
-  const quote = a.locator('[data-block-type="quote"]');
+  const quote = a.locator('[data-block-type="quote"]:not([data-slot="docblocks/row"])');
   await expect(quote).toHaveCount(1);
   await expect(quote.locator('[data-slot="docblocks/block-content"]')).toHaveText("note");
   const id = (await rootIds(a, "a"))[0]!;
@@ -111,7 +111,7 @@ test("the slash menu's Quote converts the block and the rule stands in both pane
   // One undo step restores the paragraph with the phrase.
   await a.keyboard.press("Control+z");
   await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 2);
-  await expect(a.locator('[data-block-type="quote"]')).toHaveCount(0);
+  await expect(a.locator('[data-block-type="quote"]:not([data-slot="docblocks/row"])')).toHaveCount(0);
   await expect(target).toHaveText("note /quote");
   await close();
 });
@@ -133,7 +133,9 @@ test("the list-type menu's Quote option converts a paragraph; Text converts it b
   expect((await blockOf(a, "a", id))?.type).toBe("quote");
   await expect(a.locator('[data-slot="docblocks/quote-rule"]')).toHaveCount(1);
   await expect(
-    pane(a, "a").locator(`[data-block-id="${id}"]:not([data-slot="docblocks/block-content"])`)
+    pane(a, "a").locator(
+      `[data-block-id="${id}"]:not([data-slot="docblocks/row"]):not([data-slot="docblocks/block-content"])`
+    )
   ).toContainText("hello world");
   // The other pane stands the quote over the wire (the rule included) — wait
   // for B to converge (a one-shot read can catch B mid-convergence).
@@ -256,7 +258,7 @@ test("the rule stands on the checkbox's axis, from the first line to the last", 
 
   const checkbox = a.locator(`[data-block-id="${ids.li}"] [data-slot="docblocks/checkbox"]`);
   await expect(checkbox).toBeVisible();
-  const quote = a.locator(`[data-block-id="${ids.q}"]`);
+  const quote = a.locator(`[data-block-id="${ids.q}"]:not([data-slot="docblocks/row"])`);
   const rule = quote.locator('[data-slot="docblocks/quote-rule"]');
   await expect(rule).toHaveCount(1);
   await expect(b.locator(`[data-block-id="${ids.q}"] [data-slot="docblocks/quote-rule"]`)).toHaveCount(1);

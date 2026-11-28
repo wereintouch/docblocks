@@ -50,7 +50,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   const wireA = await outCount(a, "a");
 
   const toggle = a
-    .locator(`[data-block-id="${seeded.item}"]`)
+    .locator(`[data-block-id="${seeded.item}"]` + `:not([data-slot="docblocks/row"])`)
     .first()
     .locator('> button[data-slot="docblocks/collapse"]');
   // The expanded-state toggle reveals on a wrapper hover (like the grip).
@@ -98,7 +98,7 @@ test("the collapse triangle: a paragraph's derived segment and the fill/visibili
   if (seeded === null) throw new Error("the pane's doc is not mounted");
   await rowsSettled(a);
 
-  const row = a.locator(`[data-block-id="${seeded.parent}"]`).first();
+  const row = a.locator(`[data-block-id="${seeded.parent}"]:not([data-slot="docblocks/row"])`).first();
   const toggle = row.locator('> button[data-slot="docblocks/collapse"]');
   const triangle = toggle.locator("svg");
 

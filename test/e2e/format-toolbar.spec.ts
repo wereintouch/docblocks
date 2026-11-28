@@ -164,11 +164,13 @@ test("the align buttons set the block's align attr and sync the data-align", asy
 
   // The block carries the attr (the data attribute is the style hook) and
   // the content element is center-aligned.
-  const wrapper = pane(a, "a").locator('[data-block-type="paragraph"]').first();
+  const wrapper = pane(a, "a").locator('[data-slot="docblocks/block"][data-block-type="paragraph"]').first();
   await expect(wrapper).toHaveAttribute("data-align", "center");
   await expect(wrapper.locator('[data-slot="docblocks/block-content"]')).toHaveCSS("text-align", "center");
 
   // The attr synced to the other pane.
-  await expect(pane(b, "b").locator('[data-block-type="paragraph"]').first()).toHaveAttribute("data-align", "center");
+  await expect(
+    pane(b, "b").locator('[data-slot="docblocks/block"][data-block-type="paragraph"]').first()
+  ).toHaveAttribute("data-align", "center");
   await close();
 });

@@ -36,7 +36,7 @@ function renderDoc(prepare: (doc: TestDoc) => void): TestDoc {
 
 /** The wrapper element of the block. */
 function wrapperOf(id: BlockId): HTMLElement {
-  const el = document.querySelector<HTMLElement>(`[data-block-id="${id}"]`);
+  const el = document.querySelector<HTMLElement>(`[data-block-id="${id}"]:not([data-slot="docblocks/row"])`);
   expect(el, `the block ${id} should be rendered`).not.toBeNull();
   return el!;
 }

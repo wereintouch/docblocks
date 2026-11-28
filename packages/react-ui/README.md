@@ -1169,3 +1169,9 @@ Structural styling hooks are `data-slot` attributes (`docblocks/editor`,
 `data-block-type`, `data-list`, `data-depth`, and the per-state attributes — see
 the stylesheet header for the full list. User content styling (run color /
 highlight) is document data, not theme, and is applied inline.
+
+Block anchors: the block's wrapper (and its inner editable) stand
+`data-block-id` + `data-block-type`, and every page row stands the same
+attributes over its own element (`data-slot="docblocks/row"`) — the block's
+DOM anchor for navigating to it by id (a table of contents scrolling to a
+heading).

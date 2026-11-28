@@ -255,7 +255,9 @@ describe("built-in renderers: quote", () => {
       d.insertText(q, 0, "first line\nsecond line");
     });
 
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${q}"][data-block-type="quote"]`);
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/block"][data-block-id="${q}"][data-block-type="quote"]`
+    );
     expect(wrapper).not.toBeNull();
     // The editable inner carries the text (the breaks stand in the run text).
     const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');

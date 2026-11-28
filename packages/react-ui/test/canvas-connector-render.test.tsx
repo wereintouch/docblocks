@@ -47,7 +47,7 @@ describe("canvas scene: the connectors", () => {
     // The broken connector: no line, the wrapper is marked.
     expect(document.querySelector(`[data-connector-id="${IDS.brokenConnector}"]`)).toBeNull();
     const broken = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.brokenConnector}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.brokenConnector}"]:not([data-slot="docblocks/row"])`
     )!;
     expect(broken.getAttribute("data-missing")).toBe("true");
 
@@ -55,7 +55,7 @@ describe("canvas scene: the connectors", () => {
     // the surface (v1) — skipped like the absent block, the wrapper marked.
     expect(document.querySelector(`[data-connector-id="${IDS.docIdConnector}"]`)).toBeNull();
     const docIdRef = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.docIdConnector}"]`
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.docIdConnector}"]:not([data-slot="docblocks/row"])`
     )!;
     expect(docIdRef.getAttribute("data-missing")).toBe("true");
 

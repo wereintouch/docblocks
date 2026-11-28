@@ -12,7 +12,13 @@ import { liveScope } from "./focus-caret";
 /** The parent block id per the DOM: the wrapper above the block's own wrapper; null at the doc root. */
 function domParentBlockIdOf(el: HTMLElement): BlockId | null {
   const ownWrapper = el.parentElement?.closest<HTMLElement>("[data-block-id]");
-  return ownWrapper?.parentElement?.closest<HTMLElement>("[data-block-id]")?.dataset.blockId ?? null;
+  // The page row stands between the wrapper and the cell/section wrapper
+  // and carries the block's own id — the parent search skips the row's
+  // slot (the row is the block's anchor, not its parent's).
+  return (
+    ownWrapper?.parentElement?.closest<HTMLElement>("[data-block-id]:not([data-slot='docblocks/row'])")?.dataset
+      .blockId ?? null
+  );
 }
 
 /**

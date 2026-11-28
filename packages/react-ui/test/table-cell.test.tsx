@@ -13,7 +13,7 @@ import { activationOf, caretAt, cellParagraphOf, editorContext, innerOf, renderT
 describe("the empty-cell activation layer", () => {
   it("stands in every empty cell and only there", () => {
     const { tableId, firstCellId } = renderTableDoc(true);
-    const table = document.querySelector<HTMLElement>(`[data-block-id="${tableId}"]`);
+    const table = document.querySelector<HTMLElement>(`[data-block-id="${tableId}"]:not([data-slot="docblocks/row"])`);
     expect(table).not.toBeNull();
     expect(table!.querySelectorAll("tr").length).toBe(2);
     expect(table!.querySelectorAll("td").length).toBe(4);
@@ -207,7 +207,7 @@ describe("the cell keyboard gestures", () => {
     // The store projects the new child (the provider's doc subscription),
     // so the second paragraph stands in the DOM after the act flush.
     const cell = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/table-cell"][data-block-id="${firstCellId}"]`
+      `[data-slot="docblocks/table-cell"][data-block-id="${firstCellId}"]:not([data-slot="docblocks/row"])`
     );
     const inner = cell!.querySelector<HTMLElement>(
       `[data-block-id="${secondParagraph}"] [data-slot="docblocks/block-content"]`

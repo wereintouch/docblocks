@@ -72,7 +72,7 @@ describe("the cross-drag selection session", () => {
 
     // A pointerdown on the block wrapper (the marker gutter area): no
     // session stands, and the moves seat nothing.
-    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${a}"]`)!;
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${a}"]:not([data-slot="docblocks/row"])`)!;
     window.getSelection()?.removeAllRanges();
     caret.seatIn(a, 0);
     pointerDown(wrapper);

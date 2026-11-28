@@ -66,7 +66,7 @@ test("/ triggers in a non-empty, indented block; the apply converts the type and
 
   // The block converted in place: a task list item at its indent, the text
   // surviving (the trigger phrase "/task" stripped).
-  const taskItem = a.locator('[data-block-type="list-item"]');
+  const taskItem = a.locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])');
   await expect(taskItem).toHaveCount(1);
   await expect(taskItem.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo");
   const attrs = await a.evaluate((c) => {
@@ -80,7 +80,7 @@ test("/ triggers in a non-empty, indented block; the apply converts the type and
 
   // One command: one wire update; the other pane stands the same.
   await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1); // the wire log lags the update — polled
-  const bItem = b.locator('[data-block-type="list-item"]');
+  const bItem = b.locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])');
   await expect(bItem).toHaveCount(1);
   await expect(bItem.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo");
 
@@ -88,8 +88,10 @@ test("/ triggers in a non-empty, indented block; the apply converts the type and
   // wire log lags the update — polled).
   await a.keyboard.press("Control+z");
   await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 2);
-  await expect(a.locator('[data-block-type="list-item"]')).toHaveCount(0);
-  const restored = a.locator('[data-block-type="paragraph"]').filter({ hasText: "todo/task" });
+  await expect(a.locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])')).toHaveCount(0);
+  const restored = a
+    .locator('[data-block-type="paragraph"]:not([data-slot="docblocks/row"])')
+    .filter({ hasText: "todo/task" });
   await expect(restored).toHaveCount(1);
   await expect(restored.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo/task");
   await close();
@@ -231,7 +233,7 @@ test("a same-type command is an attrs update: the kind swap keeps the text", asy
 
   await a.keyboard.press("Enter");
   await expect(menu(a)).toHaveCount(0);
-  const item = a.locator('[data-block-type="list-item"]');
+  const item = a.locator('[data-block-type="list-item"]:not([data-slot="docblocks/row"])');
   await expect(item).toHaveCount(1);
   await expect(item.locator('[data-slot="docblocks/block-content"]')).toHaveText("item");
   const attrs = await a.evaluate((c) => {

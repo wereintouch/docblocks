@@ -194,7 +194,7 @@ describe("Task checkbox", () => {
       d.insertText(id, 0, "buy milk");
     });
     const id = listItemIdOf(doc);
-    const wrapper = document.querySelector(`[data-block-id="${id}"]`);
+    const wrapper = document.querySelector(`[data-block-id="${id}"]:not([data-slot="docblocks/row"])`);
     expect(wrapper).not.toBeNull();
     const box = wrapper!.querySelector<HTMLButtonElement>('[data-slot="docblocks/checkbox"]');
     expect(box, "a task item should render a checkbox").not.toBeNull();
@@ -215,7 +215,7 @@ describe("Task checkbox", () => {
       d.insertText(id, 0, "a bullet");
     });
     const id = listItemIdOf(doc);
-    const wrapper = document.querySelector(`[data-block-id="${id}"]`);
+    const wrapper = document.querySelector(`[data-block-id="${id}"]:not([data-slot="docblocks/row"])`);
     expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).toBeNull();
   });
 
