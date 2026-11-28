@@ -47,6 +47,18 @@ function reorderItems<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   return next;
 }
 
+/** The pointer's Y (the pointer / mouse's `clientY`; the touch's last
+ *  changed touch's `clientY`) — the drag's release's commit input (the
+ *  native event's coordinate over the drag's tracked position's stand). */
+function pointerYOf(event: PointerEvent | MouseEvent | TouchEvent): number | null {
+  if ("changedTouches" in event) {
+    const touches = event.changedTouches;
+    const touch = touches[touches.length - 1];
+    return touch === null || touch === undefined ? null : touch.clientY;
+  }
+  return event.clientY;
+}
+
 /** A visible header drop mapped into the full order without moving hidden ids over an anchor. */
 function moveVisibleColumn(
   columns: BridgeColumn[] | undefined,
@@ -197,6 +209,7 @@ export {
   normalizeColumnOrder,
   numberStepFor,
   parseCellDateTime,
+  pointerYOf,
   reorderItems,
   visibleColumns,
 };

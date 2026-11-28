@@ -104,7 +104,13 @@ test("the document grid's polished chrome and bottom resize work over the wire",
   if (committed === null) throw new Error("The resize commit is missing");
   await expect.poll(async () => heightAttr(b, "b", dbId), SETTLE).toBe(committed);
 
-  await dragBottom(a, wrapper, -2000);
+  // The shrink's drag stands viewport-bounded (the pointer ends ~100px from
+  // the top, still past the min's clamp): the -2000's overshoot drove the
+  // pointer off-screen, and firefox drops the synthetic input over the
+  // out-of-viewport's coordinates (the pointerup included) — the commit's
+  // release never lands.
+  const shrinkBox = (await wrapper.boundingBox())!;
+  await dragBottom(a, wrapper, -(shrinkBox.height - 100));
   await expect.poll(async () => heightAttr(a, "a", dbId), SETTLE).toBeLessThan(committed);
   const scrolling = await wrapper.locator("[data-slot='docblocks/database-grid']").evaluate((element) => ({
     client: element.clientHeight,

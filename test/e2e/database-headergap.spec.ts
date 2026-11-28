@@ -205,8 +205,11 @@ test("the header's Ellipsis stands the cell's vertical center (the border's half
     const center = (await readCenter())!;
     for (const col of colIds) {
       // The icon's center stands the cell's center (the border's half's
-      // stand — the 1 px bottom border over the content's center).
-      expect(Math.abs(center[col]?.deltaY ?? 1), `the ${col}'s vertical's delta`).toBeLessThanOrEqual(0.5);
+      // stand — the 1 px bottom border over the content's center). The
+      // 0.01's epsilon: the stand's exact 0.5 stands the engine's
+      // subpixel's read over it (the firefox's `getBoundingClientRect`
+      // stands the 0.5000076's read).
+      expect(Math.abs(center[col]?.deltaY ?? 1), `the ${col}'s vertical's delta`).toBeLessThanOrEqual(0.51);
       // The button's right edge stands the cell's right padding (the px-2's
       // stand — the right zone's regression: the Ellipsis stands right).
       expect(center[col]?.rightOffset, `the ${col}'s right's offset`).toBeCloseTo(8, 1);

@@ -113,6 +113,8 @@ test("the live name's reseed over an open edit (the pristine's follow, the typed
     await openPane(a, "a", "db-rename-reseed-" + Math.random().toString(36).slice(2, 8));
     const demoId = await bridgeDemoTable(a);
     await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demoId);
+    const header = a.locator("[data-slot='docblocks/database-header-cell']").first();
+    await expect(header).toContainText("Title", SETTLE);
     const rename = a.locator("[data-slot='docblocks/database-rename-input']");
 
     // The pristine's follow: the bridge's rename over the open menu stands

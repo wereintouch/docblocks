@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover
 import { cn } from "../../shared/ui/cn";
 import { GripVertical } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
-import { normalizeColumnOrder, reorderItems, visibleColumns } from "./utils";
+import { normalizeColumnOrder, pointerYOf, reorderItems, visibleColumns } from "./utils";
 
 interface ColumnManagerProps {
   columns: BridgeColumn[];
@@ -27,11 +27,10 @@ interface ColumnRowProps {
   hideDisabled: boolean;
   onToggle: (columnId: string) => void;
   onMove: (columnId: string, delta: number) => void;
-  onDragStart: () => void;
-  onDragEnd: (columnId: string) => void;
+  onDragEnd: (columnId: string, event: PointerEvent | MouseEvent | TouchEvent) => void;
 }
 
-function ColumnRow({ column, hidden, hideDisabled, onToggle, onMove, onDragStart, onDragEnd }: ColumnRowProps) {
+function ColumnRow({ column, hidden, hideDisabled, onToggle, onMove, onDragEnd }: ColumnRowProps) {
   const { t } = useTranslation("database");
   const dragControls = useDragControls();
   const onGripPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -45,7 +44,11 @@ function ColumnRow({ column, hidden, hideDisabled, onToggle, onMove, onDragStart
     onMove(column.id, event.key === "ArrowUp" ? -1 : 1);
   };
   const onVisibilityChange = () => onToggle(column.id);
-  const onReorderEnd = () => onDragEnd(column.id);
+  // The release's commit input (the pointer's true's release position's
+  // stand over the drag's tracked position's stand — the framer's rAF's
+  // tick lags over the slow engine's input's batching, and the tracked's
+  // lag stands the last slot's miss over the commit).
+  const onReorderEnd = (event: PointerEvent | MouseEvent | TouchEvent) => onDragEnd(column.id, event);
 
   return (
     <Reorder.Item
@@ -53,7 +56,6 @@ function ColumnRow({ column, hidden, hideDisabled, onToggle, onMove, onDragStart
       value={column.id}
       dragListener={false}
       dragControls={dragControls}
-      onDragStart={onDragStart}
       onDragEnd={onReorderEnd}
       className="flex items-center gap-1 rounded-sm px-1 py-0.5 text-sm"
     >
@@ -94,7 +96,7 @@ function ColumnManager({
   const { t } = useTranslation("database");
   const [open, setOpen] = useState(false);
   const [draftOrder, setDraftOrder] = useState<string[] | null>(null);
-  const dragStartOrderRef = useRef<string[] | null>(null);
+  const groupRef = useRef<HTMLDivElement | null>(null);
   const normalizedOrder = normalizeColumnOrder(columns, columnOrder);
   const order = draftOrder ?? normalizedOrder;
   const hidden = new Set(hiddenColumns ?? []);
@@ -117,13 +119,63 @@ function ColumnManager({
     });
     setDraftOrder(nextOrder);
   };
-  const onDragStart = () => {
-    dragStartOrderRef.current = order;
+  // The release's commit (the pointer's true's release position's stand):
+  // the rows' midpoints' hit test over the current display's order (the
+  // preview's cascade's stand) — the page row's release's parity (the
+  // draft's preview-only's stand; the framer's onDragEnd's native event's
+  // coordinate over the drag's tracked position's stand).
+  const commitAtPointer = (columnId: string, clientY: number): void => {
+    const group = groupRef.current;
+    if (group === null) return;
+    const rows = Array.from(group.children).filter((row): row is HTMLElement => row instanceof HTMLElement);
+    const displayed = rows
+      .map((row) =>
+        row.querySelector<HTMLElement>("[data-slot='docblocks/database-column-move']")?.getAttribute("data-column-id")
+      )
+      .filter((id): id is string => id !== null);
+    if (displayed.length === 0 || displayed.includes(columnId) === false) return;
+    // The committed's order (the prop's stand) is the commit's previous —
+    // the drag's cascade preview stays uncommitted until release, and the
+    // widths' rebase maps over the committed widths' order.
+    const previousOrder = normalizedOrder;
+    const others = displayed.filter((id) => id !== columnId);
+    let insertAt = 0;
+    for (const row of rows) {
+      const id = row
+        .querySelector<HTMLElement>("[data-slot='docblocks/database-column-move']")
+        ?.getAttribute("data-column-id");
+      if (id === null || id === columnId) continue;
+      const rect = row.getBoundingClientRect();
+      if (clientY > rect.top + rect.height / 2) insertAt += 1;
+    }
+    const newVisible = [...others.slice(0, insertAt), columnId, ...others.slice(insertAt)];
+    // The full order's stand: the new visible order re-placed over the
+    // committed's visible slots (the hidden's columns keep the committed's
+    // positions — the framer's reorder's reconstruction's parity).
+    const visibleIds = new Set(newVisible);
+    const visibleSlots = normalizedOrder
+      .map((id, index) => (visibleIds.has(id) ? index : -1))
+      .filter((index) => index >= 0);
+    const nextOrder = [...normalizedOrder];
+    newVisible.forEach((id, slot) => {
+      const target = visibleSlots[slot];
+      if (target !== undefined) nextOrder[target] = id;
+    });
+    // The release in place stands the preview's snap-back (the cascade's
+    // draft's keep would stand the popover's rows over the committed's order).
+    if (nextOrder.every((id, index) => id === previousOrder[index])) {
+      setDraftOrder(null);
+      return;
+    }
+    commitOrder(columnId, nextOrder, previousOrder);
   };
-  const onDragEnd = (columnId: string) => {
-    const previousOrder = dragStartOrderRef.current ?? order;
-    dragStartOrderRef.current = null;
-    if (draftOrder !== null) commitOrder(columnId, draftOrder, previousOrder);
+  const onDragEnd = (columnId: string, event: PointerEvent | MouseEvent | TouchEvent) => {
+    const pointerY = pointerYOf(event);
+    if (pointerY === null) {
+      setDraftOrder(null); // the stale's release's stand (the preview's snap-back)
+      return;
+    }
+    commitAtPointer(columnId, pointerY);
   };
   const onMove = (columnId: string, delta: number) => {
     const fromIndex = order.indexOf(columnId);
@@ -162,6 +214,7 @@ function ColumnManager({
       >
         <Reorder.Group
           as="div"
+          ref={groupRef}
           axis="y"
           values={order}
           onReorder={setDraftOrder}
@@ -178,7 +231,6 @@ function ColumnManager({
                 hideDisabled={!hidden.has(column.id) && visibleCount === 1}
                 onToggle={onToggle}
                 onMove={onMove}
-                onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
               />
             );

@@ -18,7 +18,7 @@ test("the columns popover restores hidden columns and reorders by keyboard and m
   const context = await editorContext(browser);
   const a = await context.newPage();
   try {
-    await openPane(a, "a", "db-column-manager");
+    await openPane(a, "a", "db-column-manager-" + Math.random().toString(36).slice(2, 8));
     const { dbId, ids } = await a.evaluate(async () => {
       const bridge = window.__bridge!;
       const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
@@ -76,7 +76,18 @@ test("the columns popover restores hidden columns and reorders by keyboard and m
     const target = (await grip(gamma!).boundingBox())!;
     await a.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
     await a.mouse.down();
-    await a.mouse.move(target.x + target.width / 2, target.y + target.height + 12, { steps: 12 });
+    const endY = target.y + target.height + 12;
+    await a.mouse.move(from.x + from.width / 2, endY, { steps: 12 });
+    // The drag's preview's settle over the release's position (the rAF's
+    // tick's stand over the engine's input's batching — the release before
+    // the settle stands the last slot's miss over the slow engine): the
+    // item's center stands the pointer's end position before the release.
+    await expect
+      .poll(async () => {
+        const box = (await grip(alpha!).boundingBox()) ?? null;
+        return box === null ? null : Math.abs(box.y + box.height / 2 - endY);
+      }, SETTLE)
+      .toBeLessThan(2);
     await a.mouse.up();
     await expect.poll(headerOrder, SETTLE).toEqual([beta, gamma, alpha]);
 
