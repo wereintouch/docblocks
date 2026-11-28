@@ -8,7 +8,10 @@ const headerHeights = new Map<string, number>();
 const databaseTableSection: DatabaseTableSection = {
   getHeaderHeight: (tableId) => headerHeights.get(tableId),
   setHeaderHeight: (tableId, height) => {
-    headerHeights.set(tableId, height);
+    // The `undefined`'s stand (the double-click's reset): the value's
+    // removal (the auto height's return), not a stored undefined.
+    if (height === undefined) headerHeights.delete(tableId);
+    else headerHeights.set(tableId, height);
   },
   getRowCount: (tableId) => persistentDatabaseBridge.getRowCount(tableId),
 };

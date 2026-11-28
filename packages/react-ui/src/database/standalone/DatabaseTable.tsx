@@ -68,9 +68,11 @@ function DatabaseTable({
   // subscription, so the drag's release stands this instance's display
   // until the consumer's value lands (the echo drops over any other
   // value: the persisted stand / a change made elsewhere wins).
-  const [headerEcho, setHeaderEcho] = useState<{ tableId: string; base: number | undefined; height: number } | null>(
-    null
-  );
+  const [headerEcho, setHeaderEcho] = useState<{
+    tableId: string;
+    base: number | undefined;
+    height: number | undefined;
+  } | null>(null);
   const sectionHeight = tableSection?.getHeaderHeight?.(tableId);
   const sectionHeaderHeight =
     headerEcho !== null && headerEcho.tableId === tableId && headerEcho.base === sectionHeight
@@ -79,6 +81,14 @@ function DatabaseTable({
   const commitHeaderHeight = (height: number) => {
     setHeaderEcho({ tableId, base: sectionHeight, height });
     tableSection?.setHeaderHeight?.(tableId, height);
+  };
+  // The double-click's reset (the default height's return): the section's
+  // value's clear (the `undefined`'s stand) + the local echo — the
+  // auto's stand (the value's absence) stands no reset.
+  const commitHeaderHeightReset = () => {
+    if (sectionHeight === undefined) return;
+    setHeaderEcho({ tableId, base: sectionHeight, height: undefined });
+    tableSection?.setHeaderHeight?.(tableId, undefined);
   };
 
   const handleViewChange = useCallback(
@@ -119,6 +129,7 @@ function DatabaseTable({
           // The handle stands only over the section contract (the table-level
           // persistence's write stand); the plain stand keeps the auto height.
           onHeaderHeightChange={tableSection === undefined ? undefined : commitHeaderHeight}
+          onHeaderHeightReset={tableSection === undefined ? undefined : commitHeaderHeightReset}
           onViewChange={handleViewChange}
           readColumnOrder={() => viewRef.current.columnOrder}
           readOnly={readOnly}

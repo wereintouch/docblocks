@@ -2,7 +2,7 @@
  *  persistence levels (the block's own attr over the consumer's per-table
  *  section value, an absent stand = the auto height), the drag's clamp, and
  *  the auto height's live measurement. */
-import { MAX_DATABASE_HEADER_HEIGHT_PX, MIN_DATABASE_HEADER_HEIGHT_PX } from "./constants";
+import { DATABASE_HEADER_WRAP_ATTR, MAX_DATABASE_HEADER_HEIGHT_PX, MIN_DATABASE_HEADER_HEIGHT_PX } from "./constants";
 
 /** The header row's height stand: the block's own attr wins over the
  *  table section's value (the consumer's per-table persistence — the same
@@ -28,12 +28,18 @@ function clampDatabaseHeaderHeight(requested: number, natural: number): number {
 function measureDatabaseHeaderHeight(grid: HTMLElement | null): number {
   if (grid === null) return 0;
   const previous = grid.style.gridTemplateRows;
+  // The single-line's stand for the read (the stretch's wrap's
+  // suppression): the auto's one-line's height is the measurement's
+  // contract, independent of the current's stretch.
+  const wrapped = grid.hasAttribute(DATABASE_HEADER_WRAP_ATTR);
+  grid.removeAttribute(DATABASE_HEADER_WRAP_ATTR);
   grid.style.gridTemplateRows = "auto";
   let natural = 0;
   for (const cell of grid.querySelectorAll<HTMLElement>('[data-slot="docblocks/database-header-cell"]')) {
     natural = Math.max(natural, cell.offsetHeight);
   }
   grid.style.gridTemplateRows = previous;
+  if (wrapped) grid.setAttribute(DATABASE_HEADER_WRAP_ATTR, "true");
   return natural;
 }
 

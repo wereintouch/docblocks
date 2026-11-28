@@ -526,6 +526,24 @@
   appearance: textfield;
 }
 
+/* The database header's name: the single-line's ellipsis stand (the
+   auto height's floor — the one line never grows the row). Over the
+   stretched header (the grid root's `data-header-wrap`'s key — the
+   height's stand over the single-line's auto) the name wraps over the
+   column's width (the ellipsis stands off — the full name's stand);
+   the span's `max-h-full`'s clip stands the lines' stand past the row's
+   height (the under-height's clip). */
+[data-slot="docblocks/database-header-name"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-slot="docblocks/database-table"][data-header-wrap="true"] [data-slot="docblocks/database-header-name"] {
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+}
+
 /* The multi-ref cell's display (the multi-enum / the row-links' chips)
    stands the right fade over the overflowing train: the mask gradients the
    tail to transparency at the right edge (the chips clip without the

@@ -616,6 +616,15 @@ attr wins over the table-level value; a block without one follows the table
 and falls back to the auto height. Read-only modes apply the height and
 render no handle.
 
+When the row stands taller than its single-line natural height, the column
+names reflow and wrap inside the row instead of truncating to one line
+(the single-line ellipsis stand returns with the auto height). A
+double-click on the stretched header row (in edit mode) resets the height
+to the auto stand: a block with its own `headerHeight` attr loses the attr;
+a block that follows the table-level value clears it (the section's
+`setHeaderHeight` called with `undefined`); a block at the auto height
+performs no write.
+
 The document block's total **height** is adjustable through its bottom-edge
 handle in edit mode. The optional positive `height` attr is document data:
 the release commits one `updateBlock` (one undo step and one wire update).
@@ -686,7 +695,9 @@ className?, tableSection? })` —
   same per-table contract the `EditorProvider` takes: the header row's
   height comes from `getHeaderHeight(tableId)` and the grid's drag commits
   it back over `setHeaderHeight(tableId, height)`, so the section's value and
-  the document blocks over the same table stand one height. The optional
+  the document blocks over the same table stand one height; the double-click
+  reset over the stretched header clears the value (the `undefined`'s stand)
+  and returns the auto height. The optional
   `getRowCount(tableId)` supplies the toolbar's authoritative total under the
   same read-on-render contract. Without the
   contract the grid renders no header handle (the header keeps the auto

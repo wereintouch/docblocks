@@ -2,7 +2,7 @@
  * right-edge resize seam). */
 import { useTranslation } from "react-i18next";
 
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "../../shared/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
@@ -17,6 +17,10 @@ import { GRID_DRAG_TRANSITION, PICKER_SIDE_OFFSET_PX } from "./constants";
 interface HeaderCellProps {
   /** The read-only stand renders the column label without editing affordances. */
   readOnly?: boolean;
+  /** The double-click's reset commit (the default height's return) — the
+   *  editable's stand only; the menu's / the seam's double click stands
+   *  the propagation's stop (the controls' own gestures). */
+  onDoubleClickReset?: () => void;
   column: BridgeColumn;
   colIndex: number;
   first: boolean;
@@ -56,6 +60,7 @@ interface HeaderCellProps {
  *  (read-only), and the show / hide / delete items. */
 function HeaderCell({
   readOnly = false,
+  onDoubleClickReset,
   column,
   colIndex,
   first,
@@ -103,6 +108,11 @@ function HeaderCell({
     if (trimmed === "" || trimmed === column.name) return;
     onRename(trimmed);
   };
+  // The interactive children's double click's stop (the menu's / the seam's
+  // own gestures stand over the row's reset's gesture).
+  const stopDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    event.stopPropagation();
+  };
   // The menu's item picks (the menu closes on the press — the column's
   // action follows).
   const onEditOptionsPress = () => {
@@ -135,17 +145,24 @@ function HeaderCell({
       onPointerDown={readOnly ? undefined : onPointerDown}
       onPointerMove={readOnly ? undefined : onPointerMove}
       onPointerUp={readOnly ? undefined : onPointerUp}
+      onDoubleClick={onDoubleClickReset}
     >
       <ColumnIcon className="size-4 shrink-0 text-muted-foreground" />
+      {/* The single-line's ellipsis / the stretch's wrap stand the
+          structural rule (the grid root's `data-header-wrap`'s key over the
+          shipped CSS); the `max-h-full`'s clip stands the lines' stand past
+          the row's height (the stretch's under-height's clip). */}
       <span
-        className="
-          min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)
-        "
+        data-slot="docblocks/database-header-name"
+        className={`
+          max-h-full min-w-0 flex-1 overflow-hidden px-1 text-(length:--docblocks-font-size)
+          font-(--docblocks-heading-font-weight)
+        `}
       >
         {column.name}
       </span>
       {!readOnly && (
-        <div className="ml-auto flex shrink-0 items-center">
+        <div className="ml-auto flex shrink-0 items-center" onDoubleClick={stopDoubleClick}>
           <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuChange}>
             <DropdownMenuTrigger asChild>
               <Button
@@ -205,6 +222,7 @@ function HeaderCell({
         <div
           data-slot="docblocks/database-col-resize"
           data-index={colIndex}
+          onDoubleClick={stopDoubleClick}
           className={cn(
             // The strip stands centered on the cell's right edge (the 3 px
             // over each side): the seam's line is the hit zone's middle, so

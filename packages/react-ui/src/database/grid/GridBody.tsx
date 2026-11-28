@@ -56,6 +56,10 @@ interface GridBodyProps {
    *  block's attr over the document, the section's value over its own
    *  grid). */
   onHeaderHeightChange?: (height: number) => void;
+  /** The header's double-click's reset commit (the default height's
+   *  return — the block attr's removal / the section value's clear;
+   *  absent = no reset stand). */
+  onHeaderHeightReset?: () => void;
   /** The view-attrs' write stand (the block's stand: one `updateBlock` —
    *  the CRDT data, the undo step, the wire update; the standalone's
    *  stand: the internal state's merge + the consumer's `onViewChange`
@@ -82,6 +86,7 @@ function GridBody({
   getRowCount,
   onHeightChange,
   onHeaderHeightChange,
+  onHeaderHeightReset,
   onViewChange,
   readColumnOrder,
   readOnly = false,
@@ -222,6 +227,7 @@ function GridBody({
               readOnly={readOnly}
               headerHeight={resolvedHeaderHeight}
               onHeaderHeightChange={onHeaderHeightChange}
+              onHeaderHeightReset={onHeaderHeightReset}
               tableRef={tableRef}
               onTableKeyDown={onTableKeyDown}
               onTablePaste={onTablePaste}

@@ -25,6 +25,7 @@ import { useGridColumnDrag } from "./use-grid-column-drag";
 import { useGridHeaderResize } from "./use-grid-header-resize";
 import { useGridSeamResize } from "./use-grid-seam-resize";
 import type { RefTableDataMap } from "./use-ref-tables";
+import { useSingleLineHeaderHeight } from "./use-single-line-header-height";
 
 interface GridTableProps {
   columns: BridgeColumn[];
@@ -56,6 +57,10 @@ interface GridTableProps {
   /** The header resize's release commit (the block attr / the section
    *  value — the caller's write stand). */
   onHeaderHeightChange?: (height: number) => void;
+  /** The header's double-click's reset commit (the default height's
+   *  return — the block attr's removal / the section value's clear).
+   *  Absent = no reset stand (the read-only's parity). */
+  onHeaderHeightReset?: () => void;
   tableRef: { current: HTMLDivElement | null };
   onTableKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onTablePaste: (event: ClipboardEvent<HTMLDivElement>) => void;
@@ -88,6 +93,7 @@ function GridTable({
   readOnly = false,
   headerHeight,
   onHeaderHeightChange,
+  onHeaderHeightReset,
   tableRef,
   onTableKeyDown,
   onTablePaste,
@@ -114,6 +120,17 @@ function GridTable({
   const { headerPreview, onHeaderPointerDown, onHeaderPointerMove, onHeaderPointerUp, onHeaderPointerCancel } =
     useGridHeaderResize({ tableRef, headerHeight, onCommit: commitHeaderHeight });
   const headerRowHeight = headerPreview ?? headerHeight;
+  // The stretch's stand: the name's wrap over the height's stand (the
+  // single-line's auto height is the floor — no wrap over it). The
+  // natural's stand is the live measurement's single-line's value
+  // (the current's wrap's suppression over the read).
+  const naturalHeaderHeight = useSingleLineHeaderHeight(tableRef);
+  const headerWrap = headerRowHeight !== undefined && headerRowHeight > naturalHeaderHeight;
+  // The double-click's reset (the default height's return): the editable's
+  // stand only (the read-only's modes' write path stands off).
+  const resetHeaderHeight = (): void => {
+    onHeaderHeightReset?.();
+  };
 
   // The parting preview: the stationary columns' shift (px) over the live
   // drop index (the dragged column's own cells stand the pointer's dx).
@@ -158,6 +175,7 @@ function GridTable({
     <div
       ref={tableRef}
       data-slot="docblocks/database-table"
+      data-header-wrap={headerWrap ? "true" : undefined}
       tabIndex={0}
       // The grid's pointer model stands the cell / column selection —
       // the native text selection over the drag is suppressed (the
@@ -198,6 +216,10 @@ function GridTable({
           dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
           dragShifted={drag !== null && drag.id !== column.id}
           menuOpen={columnMenu === column.id}
+          // The double-click's reset (the default height's return) — the
+          // editable's stand (the block's attr / the section's value's
+          // write target's parity over the handle's render's stand).
+          onDoubleClickReset={!readOnly && onHeaderHeightReset !== undefined ? resetHeaderHeight : undefined}
           // The read-only stand (view / published): the column's menu
           // stands locked off (the rename / the options' / the
           // hide / show / the delete's paths stand no write).
@@ -223,6 +245,7 @@ function GridTable({
       {!readOnly && onHeaderHeightChange !== undefined && (
         <HeaderResizeHandle
           resizing={headerPreview !== null}
+          onDoubleClickReset={!readOnly && onHeaderHeightReset !== undefined ? resetHeaderHeight : undefined}
           onPointerDown={onHeaderPointerDown}
           onPointerMove={onHeaderPointerMove}
           onPointerUp={onHeaderPointerUp}

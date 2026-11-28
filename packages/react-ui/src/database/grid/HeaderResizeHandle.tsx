@@ -13,6 +13,9 @@ import { cn } from "../../shared/ui/cn";
 interface HeaderResizeHandleProps {
   /** The session is live (the line stands visible off the pointer's hover). */
   resizing: boolean;
+  /** The double-click's reset commit (the default height's return) — the
+   *  editable's stand (the handle renders over the write target's stand). */
+  onDoubleClickReset?: () => void;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -20,9 +23,12 @@ interface HeaderResizeHandleProps {
 }
 
 /** The header's bottom edge: the 6 px strip straddles the border (the
- *  seam idiom — the pointer over the edge stands the stable row-resize). */
+ *  seam idiom — the pointer over the edge stands the stable row-resize).
+ *  The double click over the strip stands the height's reset (the default
+ *  height's return — the press's no-op's parity over the drag's release). */
 function HeaderResizeHandle({
   resizing,
+  onDoubleClickReset,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -47,6 +53,7 @@ function HeaderResizeHandle({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onDoubleClick={onDoubleClickReset}
     >
       <div data-slot="docblocks/database-header-resize-line" className="h-0.5 w-full rounded bg-(--muted-foreground)" />
     </div>

@@ -39,6 +39,11 @@ const MIN_DATABASE_COLUMN_WIDTH_PX = 50;
 // generous ceiling.
 const MIN_DATABASE_HEADER_HEIGHT_PX = 28;
 const MAX_DATABASE_HEADER_HEIGHT_PX = 600;
+// The grid root's stretch mark (the `data-header-wrap`'s stand): over it
+// the column's names wrap over the row's height (the auto's one-line's
+// ellipsis stand stands over its absence — the structural rule lives in
+// the shipped CSS, the attribute stands the measurement's suppression).
+const DATABASE_HEADER_WRAP_ATTR = "data-header-wrap";
 // The document block's auto height caps the grid at ten natural rows;
 // the resize floor keeps three rows below the header. CSS supplies the
 // row height; the numeric value is the non-layout runtime's fallback.
@@ -109,6 +114,7 @@ export {
   CHECKBOX_TOGGLE_GUARD_MS,
   DATABASE_RESIZE_KEY_STEP_PX,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
+  DATABASE_HEADER_WRAP_ATTR,
   DEFAULT_DATABASE_ROW_HEIGHT_PX,
   DRAG_START_THRESHOLD_PX,
   MAX_DATABASE_HEADER_HEIGHT_PX,

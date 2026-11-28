@@ -92,6 +92,21 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       // The drag's commit: the block's attr over the document (CRDT data,
       // one undo step, the wire update).
       onHeaderHeightChange={(height) => doc.updateBlock(id, { headerHeight: height })}
+      // The double-click's reset (the default height's return): the
+      // block's own attr stands first (its removal stands the section's
+      // value / the auto's stand over it); an absent attr stands the
+      // section's value's clear (the resolved stand's provider); the
+      // auto's stand (no attr, no section's value) stands the no-op's
+      // stand (no write).
+      onHeaderHeightReset={() => {
+        const current = doc.getBlock(id);
+        if (current === null || current.type !== "database") return;
+        if (current.attrs.headerHeight !== undefined) {
+          doc.removeBlockAttr(id, "headerHeight");
+        } else if (databaseTableSection?.getHeaderHeight?.(tableId) !== undefined) {
+          databaseTableSection.setHeaderHeight?.(tableId, undefined);
+        }
+      }}
       // The view-attrs' write stand: one `updateBlock` (the CRDT data,
       // the undo step, the wire update).
       onViewChange={(patch) => doc.updateBlock(id, patch)}

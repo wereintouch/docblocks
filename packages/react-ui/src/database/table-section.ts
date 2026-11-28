@@ -7,8 +7,10 @@ interface DatabaseTableSection {
    *  (the block's own attr over it, else the auto height). */
   getHeaderHeight?: (tableId: string) => number | undefined;
   /** Commits the header-row height for the table (the section's grid drag's
-   *  release): one value over every block referencing the table. */
-  setHeaderHeight?: (tableId: string, height: number) => void;
+   *  release): one value over every block referencing the table.
+   *  `undefined` clears the persisted value (the header's double-click's
+   *  reset's stand — the auto height's return). */
+  setHeaderHeight?: (tableId: string, height: number | undefined) => void;
   /** The consumer's authoritative total row count; `undefined` lets the
    *  grid fall back to its loaded rows. The interface is a read, not a
    *  subscription: the consumer re-renders when its count changes. */

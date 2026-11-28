@@ -93,13 +93,15 @@ describe("the standalone table's header-row height (the section stand)", () => {
 
     // The consumer's store stand: `setHeaderHeight` re-renders the grid with
     // the fresh `getHeaderHeight` value (the section's interface is a read);
-    // `setExternal` stands a change made outside this grid.
+    // `setExternal` stands a change made outside this grid (the `undefined`
+    // stands the clear — the double-click's reset's stand).
     const heights = new Map<string, number>([[tableId, 120]]);
-    let setExternal: (height: number) => void = () => undefined;
+    let setExternal: (height: number | undefined) => void = () => undefined;
     function Section() {
       const [, setTick] = useState(0);
-      setExternal = (height: number) => {
-        heights.set(tableId, height);
+      setExternal = (height) => {
+        if (height === undefined) heights.delete(tableId);
+        else heights.set(tableId, height);
         setTick((tick) => tick + 1);
       };
       const section: DatabaseTableSection = {
@@ -128,5 +130,44 @@ describe("the standalone table's header-row height (the section stand)", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(headerTrack()).toBe("200px");
+  });
+
+  it("the double click over the grid resets the section's value (the auto's return)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const tableId = await seedTable(bridge);
+    const setHeaderHeight = vi.fn();
+    const tableSection: DatabaseTableSection = {
+      getHeaderHeight: (id) => (id === tableId ? 120 : undefined),
+      setHeaderHeight,
+    };
+    render(<DatabaseTable bridge={bridge} tableId={tableId} tableSection={tableSection} />);
+    await settleGrid();
+    expect(headerTrack()).toBe("120px");
+
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell']");
+    expect(cell).not.toBeNull();
+    fireEvent.dblClick(cell!);
+    await settleGrid();
+    // The clear's commit over the table id (the `undefined`'s stand);
+    // the local echo stands the display (the section's read stands until
+    // the consumer's value lands).
+    expect(setHeaderHeight).toHaveBeenCalledTimes(1);
+    expect(setHeaderHeight).toHaveBeenCalledWith(tableId, undefined);
+    expect(headerTrack()).toBe("auto");
+  });
+
+  it("the double click over the auto's stand stands no write (the section's value's absence)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const tableId = await seedTable(bridge);
+    const setHeaderHeight = vi.fn();
+    render(<DatabaseTable bridge={bridge} tableId={tableId} tableSection={{ setHeaderHeight }} />);
+    await settleGrid();
+    expect(headerTrack()).toBe("auto");
+
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell']");
+    fireEvent.dblClick(cell!);
+    await settleGrid();
+    expect(setHeaderHeight).not.toHaveBeenCalled();
+    expect(headerTrack()).toBe("auto");
   });
 });

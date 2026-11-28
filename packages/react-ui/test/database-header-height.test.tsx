@@ -168,6 +168,71 @@ describe("the grid's header-row height", () => {
     expect(attrHeight(doc, db)).toBe(96);
   });
 
+  it("the stretched header stands the names' wrap stand (the `data-header-wrap`'s key over the auto's absence)", async () => {
+    await renderGrid({});
+    // The auto's stand: the one-line's ellipsis stand (no wrap's key).
+    expect(
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']")?.hasAttribute("data-header-wrap")
+    ).toBe(false);
+    cleanup();
+
+    // The explicit height's stand (over the one-line's auto): the wrap's
+    // key (the names' reflow over the row's height).
+    await renderGrid({ attrs: { headerHeight: 96 } });
+    expect(
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']")?.hasAttribute("data-header-wrap")
+    ).toBe(true);
+  });
+
+  it("the double click over the header's row resets the block's attr (the auto's return)", async () => {
+    const { doc, db } = await renderGrid({ attrs: { headerHeight: 96 } });
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell']");
+    expect(cell).not.toBeNull();
+    fireEvent.dblClick(cell!);
+    await settleGrid();
+    // The attr's removal stands the auto's stand (the track's reset +
+    // the wrap's key's absence).
+    expect(attrHeight(doc, db)).toBeUndefined();
+    expect(headerTrack()).toBe("auto");
+    expect(
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']")?.hasAttribute("data-header-wrap")
+    ).toBe(false);
+  });
+
+  it("the double click over the handle resets the height (the strip's stand)", async () => {
+    const { doc, db } = await renderGrid({ attrs: { headerHeight: 96 } });
+    fireEvent.dblClick(headerHandle()!);
+    await settleGrid();
+    expect(attrHeight(doc, db)).toBeUndefined();
+    expect(headerTrack()).toBe("auto");
+  });
+
+  it("the double click over the section's stand (the block's own attr's absence) clears the section's value", async () => {
+    const setHeaderHeight = vi.fn();
+    const section: DatabaseTableSection = {
+      getHeaderHeight: (id) => (id === tableId ? 120 : undefined),
+      setHeaderHeight,
+    };
+    await renderGrid({ section });
+    expect(headerTrack()).toBe("120px");
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell']");
+    fireEvent.dblClick(cell!);
+    await settleGrid();
+    // The block's own attr stands absent (the section's clear's stand —
+    // the resolved stand's provider).
+    expect(setHeaderHeight).toHaveBeenCalledTimes(1);
+    expect(setHeaderHeight).toHaveBeenCalledWith(tableId, undefined);
+  });
+
+  it("the double click over the auto's stand stands no write (the no-op's stand)", async () => {
+    const setHeaderHeight = vi.fn();
+    await renderGrid({ section: { setHeaderHeight } });
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell']");
+    fireEvent.dblClick(cell!);
+    await settleGrid();
+    expect(setHeaderHeight).not.toHaveBeenCalled();
+  });
+
   it("the read-only stand applies the height and renders no handle", async () => {
     await renderGrid({ attrs: { headerHeight: 96 }, mode: "view" });
     expect(headerTrack()).toBe("96px");
