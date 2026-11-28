@@ -8,6 +8,8 @@
  * button's press only — the outside press / the Escape close without the
  * commit).
  */
+import { useTranslation } from "react-i18next";
+
 import { useCallback, useState } from "react";
 
 import type { BridgeColumn, DatabaseBridge } from "../bridge";
@@ -31,6 +33,7 @@ interface UseColumnFormContext {
 }
 
 function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, onViewChange }: UseColumnFormContext) {
+  const { t } = useTranslation("database");
   const [addingColumn, setAddingColumn] = useState(false);
   const [columnFormOpen, setColumnFormOpen] = useState(false);
   const [columnForm, setColumnForm] = useState<AddColumnFormDraft | null>(null);
@@ -74,7 +77,7 @@ function useColumnForm({ bridge, tableId, data, refTableData, readColumnOrder, o
    *  the create form (the name input + the type-specific block over it) —
    *  the create commits on the form's button only. */
   const openCreateForm = (entry: AddColumnTypeEntry) => {
-    setColumnForm(emptyColumnForm(entry));
+    setColumnForm(emptyColumnForm(entry, t(entry.labelKey)));
     setAddingColumn(false);
     setColumnFormError(null);
     setColumnFormOpen(true);

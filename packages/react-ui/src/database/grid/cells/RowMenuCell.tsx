@@ -51,7 +51,8 @@ function RowMenuCell({
           flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)
           border-(--docblocks-table-border-color)
         `,
-        !lastRow && "border-b-(length:--docblocks-table-border-width)"
+        !lastRow && "border-b-(length:--docblocks-table-border-width)",
+        lastRow && "rounded-br-(--docblocks-radius)"
       )}
     >
       <DropdownMenu modal={false} open={rowMenu === row.rowId} onOpenChange={onRowMenuChange}>

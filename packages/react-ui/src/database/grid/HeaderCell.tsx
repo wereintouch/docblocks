@@ -129,6 +129,7 @@ function HeaderCell({
           border-(--docblocks-table-border-color) bg-muted/40 px-2 py-1 select-none
         `,
         !readOnly && "cursor-grab active:cursor-grabbing",
+        first && "rounded-tl-(--docblocks-radius)",
         !first && "border-l-(length:--docblocks-table-border-width)"
       )}
       onPointerDown={readOnly ? undefined : onPointerDown}

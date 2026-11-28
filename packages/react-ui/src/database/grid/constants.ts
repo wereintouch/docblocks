@@ -3,34 +3,19 @@
  *  the shared cell class sets. */
 import type { AddColumnTypeEntry } from "./models";
 
-/** The add-column type catalog (the `label` is the form's `name` prefill —
- *  the document data; the `labelKey` is the menu's i18n key, the
- *  `database` namespace's `columnTypes.*`). */
+/** The add-column type catalog; `labelKey` supplies the localized menu
+ *  label and the create form's name prefill. */
 const ADD_COLUMN_TYPES: AddColumnTypeEntry[] = [
-  { key: "text", type: "text", label: "Text", labelKey: "columnTypes.text" },
-  { key: "integer", type: "integer", label: "Integer", labelKey: "columnTypes.integer", numberKind: "integer" },
-  { key: "decimal", type: "numeric", label: "Decimal", labelKey: "columnTypes.decimal", numberKind: "decimal" },
-  { key: "checkbox", type: "boolean", label: "Checkbox", labelKey: "columnTypes.checkbox" },
-  { key: "date", type: "date", label: "Date", labelKey: "columnTypes.date" },
-  { key: "datetime", type: "timestamptz", label: "Date & time", labelKey: "columnTypes.datetime" },
-  { key: "enum", type: "text", label: "Enum", labelKey: "columnTypes.enum", refKind: "enum" },
-  {
-    key: "multi-enum",
-    type: "text",
-    label: "Multi-enum",
-    labelKey: "columnTypes.multiEnum",
-    refKind: "enum",
-    refMany: true,
-  },
-  { key: "row-link", type: "text", label: "Row link", labelKey: "columnTypes.rowLink", refKind: "row" },
-  {
-    key: "row-links",
-    type: "text",
-    label: "Row links",
-    labelKey: "columnTypes.rowLinks",
-    refKind: "row",
-    refMany: true,
-  },
+  { key: "text", type: "text", labelKey: "columnTypes.text" },
+  { key: "integer", type: "integer", labelKey: "columnTypes.integer", numberKind: "integer" },
+  { key: "decimal", type: "numeric", labelKey: "columnTypes.decimal", numberKind: "decimal" },
+  { key: "checkbox", type: "boolean", labelKey: "columnTypes.checkbox" },
+  { key: "date", type: "date", labelKey: "columnTypes.date" },
+  { key: "datetime", type: "timestamptz", labelKey: "columnTypes.datetime" },
+  { key: "enum", type: "text", labelKey: "columnTypes.enum", refKind: "enum" },
+  { key: "multi-enum", type: "text", labelKey: "columnTypes.multiEnum", refKind: "enum", refMany: true },
+  { key: "row-link", type: "text", labelKey: "columnTypes.rowLink", refKind: "row" },
+  { key: "row-links", type: "text", labelKey: "columnTypes.rowLinks", refKind: "row", refMany: true },
 ];
 /** The "new table" entry of the ref form's pick (the table id stand the
  *  created id, the `createTable` commit over the form's button). */
@@ -54,6 +39,13 @@ const MIN_DATABASE_COLUMN_WIDTH_PX = 50;
 // generous ceiling.
 const MIN_DATABASE_HEADER_HEIGHT_PX = 28;
 const MAX_DATABASE_HEADER_HEIGHT_PX = 600;
+// The document block's auto height caps the grid at ten natural rows;
+// the resize floor keeps three rows below the header. CSS supplies the
+// row height; the numeric value is the non-layout runtime's fallback.
+const DEFAULT_DATABASE_ROW_HEIGHT_PX = 32;
+const AUTO_DATABASE_ROWS = 10;
+const MIN_DATABASE_ROWS = 3;
+const DATABASE_RESIZE_KEY_STEP_PX = 16;
 /** The shared cell wrapper classes (the left border + the padding). */
 const CELL_WRAP =
   "flex min-h-6 min-w-0 items-center overflow-hidden border-(--docblocks-table-border-color) p-(--docblocks-table-cell-padding)";
@@ -109,16 +101,20 @@ export {
   GRID_DRAG_TRANSITION,
   PICKER_SIDE_OFFSET_PX,
   ADD_COLUMN_TYPES,
+  AUTO_DATABASE_ROWS,
   CELL_INPUT,
   CELL_SELECTED,
   CELL_SELECTED_MULTI,
   CELL_WRAP,
   CHECKBOX_TOGGLE_GUARD_MS,
+  DATABASE_RESIZE_KEY_STEP_PX,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
+  DEFAULT_DATABASE_ROW_HEIGHT_PX,
   DRAG_START_THRESHOLD_PX,
   MAX_DATABASE_HEADER_HEIGHT_PX,
   MIN_DATABASE_COLUMN_WIDTH_PX,
   MIN_DATABASE_HEADER_HEIGHT_PX,
+  MIN_DATABASE_ROWS,
   NEW_TABLE_PICK,
   REF_NONE_PICK,
 };

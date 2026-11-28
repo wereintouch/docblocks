@@ -19,6 +19,7 @@ import type { Doc } from "docblocks-core";
 import { attributeTypePickerDemo, renderAttributeDemo, useDocDescriptionDemo, useDocTagsDemo } from "./attribute-demos";
 import { blobStore, coverPresets } from "./blob-fixtures";
 import { databaseBridge } from "./database-seed";
+import { databaseTableSection } from "./database-table-section";
 import { PresenceShareControl } from "./inspect/PresenceShareControl";
 import { mentionInteractions } from "./mention-card";
 import { mentionProvider } from "./mention-provider";
@@ -211,6 +212,7 @@ function DocArea({
           blobLoading={blobLoading}
           scrollContainer={scrollContainer}
           databaseBridge={databaseBridge}
+          databaseTableSection={databaseTableSection}
           blockRenderers={BLOCK_RENDERERS}
           pdfPreview={PdfFirstPage}
           mentionProvider={mentionProvider}
@@ -231,6 +233,7 @@ function DocArea({
             blobLoading={blobLoading}
             scrollContainer={scrollContainer}
             databaseBridge={databaseBridge}
+            databaseTableSection={databaseTableSection}
             blockRenderers={BLOCK_RENDERERS}
             syncEmbedResolver={syncEmbedResolver}
             pdfPreview={PdfFirstPage}

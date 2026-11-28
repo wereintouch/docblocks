@@ -115,6 +115,7 @@ function DatabaseTable({
           hiddenColumns={viewState.hiddenColumns}
           columnWidths={viewState.columnWidths}
           sectionHeaderHeight={sectionHeaderHeight}
+          getRowCount={tableSection?.getRowCount}
           // The handle stands only over the section contract (the table-level
           // persistence's write stand); the plain stand keeps the auto height.
           onHeaderHeightChange={tableSection === undefined ? undefined : commitHeaderHeight}

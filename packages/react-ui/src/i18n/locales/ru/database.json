@@ -9,6 +9,10 @@
   "rowCount_few": "строки",
   "rowCount_many": "строк",
   "rowCount_other": "строк",
+  "visibleRowCount_one": "Показана {count} строка",
+  "visibleRowCount_few": "Показано {count} строки",
+  "visibleRowCount_many": "Показано {count} строк",
+  "visibleRowCount_other": "Показано {count} строк",
   "toolbar": {
     "undo": "Отменить",
     "redo": "Повторить",
@@ -23,6 +27,7 @@
     "aria": "Переименовать таблицу {name}"
   },
   "columns": {
+    "empty": "Колонок пока нет.",
     "move": "Переместить {name}",
     "visibility": "Показать {name}"
   },
@@ -65,6 +70,7 @@
     "delete": "Удалить столбец",
     "resizeHeight": "Изменить высоту заголовка"
   },
+  "resizeHeight": "Изменить высоту блока базы данных",
   "row": {
     "moveUp": "Переместить вверх",
     "moveDown": "Переместить вниз",

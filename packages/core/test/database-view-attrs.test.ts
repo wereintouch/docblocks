@@ -58,6 +58,7 @@ describe("the view attrs (the external-form view state)", () => {
         "columns",
         "filter",
         "headerHeight",
+        "height",
         "hiddenColumns",
         "indent",
         "name",

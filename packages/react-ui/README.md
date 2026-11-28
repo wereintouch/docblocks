@@ -105,7 +105,7 @@ mention catalog). The full props list:
 | `blobStore?`                 | The blob bridge for image / pdf / file blocks and the document-attributes' cover (see below).                                                                                                                                                                                                                                                                                             |
 | `coverPresets?`              | The cover's upload modal's preset gallery: the consumer's ready-made cover's file ids (the consumer's blob store's ids) per placement mode — the `tile` / the `center`'s set. A pick commits the id over the mode without an upload (see Blobs below).                                                                                                                                    |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                                                                    |
-| `databaseTableSection?`      | The per-table section settings: `getHeaderHeight(tableId)` + `setHeaderHeight(tableId, height)` (see Database below). The grid reads the header-row height per table; a block's own attr wins over it.                                                                                                                                                                                    |
+| `databaseTableSection?`      | The per-table section settings: `getHeaderHeight(tableId)` + `setHeaderHeight(tableId, height)` + optional `getRowCount(tableId)` (see Database below). The grid reads the header-row height and authoritative total row count per table; a block's own header-height attr wins over the section value.                                                                                   |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                                                                               |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). Over an untrusted URL stand the `""`'s return (the opaque origin, no scripts); the opaque-origin's restriction stands over this policy.                    |
 | `pdfPreview?`                | A first-page preview component for PDF file blocks (and legacy PDF image blocks).                                                                                                                                                                                                                                                                                                         |
@@ -616,6 +616,21 @@ attr wins over the table-level value; a block without one follows the table
 and falls back to the auto height. Read-only modes apply the height and
 render no handle.
 
+The document block's total **height** is adjustable through its bottom-edge
+handle in edit mode. The optional positive `height` attr is document data:
+the release commits one `updateBlock` (one undo step and one wire update).
+Without the attr the block grows naturally up to the header plus ten rows;
+the resize floor is the header plus three rows, with no upper bound. The
+grid scrolls inside the resulting height. The standalone `DatabaseTable`
+does not read this block attr and keeps its consumer-controlled sizing.
+
+The toolbar's total row count comes from `databaseTableSection.getRowCount`
+when supplied and falls back to the loaded rows otherwise. With an active
+filter, a second badge reports the loaded rows visible after filtering; this
+is the current client-side window, not a server-side filtered total. The
+consumer re-renders the provider when its authoritative count changes; the
+grid also re-reads it after its own table mutations.
+
 The grid's **Filter** control edits a recursive and/or condition tree: one
 row per condition (the field / the operator / the value over the column's
 annotation, a single line), the nested groups over bordered cards, and the
@@ -671,7 +686,9 @@ className?, tableSection? })` —
   same per-table contract the `EditorProvider` takes: the header row's
   height comes from `getHeaderHeight(tableId)` and the grid's drag commits
   it back over `setHeaderHeight(tableId, height)`, so the section's value and
-  the document blocks over the same table stand one height. Without the
+  the document blocks over the same table stand one height. The optional
+  `getRowCount(tableId)` supplies the toolbar's authoritative total under the
+  same read-on-render contract. Without the
   contract the grid renders no header handle (the header keeps the auto
   height). The standalone's grid
   stands no table-name display — the consumer's own visual element (the

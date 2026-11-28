@@ -146,6 +146,8 @@ function ColumnManager({
           variant="outline"
           size="sm"
           data-active={hiddenCount > 0 ? "true" : undefined}
+          data-disabled={columns.length === 0 ? true : undefined}
+          disabled={columns.length === 0}
           className={triggerClassName}
         >
           {t("toolbar.columns")}

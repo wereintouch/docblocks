@@ -12,6 +12,7 @@ import type { TableRef } from "docblocks-react-ui";
 import { useEffect, useState } from "react";
 
 import { databaseBridge } from "./database-seed";
+import { databaseTableSection } from "./database-table-section";
 
 function TablesSection() {
   const list = useTableList(databaseBridge);
@@ -169,7 +170,13 @@ function TablesSection() {
           {selected !== null ? (
             // The `className`'s stand (the e2e's sizing's pin injects the
             // `.tables-table`'s height's constraint over it).
-            <DatabaseTable bridge={databaseBridge} tableId={selected.id} readOnly={readOnly} className="tables-table" />
+            <DatabaseTable
+              bridge={databaseBridge}
+              tableId={selected.id}
+              readOnly={readOnly}
+              className="tables-table"
+              tableSection={databaseTableSection}
+            />
           ) : (
             <p className="tables-desc">select a table</p>
           )}

@@ -90,10 +90,15 @@ function scheduleSave(): void {
   }, SAVE_DEBOUNCE_MS);
 }
 
+/** The persistent harness bridge with its synchronous consumer-side count. */
+interface PersistentDatabaseBridge extends DatabaseBridge {
+  getRowCount(tableId: string): number | undefined;
+}
+
 /** The wrapped bridge: every read stands the seed first (the consumer
  * never sees the bridge pre-restore), every mutation schedules the
  * snapshot's save. */
-const persistentDatabaseBridge: DatabaseBridge = {
+const persistentDatabaseBridge: PersistentDatabaseBridge = {
   describeProtocol: async () => {
     await databaseBridgeReady();
     return bridge().describeProtocol();
@@ -172,6 +177,7 @@ const persistentDatabaseBridge: DatabaseBridge = {
   // subscribes over the snapshot's `asOfSeq`, so the replay's coverage
   // stands the events between the read and the subscription).
   subscribeTable: (tableId, input, observer) => bridge().subscribeTable(tableId, input, observer),
+  getRowCount: (tableId) => bridge().getRowCount(tableId),
   getOperationStatus: async (operationId) => {
     await databaseBridgeReady();
     return bridge().getOperationStatus(operationId);

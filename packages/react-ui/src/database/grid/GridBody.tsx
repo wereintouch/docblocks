@@ -7,25 +7,23 @@
  * toolbar over `GridToolbar`, the table over `GridTable` (+ `GridRows`),
  * the pending row's lifecycle over `use-grid-pending-row`, the state's
  * surfaces over `GridStateCards`. */
-import { useTranslation } from "react-i18next";
-
 import { useMemo, useRef } from "react";
 
 import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 
-import { Button } from "../../shared/ui/Button";
 import { Card, CardContent } from "../../shared/ui/Card";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
-import { cn } from "../../shared/ui/cn";
 import type { DatabaseBridge } from "../bridge";
 import { useDatabaseTable } from "../use-database-table";
+import { DatabaseResizeHandle } from "./DatabaseResizeHandle";
 import { EnumOptionsEditor } from "./EnumOptionsEditor";
+import { GridEmptyState } from "./GridEmptyState";
 import { GridBrokenCard, GridLoadingCard } from "./GridStateCards";
 import { GridTable } from "./GridTable";
 import { GridToolbar } from "./GridToolbar";
-import { GRID_CHROME_FRAME } from "./constants";
 import { resolveDatabaseHeaderHeight } from "./header-height";
 import { useColumnForm } from "./use-column-form";
+import { useDatabaseBlockHeight } from "./use-database-block-height";
 import { useEnumOptionsMotion } from "./use-enum-options-motion";
 import { useGridCellInteraction } from "./use-grid-cell-interaction";
 import { useGridPendingRow } from "./use-grid-pending-row";
@@ -43,11 +41,17 @@ interface GridBodyProps {
   columnOrder?: string[];
   hiddenColumns?: string[];
   columnWidths?: number[];
+  /** The document block's explicit total height (px); absent = auto. */
+  height?: number;
   /** The block's own header-row height (px — the document-level stand). */
   headerHeight?: number;
   /** The table section's header-row height (the consumer's per-table
    *  value): the block's own attr wins over it. */
   sectionHeaderHeight?: number;
+  /** The consumer's authoritative total-row read; absent = loaded rows. */
+  getRowCount?: (tableId: string) => number | undefined;
+  /** The document block height's release commit. */
+  onHeightChange?: (height: number) => void;
   /** The header resize's release commit (the caller's write stand: the
    *  block's attr over the document, the section's value over its own
    *  grid). */
@@ -72,16 +76,21 @@ function GridBody({
   columnOrder,
   hiddenColumns,
   columnWidths,
+  height,
   headerHeight,
   sectionHeaderHeight,
+  getRowCount,
+  onHeightChange,
   onHeaderHeightChange,
   onViewChange,
   readColumnOrder,
   readOnly = false,
 }: GridBodyProps) {
-  const { t } = useTranslation("database");
   const data = useDatabaseTable(bridge, tableId, filter);
+  const sectionRowCount = getRowCount?.(tableId);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   // The ref tables' data (the enum's dict options / the row-link's
   // displays — the live stand over the ref tables' own events; the
@@ -111,6 +120,16 @@ function GridBody({
   const columns = visibleColumns(data.table?.columns, columnOrder, hiddenColumns);
 
   const resolvedHeaderHeight = resolveDatabaseHeaderHeight(headerHeight, sectionHeaderHeight);
+  const blockHeight = useDatabaseBlockHeight({
+    enabled: blockId !== undefined && onHeightChange !== undefined,
+    ready: data.phase === "ready",
+    height,
+    headerHeight: resolvedHeaderHeight,
+    cardRef,
+    tableRef,
+    scrollerRef,
+    onCommit: onHeightChange,
+  });
 
   const updateView = (patch: Record<string, unknown>) => {
     onViewChange(patch);
@@ -142,10 +161,9 @@ function GridBody({
     return <GridBrokenCard blockId={blockId} tableId={tableId} error={data.error} onRetry={() => data.retry()} />;
   }
 
-  const insertEmptyRow = () => void data.insertRow({}).catch(() => undefined);
-
   return (
     <Card
+      ref={cardRef}
       data-slot="docblocks/block"
       data-block-type="database"
       data-block-id={blockId}
@@ -156,8 +174,9 @@ function GridBody({
       // the chrome (the toolbar, the headers) stands no native selection
       // gesture over the shared editable.
       contentEditable={false}
+      style={blockHeight.style}
       className="
-        my-(--docblocks-block-spacing) flex min-h-0 flex-1 flex-col rounded-(--docblocks-radius)
+        group relative my-(--docblocks-block-spacing) flex min-h-0 flex-1 flex-col rounded-(--docblocks-radius)
         border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
       "
     >
@@ -169,6 +188,7 @@ function GridBody({
           tableId={tableId}
           table={data.table}
           data={data}
+          totalRows={sectionRowCount}
           filter={filter}
           columnOrder={columnOrder}
           hiddenColumns={hiddenColumns}
@@ -178,55 +198,51 @@ function GridBody({
           showName={blockId !== undefined}
           readOnly={readOnly}
         />
-        <ScrollArea data-slot="docblocks/database-grid" className="min-h-0 flex-1">
-          <GridTable
-            columns={columns}
-            allColumns={data.table.columns}
-            columnOrder={columnOrder}
-            hiddenColumns={hiddenColumns}
-            columnWidths={columnWidths}
-            onViewChange={updateView}
-            data={data}
-            rows={rows}
-            selectedCells={selectedCells}
-            editingCell={editingCell}
-            setEditingCell={setEditingCell}
-            onCellPointerDown={onCellPointerDown}
-            booleanPressRef={booleanPressRef}
-            pendingRowId={pendingRowId}
-            refTableData={refTableData}
-            filter={filter}
-            readOnly={readOnly}
-            headerHeight={resolvedHeaderHeight}
-            onHeaderHeightChange={onHeaderHeightChange}
-            tableRef={tableRef}
-            onTableKeyDown={onTableKeyDown}
-            onTablePaste={onTablePaste}
-            onTableBlur={onTableBlur}
-            form={form}
-            OptionsEditor={OptionsEditor}
-          />
-        </ScrollArea>
-        {readOnly ? null : (
-          <Button
-            data-slot="docblocks/database-add-row"
-            variant="outline"
-            size="sm"
-            className={cn(
-              GRID_CHROME_FRAME,
-              `
-                h-auto cursor-pointer self-start px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
-                select-none
-              `,
-              "text-(--docblocks-placeholder-color) hover:bg-transparent",
-              "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-            )}
-            onClick={insertEmptyRow}
-          >
-            {t("rows.add")}
-          </Button>
+        {data.table.columns.length === 0 ? (
+          <GridEmptyState form={form} OptionsEditor={OptionsEditor} readOnly={readOnly} />
+        ) : (
+          <ScrollArea ref={scrollerRef} data-slot="docblocks/database-grid" className="min-h-0 flex-1">
+            <GridTable
+              columns={columns}
+              allColumns={data.table.columns}
+              columnOrder={columnOrder}
+              hiddenColumns={hiddenColumns}
+              columnWidths={columnWidths}
+              onViewChange={updateView}
+              data={data}
+              rows={rows}
+              selectedCells={selectedCells}
+              editingCell={editingCell}
+              setEditingCell={setEditingCell}
+              onCellPointerDown={onCellPointerDown}
+              booleanPressRef={booleanPressRef}
+              pendingRowId={pendingRowId}
+              refTableData={refTableData}
+              filter={filter}
+              readOnly={readOnly}
+              headerHeight={resolvedHeaderHeight}
+              onHeaderHeightChange={onHeaderHeightChange}
+              tableRef={tableRef}
+              onTableKeyDown={onTableKeyDown}
+              onTablePaste={onTablePaste}
+              onTableBlur={onTableBlur}
+              form={form}
+              OptionsEditor={OptionsEditor}
+            />
+          </ScrollArea>
         )}
       </CardContent>
+      {blockId !== undefined && onHeightChange !== undefined && !readOnly && (
+        <DatabaseResizeHandle
+          height={blockHeight.currentHeight}
+          minHeight={blockHeight.minHeight}
+          onPointerDown={blockHeight.onPointerDown}
+          onPointerMove={blockHeight.onPointerMove}
+          onPointerUp={blockHeight.onPointerUp}
+          onPointerCancel={blockHeight.onPointerCancel}
+          onKeyDown={blockHeight.onKeyDown}
+        />
+      )}
     </Card>
   );
 }

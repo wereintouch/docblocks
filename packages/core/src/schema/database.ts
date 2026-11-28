@@ -85,6 +85,10 @@ interface DatabaseAttrs {
    *  the auto height). The auto height is the floor: the header's content
    *  (the column names over the wrapped cells) never renders clipped. */
   headerHeight?: number;
+  /** The block's height in px (the external-form view state; absent = the
+   *  auto height). The data level checks the positivity only — the auto
+   *  height is the rendering stand, not a stored bound. */
+  height?: number;
   /** The saved views (the per-block instance). */
   views?: DatabaseSavedView[];
   /** The current view type (the v1 set; an unknown value falls back to

@@ -81,11 +81,14 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       columnOrder={block.attrs.columnOrder}
       hiddenColumns={block.attrs.hiddenColumns}
       columnWidths={block.attrs.columnWidths}
+      height={block.attrs.height}
       // The header-row height: the block's own attr (the document-level
       // stand) over the table section's value (the consumer's per-table
       // persistence — one height over every block of the table).
       headerHeight={block.attrs.headerHeight}
       sectionHeaderHeight={databaseTableSection?.getHeaderHeight?.(tableId)}
+      getRowCount={databaseTableSection?.getRowCount}
+      onHeightChange={(height) => doc.updateBlock(id, { height })}
       // The drag's commit: the block's attr over the document (CRDT data,
       // one undo step, the wire update).
       onHeaderHeightChange={(height) => doc.updateBlock(id, { headerHeight: height })}

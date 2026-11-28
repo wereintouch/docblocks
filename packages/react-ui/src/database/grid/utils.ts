@@ -164,13 +164,12 @@ function formatCellDateTime(value: Date | null): string | null {
   return value.getSeconds() !== 0 ? `${base}T${time}:${format(value, "ss")}` : `${base}T${time}`;
 }
 
-/** The form draft over a catalog entry (the name prefills the type's
- *  label — the create's commit takes the input's name). */
-function emptyColumnForm(entry: AddColumnTypeEntry): AddColumnFormDraft {
+/** The form draft over a catalog entry and its localized display name. */
+function emptyColumnForm(entry: AddColumnTypeEntry, name: string): AddColumnFormDraft {
   return {
     key: entry.key,
     type: entry.type,
-    name: entry.label,
+    name,
     numberKind: entry.numberKind,
     decimals: entry.numberKind === "decimal" ? 2 : 0,
     thousands: false,

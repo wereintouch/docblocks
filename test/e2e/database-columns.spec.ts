@@ -111,8 +111,8 @@ test("the create's column order stands the creation order (the new stands last);
     });
     const dbId = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), tableId))!;
 
-    const gridA = a.locator("[data-testid=\"doc-a\"] [data-slot='docblocks/database-grid']");
-    await expect(gridA).toHaveCount(1, SETTLE);
+    const emptyA = a.locator("[data-testid=\"doc-a\"] [data-slot='docblocks/database-empty']");
+    await expect(emptyA).toHaveCount(1, SETTLE);
 
     // The create form's drive: open the "+" menu, pick the type's entry,
     // fill the name, commit on the form's button (awaited — the creates are

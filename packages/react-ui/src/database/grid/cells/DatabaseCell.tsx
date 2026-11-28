@@ -226,6 +226,7 @@ function DatabaseCell({
         CELL_WRAP,
         !first && "border-l-(length:--docblocks-table-border-width)",
         !lastRow && "border-b-(length:--docblocks-table-border-width)",
+        first && lastRow && "rounded-bl-(--docblocks-radius)",
         selected && (singleSelected ? CELL_SELECTED : CELL_SELECTED_MULTI)
       )}
       style={dragStyle}

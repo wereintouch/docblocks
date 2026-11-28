@@ -11,10 +11,7 @@ interface AddColumnTypeEntry {
   /** The stable entry key (the `data-column-entry` attribute). */
   key: string;
   type: string;
-  /** The type's display name (the form's `name` prefill — the document
-   *  data, the language-agnostic stand). */
-  label: string;
-  /** The menu's label's i18n key (the `database` namespace's `columnTypes.*`). */
+  /** The menu label and form-name prefill's i18n key (the `database` namespace's `columnTypes.*`). */
   labelKey: string;
   /** The number's display-attributes block (the integer / the decimal).
    *  The integer stands the `decimals: 0` stand (the field stands none),

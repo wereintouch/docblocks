@@ -154,7 +154,8 @@ function GridRows({
                   flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)
                   border-(--docblocks-table-border-color)
                 `,
-                row.rowId !== lastRowId && "border-b-(length:--docblocks-table-border-width)"
+                row.rowId !== lastRowId && "border-b-(length:--docblocks-table-border-width)",
+                row.rowId === lastRowId && "rounded-br-(--docblocks-radius)"
               )}
             />
           ) : (

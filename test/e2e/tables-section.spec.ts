@@ -104,8 +104,19 @@ test("the create's stand: the list's grow + the grid's render over the new table
   const item = page.locator("[data-testid='tables-item']", { hasText: "Tasks" });
   await expect(item).toBeVisible(SETTLE);
 
-  // The grid's render over the new (column-less) table: the toolbar's stand.
+  // The column-less table renders its localized empty state, with disabled
+  // schema/filter controls and a first-column entry in place of the header chip.
   await expect(page.locator("[data-slot='docblocks/database-toolbar']").first()).toBeVisible(SETTLE);
+  await expect(page.locator("[data-slot='docblocks/database-empty']")).toContainText("No columns yet.");
+  await expect(page.locator("[data-slot='docblocks/database-add-column-trigger']")).toHaveText("Add column");
+  await expect(page.locator("[data-slot='docblocks/database-columns']")).toBeDisabled();
+  await expect(page.locator("[data-slot='docblocks/database-filter']")).toBeDisabled();
+  await page.locator("[data-slot='docblocks/database-add-column-trigger']").click();
+  await page.locator("[data-column-entry='text']").click();
+  await expect(page.locator("[data-slot='docblocks/database-add-column-name']")).toHaveValue("Text");
+  await page.locator("[data-slot='docblocks/database-add-column-create']").click();
+  await expect(page.locator("[data-slot='docblocks/database-table']")).toBeVisible(SETTLE);
+  await expect(page.locator("[data-slot='docblocks/database-columns']")).toBeEnabled();
 
   // The bridge's truth stands the create.
   await expect
@@ -115,6 +126,27 @@ test("the create's stand: the list's grow + the grid's render over the new table
       );
     })
     .toBe(true);
+});
+
+test("the section contract supplies the total count and the header-height handle", async ({ page }) => {
+  const demo = await demoTable(page);
+  await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}']`).click();
+  await expect(page.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows", SETTLE);
+  const table = page.locator("[data-slot='docblocks/database-table']");
+  await expect(table).toBeVisible(SETTLE);
+  const before = await table.evaluate((element) => element.style.gridTemplateRows);
+  expect(before).toBe("auto");
+
+  const handle = page.locator("[data-slot='docblocks/database-header-resize']");
+  await expect(handle).toBeAttached();
+  const header = page.locator("[data-slot='docblocks/database-header-cell']").first();
+  const headerBox = (await header.boundingBox())!;
+  await page.mouse.move(headerBox.x + 20, headerBox.y + headerBox.height - 2);
+  await page.mouse.down();
+  await page.mouse.move(headerBox.x + 20, headerBox.y + headerBox.height + 38, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => table.evaluate((element) => element.style.gridTemplateRows), SETTLE).not.toBe(before);
+  expect(await table.evaluate((element) => element.style.gridTemplateRows)).toMatch(/^\d+(?:\.\d+)?px$/);
 });
 
 test("the section's rename commits to the bridge (the standalone's grid stands no name display)", async ({ page }) => {

@@ -81,9 +81,9 @@ type AttrsFor<T extends BlockType> = "attrs" extends keyof Extract<Block, { type
 
 /**
  * Partial attribute patch accepted by `updateBlock` (any attribute key).
- * The `variant` key is widened: callout, shape, and connector each carry a
- * `variant` with a disjoint enum (an intersection of the three would
- * collapse the bag to never).
+ * Disjoint keys are widened where an intersection would collapse their
+ * value types: `variant` has per-block enums, and `height` is nullable only
+ * for blocks that support resetting their explicit size.
  */
 type BlockAttrsPatch = Partial<
   ParagraphAttrs &
@@ -91,18 +91,19 @@ type BlockAttrsPatch = Partial<
     HeadingAttrs &
     ListItemAttrs &
     Omit<CalloutAttrs, "variant"> &
-    CodeAttrs &
+    Omit<CodeAttrs, "height"> &
     TableAttrs &
     ImageAttrs &
     FileAttrs &
-    EmbedAttrs &
+    Omit<EmbedAttrs, "height"> &
     SyncEmbedAttrs &
-    DatabaseAttrs &
+    Omit<DatabaseAttrs, "height"> &
     Omit<ShapeAttrs, "variant"> &
     Omit<ConnectorAttrs, "variant"> &
     CanvasTextAttrs &
     FrameAttrs &
     GroupAttrs & {
+      height?: number | null;
       variant?:
         | "info"
         | "warning"

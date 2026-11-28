@@ -13,7 +13,6 @@ import { useState } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { Badge } from "../../shared/ui/Badge";
 import { Button } from "../../shared/ui/Button";
 import { InlineEditInput } from "../../shared/ui/InlineEditInput";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
@@ -22,6 +21,8 @@ import type { BridgeTableDescription } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { useDatabaseTable } from "../use-database-table";
 import { ColumnManager } from "./ColumnManager";
+import { GridHistoryButtons } from "./GridHistoryButtons";
+import { GridRowCount } from "./GridRowCount";
 import { GRID_CHROME_FRAME } from "./constants";
 import type { RefTableDataMap } from "./use-ref-tables";
 
@@ -29,6 +30,8 @@ interface GridToolbarProps {
   tableId: string;
   table: BridgeTableDescription;
   data: ReturnType<typeof useDatabaseTable>;
+  /** The consumer's authoritative total; absent = the loaded row count. */
+  totalRows?: number;
   filter?: DatabaseFilterPayload;
   columnOrder?: string[];
   hiddenColumns?: string[];
@@ -46,6 +49,7 @@ function GridToolbar({
   tableId,
   table,
   data,
+  totalRows,
   filter,
   columnOrder,
   hiddenColumns,
@@ -64,6 +68,8 @@ function GridToolbar({
   //     table's attribute — every block over the tableId stands it live;
   //     the block's legacy `name` attr is ignored over the display).
   const displayName = data.table?.name ?? tableId;
+  const resolvedRowCount = totalRows ?? data.rows.length;
+  const hasActiveFilter = filter !== undefined && filter.conditions.length > 0;
   // The standalone's stand (the block's id's absence — the consumer's own
   // page's table): the table's name stands off — the standalone's grid is
   // the consumer's own visual element (the consumer's heading stands the
@@ -89,6 +95,7 @@ function GridToolbar({
     if (open) setFilterDraft(filter ?? null);
   };
   const resetFilterDraft = () => setFilterDraft(emptyFilter());
+  const insertEmptyRow = () => void data.insertRow({}).catch(() => undefined);
 
   return (
     <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
@@ -131,33 +138,21 @@ function GridToolbar({
             {displayName}
           </Button>
         ))}
-      <Badge data-slot="docblocks/database-count" variant="secondary">
-        {data.rows.length} {t("rowCount", { count: data.rows.length })}
-      </Badge>
+      <GridRowCount total={resolvedRowCount} visible={data.rows.length} filtered={hasActiveFilter} />
+      {!readOnly && (
+        <Button
+          data-slot="docblocks/database-add-row"
+          variant="outline"
+          size="sm"
+          className="bg-accent text-accent-foreground select-none"
+          onClick={insertEmptyRow}
+        >
+          {t("rows.add")}
+        </Button>
+      )}
       <div className="ml-auto flex items-center gap-2">
         {readOnly ? null : (
-          <>
-            <Button
-              data-slot="docblocks/database-undo"
-              variant="outline"
-              size="sm"
-              data-disabled={data.canUndo ? undefined : true}
-              disabled={!data.canUndo}
-              onClick={undoStep}
-            >
-              {t("toolbar.undo")}
-            </Button>
-            <Button
-              data-slot="docblocks/database-redo"
-              variant="outline"
-              size="sm"
-              data-disabled={data.canRedo ? undefined : true}
-              disabled={!data.canRedo}
-              onClick={redoStep}
-            >
-              {t("toolbar.redo")}
-            </Button>
-          </>
+          <GridHistoryButtons canUndo={data.canUndo} canRedo={data.canRedo} onUndo={undoStep} onRedo={redoStep} />
         )}
         {readOnly ? null : (
           <ColumnManager
@@ -175,10 +170,12 @@ function GridToolbar({
                 data-slot="docblocks/database-filter"
                 variant="outline"
                 size="sm"
-                data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
+                data-active={hasActiveFilter ? "true" : undefined}
+                data-disabled={resolvedRowCount === 0 ? true : undefined}
+                disabled={resolvedRowCount === 0}
               >
                 {t("toolbar.filter")}
-                {filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
+                {hasActiveFilter ? " •" : ""}
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-fit max-w-xl min-w-110">

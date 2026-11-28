@@ -9,6 +9,10 @@ interface DatabaseTableSection {
   /** Commits the header-row height for the table (the section's grid drag's
    *  release): one value over every block referencing the table. */
   setHeaderHeight?: (tableId: string, height: number) => void;
+  /** The consumer's authoritative total row count; `undefined` lets the
+   *  grid fall back to its loaded rows. The interface is a read, not a
+   *  subscription: the consumer re-renders when its count changes. */
+  getRowCount?: (tableId: string) => number | undefined;
 }
 
 export type { DatabaseTableSection };

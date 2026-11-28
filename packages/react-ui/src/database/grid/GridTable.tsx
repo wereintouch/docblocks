@@ -11,6 +11,7 @@ import type { ClipboardEvent, KeyboardEvent, PointerEvent as ReactPointerEvent }
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
+import { cn } from "../../shared/ui/cn";
 import type { BridgeColumn } from "../bridge";
 import { useDatabaseTable } from "../use-database-table";
 import type { DatabaseTableRow } from "../use-database-table/models";
@@ -18,6 +19,7 @@ import { AddColumnCell } from "./AddColumnCell";
 import { GridRows } from "./GridRows";
 import { HeaderCell } from "./HeaderCell";
 import { HeaderResizeHandle } from "./HeaderResizeHandle";
+import { GRID_CHROME_FRAME } from "./constants";
 import type { useColumnForm } from "./use-column-form";
 import { useGridColumnDrag } from "./use-grid-column-drag";
 import { useGridHeaderResize } from "./use-grid-header-resize";
@@ -160,7 +162,7 @@ function GridTable({
       // The grid's pointer model stands the cell / column selection —
       // the native text selection over the drag is suppressed (the
       // editable inputs stand the explicit `select-text`).
-      className="grid w-full outline-none select-none"
+      className={cn(GRID_CHROME_FRAME, "grid w-full overflow-hidden outline-none select-none")}
       onKeyDown={onTableKeyDown}
       onPaste={onTablePaste}
       onBlur={onTableBlur}

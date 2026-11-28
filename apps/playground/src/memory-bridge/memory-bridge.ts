@@ -53,9 +53,12 @@ import { gcTable, getOperationStatus, subscribeTable } from "./bridge-subscribe"
 import { createTable, describeProtocol, describeTable, listTables, renameTable } from "./bridge-tables";
 import { buildCore } from "./core";
 import type { MemoryBridgeOptions } from "./models";
+import { liveRows } from "./rows";
 
 /** The reference bridge's public surface (the contract + the GC test stand). */
 interface MemoryDatabaseBridge extends DatabaseBridge {
+  /** The consumer's synchronous authoritative count of live rows. */
+  getRowCount(tableId: string): number | undefined;
   /** The reference stand of the consumer-side tombstone GC: drops the rows
    *  past the `tombstoneRetentionMs`. Invisible — no envelope, no head
    *  advance; the public stream stands unchanged. */
@@ -82,6 +85,10 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
     undeleteRows: (tableId, input, ctx) => undeleteRows(core, tableId, input, ctx),
     subscribeTable: (tableId, input, observer) => subscribeTable(core, tableId, input, observer),
     getOperationStatus: (operationId) => getOperationStatus(core, operationId),
+    getRowCount: (tableId) => {
+      const table = core.tables.get(tableId);
+      return table === undefined ? undefined : liveRows(table).length;
+    },
     gcTable: (tableId) => gcTable(core, tableId),
   };
 

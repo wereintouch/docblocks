@@ -9,6 +9,10 @@
   "rowCount_few": "rows",
   "rowCount_many": "rows",
   "rowCount_other": "rows",
+  "visibleRowCount_one": "{count} shown",
+  "visibleRowCount_few": "{count} shown",
+  "visibleRowCount_many": "{count} shown",
+  "visibleRowCount_other": "{count} shown",
   "toolbar": {
     "undo": "Undo",
     "redo": "Redo",
@@ -23,6 +27,7 @@
     "aria": "Rename table {name}"
   },
   "columns": {
+    "empty": "No columns yet.",
     "move": "Move {name}",
     "visibility": "Show {name}"
   },
@@ -65,6 +70,7 @@
     "delete": "Delete column",
     "resizeHeight": "Resize the header row"
   },
+  "resizeHeight": "Resize the database block",
   "row": {
     "moveUp": "Move up",
     "moveDown": "Move down",
