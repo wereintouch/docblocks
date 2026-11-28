@@ -1,5 +1,11 @@
 # docblocks-react-ui
 
+## 0.28.0
+
+### Minor Changes
+
+- 4f81883: Add database range actions, localized filter operators, flicker-free filter refetches, and typed grid clipboard round-trips with paste-range highlighting.
+
 ## 0.27.0
 
 ### Minor Changes
