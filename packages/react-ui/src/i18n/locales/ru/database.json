@@ -16,6 +16,12 @@
     "columns": "Колонки",
     "apply": "Применить"
   },
+  "rename": {
+    "aria": "Переименовать {name}"
+  },
+  "renameTable": {
+    "aria": "Переименовать таблицу {name}"
+  },
   "columns": {
     "move": "Переместить {name}",
     "visibility": "Показать {name}"

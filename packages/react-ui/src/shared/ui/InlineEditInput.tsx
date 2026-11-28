@@ -30,6 +30,9 @@ interface InlineEditInputProps {
   /** The invalid stand (the commit's typed error's keep — the field's
    *  `aria-invalid`'s destructive frame over the open stand). */
   invalid?: boolean;
+  /** The field's size (the `Input`'s size axis — the `sm`'s compact
+   *  frame over the grid's chrome). */
+  size?: "default" | "sm";
   /** The field's look: the standard's form stand (the default — the
    *  header / the portaled forms) or the row's inline stand (the panel's
    *  flat field over the row's zone — the focus's border stand only). */
@@ -50,6 +53,7 @@ function InlineEditInput({
   className,
   placeholder,
   invalid,
+  size,
   variant,
   selectOnMount,
   onCommit,
@@ -123,6 +127,11 @@ function InlineEditInput({
 
   const onInputBlur = (event: React.FocusEvent<HTMLInputElement>) => commit(event.target.value);
   const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // The field's keys stand the field's own (the host's surfaces — the
+    // Radix menu's typeahead / the roving focus, the grid's cell keys —
+    // must not see them: a typed letter would retarget the focus over a
+    // menu item mid-edit, the arrows over the caret's move).
+    event.stopPropagation();
     if (event.key === "Enter") {
       event.preventDefault();
       commit(event.currentTarget.value);
@@ -139,6 +148,7 @@ function InlineEditInput({
       data-slot={slot}
       aria-label={ariaLabel}
       aria-invalid={invalid ? true : undefined}
+      size={size}
       variant={variant}
       placeholder={placeholder}
       value={value}

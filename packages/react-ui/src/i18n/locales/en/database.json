@@ -16,6 +16,12 @@
     "columns": "Columns",
     "apply": "Apply"
   },
+  "rename": {
+    "aria": "Rename {name}"
+  },
+  "renameTable": {
+    "aria": "Rename table {name}"
+  },
   "columns": {
     "move": "Move {name}",
     "visibility": "Show {name}"

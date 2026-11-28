@@ -2,12 +2,11 @@
  * right-edge resize seam). */
 import { useTranslation } from "react-i18next";
 
-import { useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "../../shared/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
-import { Input } from "../../shared/ui/Input";
+import { InlineEditInput } from "../../shared/ui/InlineEditInput";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
@@ -47,8 +46,14 @@ interface HeaderCellProps {
  *  drag, the Ellipsis's press stands the menu). The right-edge seam resizes
  *  the column (the table block's seam idiom: the 6 px strip, the 50 px
  *  floor, the live preview, the one `updateBlock` on the release). The menu
- *  content: the editable name line (the rename commits on the blur / the
- *  Enter), the type line (read-only), and the show / hide / delete items. */
+ *  content: the rename's line (the `InlineEditInput`'s contract — the
+ *  mount's focus + the select-all over the rename's replace, the reseed
+ *  over an open edit (a pristine field stands the live column's name — a
+ *  peer's rename, the own commit's settle — a typed draft stands until the
+ *  next open), the commit over the Enter / the blur (one write — the
+ *  committed-once's guard), the Escape's cancel without a write; the
+ *  empty / the unchanged's trimmed stand the no-write), the type line
+ *  (read-only), and the show / hide / delete items. */
 function HeaderCell({
   readOnly = false,
   column,
@@ -74,7 +79,6 @@ function HeaderCell({
   onResizePointerCancel,
 }: HeaderCellProps) {
   const { t } = useTranslation("database");
-  const [nameDraft, setNameDraft] = useState(column.name);
   // The header's name stands next to the type's icon (the uniform gap over
   // all the column's types — the align's stand is the value's, the header's
   // label stands off the icon, not the value's edge).
@@ -92,19 +96,12 @@ function HeaderCell({
           transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
         }
       : null;
-  const commitRename = () => {
-    const trimmed = nameDraft.trim();
-    if (trimmed !== "" && trimmed !== column.name) onRename(trimmed);
-    setNameDraft(column.name);
-  };
-  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setNameDraft(event.target.value);
-  const focusName = () => setNameDraft(column.name);
-  const onNameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-    if (event.key === "Escape") {
-      setNameDraft(column.name);
-      onMenuChange(false);
-    }
+  const commitRename = (value: string): void => {
+    const trimmed = value.trim();
+    // The no-op's stand: the empty's / the unchanged's no-write (the write's
+    // async tail — the settle's reseed — stands the field's value).
+    if (trimmed === "" || trimmed === column.name) return;
+    onRename(trimmed);
   };
   // The menu's item picks (the menu closes on the press — the column's
   // action follows).
@@ -169,15 +166,15 @@ function HeaderCell({
               className="flex w-52 flex-col gap-2 p-2"
             >
               <div className="flex flex-col gap-1">
-                <Input
+                <InlineEditInput
                   size="sm"
-                  data-slot="docblocks/database-rename-input"
+                  initial={column.name}
+                  selectOnMount
+                  ariaLabel={t("rename.aria", { name: column.name })}
+                  slot="docblocks/database-rename-input"
                   className="border-0 bg-muted/60 px-2 py-1 text-foreground select-text focus:bg-muted"
-                  value={nameDraft}
-                  onChange={onNameChange}
-                  onFocus={focusName}
-                  onBlur={commitRename}
-                  onKeyDown={onNameKeyDown}
+                  onCommit={commitRename}
+                  onCancel={() => onMenuChange(false)}
                 />
                 <span
                   data-slot="docblocks/database-column-type"

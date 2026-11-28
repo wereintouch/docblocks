@@ -10,13 +10,12 @@
 import { useTranslation } from "react-i18next";
 
 import { useState } from "react";
-import type { ChangeEvent, FocusEvent, KeyboardEvent } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import { Badge } from "../../shared/ui/Badge";
 import { Button } from "../../shared/ui/Button";
-import { Input } from "../../shared/ui/Input";
+import { InlineEditInput } from "../../shared/ui/InlineEditInput";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { cn } from "../../shared/ui/cn";
 import type { BridgeTableDescription } from "../bridge";
@@ -57,7 +56,7 @@ function GridToolbar({
   readOnly = false,
 }: GridToolbarProps) {
   const { t } = useTranslation("database");
-  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [nameEditing, setNameEditing] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterDraft, setFilterDraft] = useState<DatabaseFilterPayload | null>(filter ?? null);
 
@@ -71,7 +70,7 @@ function GridToolbar({
   // name), so the toolbar keeps no name display or rename over it.
 
   const commitName = (draft: string) => {
-    setNameDraft(null);
+    setNameEditing(false);
     const trimmed = draft.trim();
     if (trimmed === "" || trimmed === data.table?.name) return;
     // The rename is the bridge's (the table's attribute): every block over
@@ -79,13 +78,6 @@ function GridToolbar({
     // the grid's undo stack covers it.
     void data.renameTable(trimmed).catch(() => undefined);
   };
-  const onNameChange = (event: ChangeEvent<HTMLInputElement>) => setNameDraft(event.target.value);
-  const onNameBlur = (event: FocusEvent<HTMLInputElement>) => commitName(event.target.value);
-  const onNameKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-    if (event.key === "Escape") setNameDraft(null);
-  };
-  const beginNameEdit = () => setNameDraft(displayName);
   const undoStep = () => void data.undo().catch(() => undefined);
   const redoStep = () => void data.redo().catch(() => undefined);
   const applyFilter = () => {
@@ -101,19 +93,19 @@ function GridToolbar({
   return (
     <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
       {showName &&
-        (nameDraft !== null ? (
-          <Input
+        (nameEditing ? (
+          <InlineEditInput
             size="sm"
-            data-slot="docblocks/database-name-input"
+            initial={displayName}
+            selectOnMount
+            ariaLabel={t("renameTable.aria", { name: displayName })}
+            slot="docblocks/database-name-input"
             className={cn(
               GRID_CHROME_FRAME,
               `h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)`
             )}
-            value={nameDraft}
-            autoFocus
-            onChange={onNameChange}
-            onBlur={onNameBlur}
-            onKeyDown={onNameKeyDown}
+            onCommit={commitName}
+            onCancel={() => setNameEditing(false)}
           />
         ) : readOnly ? (
           // The read-only stand (view / published): the name's display is
@@ -134,7 +126,7 @@ function GridToolbar({
               "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
               "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
             }
-            onClick={beginNameEdit}
+            onClick={() => setNameEditing(true)}
           >
             {displayName}
           </Button>
