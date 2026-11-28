@@ -224,19 +224,20 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     expect(page.page.rows[1]!.cells[cols.title]).toBe("t2");
     expect(page.page.rows[1]!.cells[cols.n]).toBe(2); // the invalid's stand (no commit)
   });
-  it("the paste over the enum column stands the no-op (the option's id stands not resolvable from the text)", async () => {
+  it("the paste resolves enum labels to option ids", async () => {
     const { bridge, tableId, cols, options } = await renderGrid();
     const cell = cellOf(0, 3)!; // the status column (the enum)
     fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
     fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
     const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
-    fireEvent.paste(table!, { clipboardData: { getData: () => "todo\nactive" } });
-    await settleGrid();
+    fireEvent.paste(table!, { clipboardData: { getData: () => "done\ntodo" } });
+    await until(
+      async () => (await bridge.snapshotTable(tableId, {})).page.rows[0]!.cells[cols.status] === options.done,
+      "the enum paste"
+    );
     const page = await bridge.snapshotTable(tableId, {});
-    // No updates, no creates: the option's id stands not resolvable over
-    // the pasted text — the values stand (the original's stand).
     expect(page.page.rows.length).toBe(2);
-    expect(page.page.rows[0]!.cells[cols.status]).toBe(options.todo);
-    expect(page.page.rows[1]!.cells[cols.status]).toBe(options.active);
+    expect(page.page.rows[0]!.cells[cols.status]).toBe(options.done);
+    expect(page.page.rows[1]!.cells[cols.status]).toBe(options.todo);
   });
 });

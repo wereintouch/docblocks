@@ -13,6 +13,7 @@ import { X } from "../../shared/ui/icons";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import type { RefTableDataMap } from "../grid/use-ref-tables";
+import { FilterOperatorPicker } from "./FilterOperatorPicker";
 import { ValueInput } from "./ValueInput";
 
 interface FilterConditionRowProps {
@@ -43,8 +44,6 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
       value: undefined,
     });
   };
-  const onOperatorChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
-    onChange({ ...condition, op: event.target.value, value: undefined });
   const onValueChange = (value: unknown) => onChange({ ...condition, op: operator, value });
 
   return (
@@ -74,13 +73,11 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
           </option>
         ))}
       </BareSelect>
-      <BareSelect data-slot="docblocks/filter-operator" value={operator} onChange={onOperatorChange}>
-        {annotation.operators.map((entry) => (
-          <option key={entry} value={entry}>
-            {entry}
-          </option>
-        ))}
-      </BareSelect>
+      <FilterOperatorPicker
+        operators={annotation.operators}
+        value={operator}
+        onPick={(nextOperator) => onChange({ ...condition, op: nextOperator, value: undefined })}
+      />
       {needsValue && (
         <ValueInput
           column={column}

@@ -8,6 +8,7 @@ import { cn } from "../../../shared/ui/cn";
 import { columnAnnotation } from "../../bridge";
 import type { BridgeColumn, BridgeColumnAnnotation } from "../../bridge";
 import {
+  CELL_PASTE_RANGE,
   CELL_SELECTED,
   CELL_SELECTED_MULTI,
   CELL_WRAP,
@@ -37,6 +38,7 @@ interface DatabaseCellProps {
   /** A stationary column's cell of an in-flight drag (the parting shift's transition). */
   dragShifted: boolean;
   selected: boolean;
+  pasteHighlighted: boolean;
   /** The cell stands the sole selection (the boolean's checkbox interactive stand). */
   singleSelected: boolean;
   editing: boolean;
@@ -75,6 +77,7 @@ function DatabaseCell({
   dragDx,
   dragShifted,
   selected,
+  pasteHighlighted,
   singleSelected,
   editing,
   onChange,
@@ -224,6 +227,7 @@ function DatabaseCell({
       data-editing={editing ? "true" : undefined}
       className={cn(
         CELL_WRAP,
+        pasteHighlighted && "relative",
         !first && "border-l-(length:--docblocks-table-border-width)",
         !lastRow && "border-b-(length:--docblocks-table-border-width)",
         first && lastRow && "rounded-bl-(--docblocks-radius)",
@@ -235,6 +239,7 @@ function DatabaseCell({
       onDoubleClick={onCellDoubleClick}
     >
       {content}
+      {pasteHighlighted && <span aria-hidden data-slot="docblocks/database-paste-range" className={CELL_PASTE_RANGE} />}
     </div>
   );
   if (isText) {

@@ -7,7 +7,7 @@
  * drag is suppressed).
  */
 import { useState } from "react";
-import type { ClipboardEvent, KeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { ClipboardEvent, KeyboardEvent, MouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
@@ -38,6 +38,7 @@ interface GridTableProps {
   data: ReturnType<typeof useDatabaseTable>;
   rows: DatabaseTableRow[];
   selectedCells: Set<string>;
+  pasteRange: Set<string>;
   editingCell: string | null;
   setEditingCell: (key: string | null) => void;
   onCellPointerDown: (
@@ -64,6 +65,7 @@ interface GridTableProps {
   tableRef: { current: HTMLDivElement | null };
   onTableKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onTablePaste: (event: ClipboardEvent<HTMLDivElement>) => void;
+  onTableContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
   onTableBlur: (event: React.FocusEvent<HTMLDivElement>) => void;
   /** The add-column form's session (the create / the edit's stand). */
   form: ReturnType<typeof useColumnForm>;
@@ -83,6 +85,7 @@ function GridTable({
   data,
   rows,
   selectedCells,
+  pasteRange,
   editingCell,
   setEditingCell,
   onCellPointerDown,
@@ -97,6 +100,7 @@ function GridTable({
   tableRef,
   onTableKeyDown,
   onTablePaste,
+  onTableContextMenu,
   onTableBlur,
   form,
   OptionsEditor,
@@ -183,6 +187,7 @@ function GridTable({
       className={cn(GRID_CHROME_FRAME, "grid w-full overflow-hidden outline-none select-none")}
       onKeyDown={onTableKeyDown}
       onPaste={onTablePaste}
+      onContextMenu={onTableContextMenu}
       onBlur={onTableBlur}
       // The fixed row track (the standard row height): every row —
       // over any column type mix — stands the one height (the header
@@ -258,6 +263,7 @@ function GridTable({
         columns={columns}
         data={data}
         selectedCells={selectedCells}
+        pasteRange={pasteRange}
         editingCell={editingCell}
         setEditingCell={setEditingCell}
         onCellPointerDown={onCellPointerDown}

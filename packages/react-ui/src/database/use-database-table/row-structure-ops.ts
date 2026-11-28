@@ -13,6 +13,7 @@ import { newMutationContext, rowOf } from "./utils";
 
 interface RowStructureOps {
   removeRow: UseDatabaseTable["removeRow"];
+  removeRows: UseDatabaseTable["removeRows"];
   moveRow: UseDatabaseTable["moveRow"];
 }
 
@@ -20,30 +21,36 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
   const { bridge, tableId, rowsRef, pendingRowRef, capabilitiesRef, setRows, setPendingRow } = ctx;
   const { pushUndo, refresh, noteError, casOf, sameIdentity } = ctx;
 
-  const removeRow = async (rowId: string): Promise<void> => {
+  const removeRows = async (rowIds: string[]): Promise<void> => {
+    const ids = [...new Set(rowIds)].filter((rowId) => rowOf(rowsRef, pendingRowRef, rowId) !== undefined);
+    if (ids.length === 0) return;
+    const removed = new Set(ids);
     const snapshot = rowsRef.current;
-    // The effective stand (the committed page row, else the pending row):
-    // the pending row's removal is undoable over the rowRestore gate —
-    // the inverse's undelete stands the row the page holds no reference to.
-    const row = rowOf(rowsRef, pendingRowRef, rowId);
-    setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
+    const pendingSnapshot = pendingRowRef.current;
+    setRows((rows) => rows.filter((entry) => !removed.has(entry.rowId)));
     try {
-      await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId, ...casOf(rowId) }] }, newMutationContext());
-      // The relink's drop: the commit landed on the previous table — the
-      // pending row, the entry and the refetch belong to it.
+      await bridge.batchRows(
+        tableId,
+        { ops: ids.map((rowId) => ({ op: "delete", rowId, ...casOf(rowId) })) },
+        newMutationContext()
+      );
       if (!sameIdentity()) return;
-      setPendingRow((current) => (current?.rowId === rowId ? null : current));
-      // Without the `rowRestore` capability the removal is NOT undoable:
-      // it never enters the stack (a destructing removal stands no data to restore).
-      if (row !== undefined && capabilitiesRef.current.includes("rowRestore")) {
+      setPendingRow((current) => (current !== null && removed.has(current.rowId) ? null : current));
+      // Row restoration is an optional bridge capability; without it a
+      // deletion never enters the undo stack.
+      if (capabilitiesRef.current.includes("rowRestore")) {
         pushUndo(
           {
-            label: `remove row ${rowId}`,
+            label: `remove rows ${ids.join(", ")}`,
             forward: async () => {
-              await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId }] }, newMutationContext());
+              await bridge.batchRows(
+                tableId,
+                { ops: ids.map((rowId) => ({ op: "delete", rowId })) },
+                newMutationContext()
+              );
             },
             inverse: async () => {
-              await bridge.undeleteRows(tableId, { rowIds: [rowId] }, newMutationContext());
+              await bridge.undeleteRows(tableId, { rowIds: ids }, newMutationContext());
             },
           },
           bridge,
@@ -52,16 +59,17 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
       }
       refresh();
     } catch (operationError) {
-      // The relink's drop: the rollback + the note stand the previous
-      // table's failure, not the fresh grid's state.
       if (sameIdentity()) {
         setRows(snapshot);
+        setPendingRow(pendingSnapshot);
         noteError(operationError);
         refresh();
       }
-      throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
+      throw toBridgeError(operationError);
     }
   };
+
+  const removeRow = async (rowId: string): Promise<void> => removeRows([rowId]);
 
   const moveRow = async (rowId: string, beforeRowId: string | null): Promise<void> => {
     const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
@@ -120,7 +128,7 @@ function createRowStructureOps(ctx: RowOpsContext): RowStructureOps {
     }
   };
 
-  return { removeRow, moveRow };
+  return { removeRow, removeRows, moveRow };
 }
 
 export { createRowStructureOps };

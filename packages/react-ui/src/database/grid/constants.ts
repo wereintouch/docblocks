@@ -70,6 +70,10 @@ const CELL_SELECTED =
  *  canvas selection's fill (the border token at 50% — the figure
  *  selection's transparency). */
 const CELL_SELECTED_MULTI = "bg-(--docblocks-canvas-selection-fill)";
+/** The committed paste range's frame, distinct from the active selection. */
+const CELL_PASTE_RANGE =
+  "pointer-events-none absolute inset-0 outline-(length:--docblocks-database-paste-range-border-width) " +
+  "outline-offset-[-1px] outline-(--docblocks-database-paste-range-border-color) outline-solid";
 /** The input's shared classes over the `Input` primitive's sm base: no
  *  own border (the cell's border stands — the double border is gone), the
  *  focus stands the background tint. The table's `select-none` stands the
@@ -108,6 +112,7 @@ export {
   ADD_COLUMN_TYPES,
   AUTO_DATABASE_ROWS,
   CELL_INPUT,
+  CELL_PASTE_RANGE,
   CELL_SELECTED,
   CELL_SELECTED_MULTI,
   CELL_WRAP,

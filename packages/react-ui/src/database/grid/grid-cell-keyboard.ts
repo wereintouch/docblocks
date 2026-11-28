@@ -11,12 +11,16 @@ import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, SetStateAction } fr
 
 import type { BridgeColumn } from "../bridge";
 import type { UseDatabaseTable } from "../use-database-table";
+import { clearGridCells } from "./grid-cell-actions";
+import { buildDatabaseGridClipboard, writeDatabaseGridClipboard } from "./grid-cell-clipboard";
 import type { GridCellSelectionFrame } from "./use-grid-cell-interaction";
-import { cellTextOf } from "./utils";
+import type { RefTableDataMap } from "./use-ref-tables";
 
 /** The keyboard's context (the hook's session state over the bridge's
  * data — the stand's inputs). */
 interface GridCellKeyboardContext {
+  tableId: string;
+  refTableData: RefTableDataMap;
   /** The read-only stand (view / published): the keyboard's paths stand off. */
   readOnly: boolean;
   /** The live rows (the copy's cells + the arrows' rows count). */
@@ -41,6 +45,8 @@ interface GridCellKeyboardContext {
  * focus — the editor root's blocks-selection gestures must not fire). */
 function handleGridCellKeyDown(event: ReactKeyboardEvent<HTMLDivElement>, ctx: GridCellKeyboardContext): void {
   const {
+    tableId,
+    refTableData,
     readOnly,
     rows,
     columns,
@@ -64,24 +70,14 @@ function handleGridCellKeyDown(event: ReactKeyboardEvent<HTMLDivElement>, ctx: G
     if (selectionFrame === null) return;
     event.preventDefault();
     event.stopPropagation();
-    const rMin = Math.min(selectionFrame.anchorR, selectionFrame.cursorR);
-    const rMax = Math.max(selectionFrame.anchorR, selectionFrame.cursorR);
-    const cMin = Math.min(selectionFrame.anchorC, selectionFrame.cursorC);
-    const cMax = Math.max(selectionFrame.anchorC, selectionFrame.cursorC);
-    const lines: string[] = [];
-    for (let r = rMin; r <= rMax; r += 1) {
-      const cells: string[] = [];
-      for (let c = cMin; c <= cMax; c += 1) {
-        const row = rows[r];
-        const column = columns[c];
-        cells.push(row === undefined || column === undefined ? "" : cellTextOf(row.cells[column.id]));
-      }
-      lines.push(cells.join("\t"));
-    }
-    const tsv = lines.join("\n");
-    if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
-      void navigator.clipboard.writeText(tsv).catch(() => undefined);
-    }
+    const clipboard = buildDatabaseGridClipboard({
+      tableId,
+      rows,
+      columns,
+      selectionFrame,
+      refTableData,
+    });
+    if (clipboard !== null) void writeDatabaseGridClipboard(clipboard);
     return;
   }
   // The undo / redo hotkey over the table's focus: the grid's own stack
@@ -166,19 +162,7 @@ function handleGridCellKeyDown(event: ReactKeyboardEvent<HTMLDivElement>, ctx: G
   // blocks-selection Delete (the non-text row removal) must not fire
   // over the stand (the stand's row would take the block-level delete).
   event.stopPropagation();
-  const byRow = new Map<string, Record<string, unknown>>();
-  selectedCells.forEach((key) => {
-    const [rowId, colId] = key.split("\u0000");
-    // The column id is data (a hostile `__proto__` stands the inert own
-    // entry, not the prototype's write): the null-prototype's map.
-    const cells = byRow.get(rowId!) ?? Object.create(null);
-    cells[colId!] = null;
-    byRow.set(rowId!, cells);
-  });
-  // The whole clear is ONE commit (the batch's one bridge call + the
-  // one undo entry): the undo stands every cleared row back, not one
-  // per row.
-  void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells }))).catch(() => undefined);
+  void clearGridCells(selectedCells, data).catch(() => undefined);
 }
 
 export { handleGridCellKeyDown };

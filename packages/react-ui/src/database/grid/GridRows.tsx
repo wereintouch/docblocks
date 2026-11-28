@@ -39,6 +39,7 @@ interface GridRowsProps {
   columns: BridgeColumn[];
   data: ReturnType<typeof useDatabaseTable>;
   selectedCells: Set<string>;
+  pasteRange: Set<string>;
   editingCell: string | null;
   setEditingCell: (key: string | null) => void;
   onCellPointerDown: (
@@ -61,6 +62,7 @@ function GridRows({
   columns,
   data,
   selectedCells,
+  pasteRange,
   editingCell,
   setEditingCell,
   onCellPointerDown,
@@ -128,6 +130,7 @@ function GridRows({
                 dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
                 dragShifted={drag !== null && drag.id !== column.id}
                 selected={selectedCells.has(key)}
+                pasteHighlighted={pasteRange.has(key)}
                 singleSelected={selectedCells.has(key) && selectedCells.size === 1}
                 editing={editingCell === key}
                 onChange={cellChange(row, column)}

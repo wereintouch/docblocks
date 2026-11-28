@@ -644,9 +644,12 @@ The grid's **Filter** control edits a recursive and/or condition tree: one
 row per condition (the field / the operator / the value over the column's
 annotation, a single line), the nested groups over bordered cards, and the
 conditions and the groups bound by the group's left connector line. The
-logic's labels stand the UI's locale (en/ru), the active pill over the
-prominent `primary` fill. `Apply` commits the draft as
-the view's `filter` attr (the block's write stand); `Clear` resets it.
+logic's labels and the operator picker stand the UI's locale (en/ru), while
+the filter payload keeps its English wire operators. Every default column
+catalog offers the applicable emptiness checks. `Apply` commits the draft as
+the view's `filter` attr (the block's write stand); `Clear` resets it. A filter
+change keeps the current rows rendered until the new snapshot arrives; loading
+and empty states remain limited to the initial load and the arrived result.
 
 When an inserted row does not match the active filter, the grid keeps it
 visible with an orange outline while its initial edit session has focus. The
@@ -654,6 +657,15 @@ row leaves the filtered view when focus moves elsewhere; the bridge data is
 unchanged. `useDatabaseTable` exposes this transient row as `pendingRow` and
 `dismissPendingRow(rowId?)` for consumer-owned grids implementing the same
 interaction.
+
+A multi-cell edit-mode selection opens a context menu over the right-clicked
+cell: **Clear range** writes one batch, and **Delete rows** removes every
+selected row in one batch. Each action has one grid-history undo step when the
+bridge supports row restoration. Copy writes plain-text TSV plus the
+`application/x-docblocks-database-grid` raw-value JSON flavor; paste uses the
+raw values within the same table and resolves external enum labels and unique
+row-link displays from TSV. The changed cells carry a distinct paste-range
+frame until the next grid interaction.
 
 ### Standalone database table
 

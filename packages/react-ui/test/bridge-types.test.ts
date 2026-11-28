@@ -41,7 +41,7 @@ describe("columnAnnotation — the Postgres type catalog", () => {
   it("maps the boolean type to the boolean input + the equality operators", () => {
     const a = columnAnnotation({ id: "c", name: "c", type: "boolean" });
     expect(a.valueInput).toBe("boolean");
-    expect(a.operators).toEqual(["is", "is not"]);
+    expect(a.operators).toEqual(["is", "is not", "empty", "not empty"]);
   });
 
   it("maps date to the date input and timestamp / timestamptz to the datetime input", () => {
@@ -98,7 +98,7 @@ describe("columnAnnotation — the Postgres type catalog", () => {
   it("maps the ref columns to the ref value inputs (the enum / the row-link)", () => {
     const enumColumn = columnAnnotation({ id: "c", name: "c", type: "text", refKind: "enum", refTableId: "t" });
     expect(enumColumn.valueInput).toBe("enum");
-    expect(enumColumn.operators).toEqual(["is", "is not"]);
+    expect(enumColumn.operators).toEqual(["is", "is not", "empty", "not empty"]);
     const multiEnum = columnAnnotation({
       id: "c",
       name: "c",
@@ -111,7 +111,7 @@ describe("columnAnnotation — the Postgres type catalog", () => {
     expect(multiEnum.operators).toEqual(["is", "is not", "empty", "not empty"]);
     const rowLink = columnAnnotation({ id: "c", name: "c", type: "text", refKind: "row", refTableId: "t" });
     expect(rowLink.valueInput).toBe("row-link");
-    expect(rowLink.operators).toEqual(["is", "is not"]);
+    expect(rowLink.operators).toEqual(["is", "is not", "empty", "not empty"]);
     const rowLinks = columnAnnotation({
       id: "c",
       name: "c",

@@ -248,6 +248,8 @@
   --docblocks-database-row-height: 32px;
   /* The locally inserted row that stays visible outside the active filter. */
   --docblocks-database-pending-row-border-color: #d97706;
+  --docblocks-database-paste-range-border-color: #16a34a;
+  --docblocks-database-paste-range-border-width: 1px;
 
   /* Image. */
   --docblocks-image-radius: 0;
@@ -345,6 +347,7 @@
   --docblocks-table-drag-background: var(--card, #27272a);
   --docblocks-table-drag-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   --docblocks-database-pending-row-border-color: #f59e0b;
+  --docblocks-database-paste-range-border-color: #4ade80;
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);

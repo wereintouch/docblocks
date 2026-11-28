@@ -82,6 +82,8 @@ interface UseDatabaseTable {
     beforeRowId: string | null;
   }): Promise<string[]>;
   removeRow(rowId: string): Promise<void>;
+  /** Removes known listed rows in one batch; unknown ids are skipped. One undo restores the batch when supported. */
+  removeRows(rowIds: string[]): Promise<void>;
   /** Moves the row before `beforeRowId` (null = the table's tail). An
    *  unknown `rowId` (a peer's removed row, a stale page) is a no-op:
    *  the seat resolves against the page, and no matching row exists. */

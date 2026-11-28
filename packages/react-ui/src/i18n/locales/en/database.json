@@ -76,6 +76,11 @@
     "moveDown": "Move down",
     "delete": "Delete row"
   },
+  "range": {
+    "options": "Selected range",
+    "clear": "Clear range",
+    "deleteRows": "Delete rows"
+  },
   "rows": {
     "loadMore": "Load more rows",
     "none": "No rows.",
@@ -94,7 +99,26 @@
     "group": "+ Group",
     "groupHeader": "Group {index}",
     "removeCondition": "Remove condition",
-    "valuePlaceholder": "value, value"
+    "valuePlaceholder": "value, value",
+    "operators": {
+      "is": "is",
+      "is not": "is not",
+      "contains": "contains",
+      "not contains": "not contains",
+      "starts with": "starts with",
+      "ends with": "ends with",
+      "empty": "empty",
+      "not empty": "not empty",
+      "<": "<",
+      "<=": "<=",
+      ">": ">",
+      ">=": ">=",
+      "between": "between",
+      "before": "before",
+      "after": "after",
+      "in": "in",
+      "not in": "not in"
+    }
   },
   "picker": {
     "searchOptions": "Search options",

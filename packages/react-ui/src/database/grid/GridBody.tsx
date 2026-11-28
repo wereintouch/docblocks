@@ -15,6 +15,7 @@ import { Card, CardContent } from "../../shared/ui/Card";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import type { DatabaseBridge } from "../bridge";
 import { useDatabaseTable } from "../use-database-table";
+import { DatabaseRangeMenu } from "./DatabaseRangeMenu";
 import { DatabaseResizeHandle } from "./DatabaseResizeHandle";
 import { EnumOptionsEditor } from "./EnumOptionsEditor";
 import { GridEmptyState } from "./GridEmptyState";
@@ -149,12 +150,14 @@ function GridBody({
   const {
     editingCell,
     setEditingCell,
+    pasteRange,
     selectedCells,
     booleanPressRef,
     onCellPointerDown,
     onTableKeyDown,
     onTablePaste,
-  } = useGridCellInteraction({ rows, columns, data, tableRef, readOnly });
+    rangeMenu,
+  } = useGridCellInteraction({ tableId, refTableData, rows, columns, data, tableRef, readOnly });
 
   const { pendingRowId, onTableBlur } = useGridPendingRow({ pendingRow, data, columns, tableRef, setEditingCell });
 
@@ -217,6 +220,7 @@ function GridBody({
               data={data}
               rows={rows}
               selectedCells={selectedCells}
+              pasteRange={pasteRange}
               editingCell={editingCell}
               setEditingCell={setEditingCell}
               onCellPointerDown={onCellPointerDown}
@@ -231,6 +235,7 @@ function GridBody({
               tableRef={tableRef}
               onTableKeyDown={onTableKeyDown}
               onTablePaste={onTablePaste}
+              onTableContextMenu={rangeMenu.onTableContextMenu}
               onTableBlur={onTableBlur}
               form={form}
               OptionsEditor={OptionsEditor}
@@ -238,6 +243,12 @@ function GridBody({
           </ScrollArea>
         )}
       </CardContent>
+      <DatabaseRangeMenu
+        anchor={rangeMenu.anchor}
+        onOpenChange={rangeMenu.onOpenChange}
+        onClear={rangeMenu.clearRange}
+        onDelete={rangeMenu.deleteRows}
+      />
       {blockId !== undefined && onHeightChange !== undefined && !readOnly && (
         <DatabaseResizeHandle
           height={blockHeight.currentHeight}

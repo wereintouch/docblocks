@@ -8,7 +8,7 @@
  * and the press-outside's teardown (the view state resets, the edit session
  * closes). The selection's set + the frame's state + the editing cell's
  * state + the boolean press's stand stand in the hook. */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BridgeColumn } from "../bridge";
@@ -16,9 +16,13 @@ import type { UseDatabaseTable } from "../use-database-table";
 import { DRAG_START_THRESHOLD_PX } from "./constants";
 import { handleGridCellKeyDown } from "./grid-cell-keyboard";
 import { handleGridCellPaste } from "./grid-cell-paste";
+import { useGridRangeMenu } from "./use-grid-range-menu";
+import type { RefTableDataMap } from "./use-ref-tables";
 import { cellKeyOf } from "./utils";
 
 interface GridCellInteractionDeps {
+  tableId: string;
+  refTableData: RefTableDataMap;
   /** The live rows (the selection's set + the keyboard's rows count). */
   rows: UseDatabaseTable["rows"];
   /** The visible columns (the selection's set + the keyboard's cols count). */
@@ -40,9 +44,35 @@ interface GridCellSelectionFrame {
   cursorC: number;
 }
 
-function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = false }: GridCellInteractionDeps) {
+function useGridCellInteraction({
+  tableId,
+  refTableData,
+  rows,
+  columns,
+  data,
+  tableRef,
+  readOnly = false,
+}: GridCellInteractionDeps) {
   const [selectionFrame, setSelectionFrame] = useState<GridCellSelectionFrame | null>(null);
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [pasteRange, setPasteRange] = useState<Set<string>>(new Set());
+  const clearPasteRange = useCallback((): void => {
+    setPasteRange((current) => (current.size === 0 ? current : new Set()));
+  }, []);
+  const updateSelectionFrame: typeof setSelectionFrame = useCallback(
+    (value) => {
+      clearPasteRange();
+      setSelectionFrame(value);
+    },
+    [clearPasteRange]
+  );
+  const updateEditingCell: typeof setEditingCell = useCallback(
+    (value) => {
+      if (value !== null) clearPasteRange();
+      setEditingCell(value);
+    },
+    [clearPasteRange]
+  );
   // The selection's set (the rectangle over the frame's corners — the
   // cells' keys stand from the live rows / columns by their indices).
   const selectedCells = useMemo(() => {
@@ -89,6 +119,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
       // path is off (the press stands no stand).
       if (readOnly) return;
       if (event.button !== 0) return;
+      clearPasteRange();
       // The press inside the edit's own control (the number's input, the
       // text's 6-row textarea) is the edit's interaction (the caret's
       // seat, the text's selection) — the session stands, no teardown.
@@ -155,24 +186,49 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
    *  focus — the editor root's blocks-selection gestures must not fire
    *  over the stand). */
   const onTableKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    clearPasteRange();
     handleGridCellKeyDown(event, {
       readOnly,
       rows,
       columns,
       data,
+      tableId,
+      refTableData,
       selectionFrame,
       editingCell,
       selectedCells,
-      setSelectionFrame,
-      setEditingCell,
+      setSelectionFrame: updateSelectionFrame,
+      setEditingCell: updateEditingCell,
     });
   };
 
   /** The clipboard's paste (the mixed batch: the TSV's grid stands from
    *  the selection's anchor cell over the grid's own columns — the
    *  updates + the creates over one `batchRows`). */
+  const commitPaste = async (event: React.ClipboardEvent<HTMLDivElement>): Promise<void> => {
+    try {
+      const highlights = await handleGridCellPaste(event, {
+        readOnly,
+        tableId,
+        rows,
+        columns,
+        data,
+        selectionFrame,
+        refTableData,
+      });
+      if (highlights === null) return;
+      const keys = new Set<string>();
+      for (const highlight of highlights) {
+        for (const columnId of highlight.columnIds) keys.add(cellKeyOf(highlight.rowId, columnId));
+      }
+      setPasteRange(keys);
+    } catch {
+      // The row operation exposes its typed failure through the grid error state.
+    }
+  };
   const onTablePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    handleGridCellPaste(event, { readOnly, rows, columns, data, selectionFrame });
+    clearPasteRange();
+    void commitPaste(event);
   };
 
   // A press outside the table stands the selection no stand (the view
@@ -189,20 +245,25 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
       if (tableRef.current === null || !tableRef.current.contains(event.target as Node)) {
         setSelectionFrame(null);
         setEditingCell(null);
+        clearPasteRange();
       }
     };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selectionFrame]);
 
+  const rangeMenu = useGridRangeMenu({ selectedCells, data, readOnly, onAction: clearPasteRange });
+
   return {
     editingCell,
-    setEditingCell,
+    setEditingCell: updateEditingCell,
+    pasteRange,
     selectedCells,
     booleanPressRef,
     onCellPointerDown,
     onTableKeyDown,
     onTablePaste,
+    rangeMenu,
   };
 }
 

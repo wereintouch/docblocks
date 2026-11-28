@@ -3,6 +3,10 @@ import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { act } from "react";
+
+import type { DatabaseFilterPayload } from "docblocks-core";
+
 import type {
   BatchOp,
   DatabaseBridge,
@@ -54,6 +58,44 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
       expect(result.current.capabilities).toContain(capability);
     }
     expect(result.current.errorCode).toBeNull();
+  });
+  it("keeps the current rows ready while a filter change awaits its snapshot", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let releaseFilter = (): void => undefined;
+    const filterGate = new Promise<void>((resolve) => {
+      releaseFilter = resolve;
+    });
+    const gated: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        if (snapshotCalls === 2) await filterGate;
+        return bridge.snapshotTable(tableId, query);
+      },
+    };
+    const { result, rerender } = renderHook(
+      ({ filter }: { filter?: DatabaseFilterPayload }) => useDatabaseTable(gated, seeded.tableId, filter),
+      { initialProps: { filter: undefined } as { filter?: DatabaseFilterPayload } }
+    );
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    rerender({
+      filter: {
+        logic: "and",
+        conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+      },
+    });
+    await waitFor(() => expect(snapshotCalls).toBe(2));
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.rows.map((row) => row.rowId)).toEqual(seeded.rowIds);
+    await act(async () => {
+      releaseFilter();
+      await filterGate;
+    });
+    await waitFor(() => expect(result.current.rows).toHaveLength(1));
+    expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("Alice");
+    expect(result.current.phase).toBe("ready");
   });
   it("refetches the page over the event and stands the subscription alive (the second write delivers)", async () => {
     const bridge = createMemoryDatabaseBridge();

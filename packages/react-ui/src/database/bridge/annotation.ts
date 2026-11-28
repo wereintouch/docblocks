@@ -14,12 +14,14 @@ const VALUELESS_OPERATORS = new Set(["empty", "not empty"]);
 /** The string operators (the text-like columns). */
 const TEXT_OPERATORS = ["is", "is not", "contains", "not contains", "starts with", "ends with", "empty", "not empty"];
 /** The comparison operators (the numeric columns). */
-const NUMBER_OPERATORS = ["is", "is not", "<", "<=", ">", ">=", "between"];
+const NUMBER_OPERATORS = ["is", "is not", "<", "<=", ">", ">=", "between", "empty", "not empty"];
 /** The date / datetime operators. */
-const DATE_OPERATORS = ["is", "before", "after", "between"];
+const DATE_OPERATORS = ["is", "before", "after", "between", "empty", "not empty"];
 /** The time-of-day operators. */
-const TIME_OPERATORS = ["is", "is not", "before", "after", "between"];
-/** The equality-only operators (the boolean / interval / unknown). */
+const TIME_OPERATORS = ["is", "is not", "before", "after", "between", "empty", "not empty"];
+/** The boolean operators (the emptiness's checks stand the null's cell). */
+const BOOLEAN_OPERATORS = ["is", "is not", "empty", "not empty"];
+/** The equality-only operators (the interval / unknown). */
 const EQUALITY_OPERATORS = ["is", "is not"];
 
 /** The standard PostgreSQL type names per operator / input group. The contract
@@ -78,7 +80,8 @@ function operatorCatalog(type: string): string[] | undefined {
   const base = baseType(type);
   if (TEXT_TYPES.has(base)) return TEXT_OPERATORS;
   if (NUMBER_TYPES.has(base)) return NUMBER_OPERATORS;
-  if (BOOLEAN_TYPES.has(base) || INTERVAL_TYPES.has(base)) return EQUALITY_OPERATORS;
+  if (BOOLEAN_TYPES.has(base)) return BOOLEAN_OPERATORS;
+  if (INTERVAL_TYPES.has(base)) return EQUALITY_OPERATORS;
   if (DATE_TYPES.has(base) || DATETIME_TYPES.has(base)) return DATE_OPERATORS;
   if (TIME_TYPES.has(base)) return TIME_OPERATORS;
   return undefined;
@@ -109,7 +112,9 @@ function columnAnnotation(column: BridgeColumn): BridgeColumnAnnotation {
   if (column.operators !== undefined) {
     operators = [...column.operators];
   } else if (column.refKind === "enum" || column.refKind === "row") {
-    operators = column.refMany ? ["is", "is not", "empty", "not empty"] : ["is", "is not"];
+    // The emptiness's checks stand the single / the many alike (the null's
+    // cell / the absent's link).
+    operators = ["is", "is not", "empty", "not empty"];
   } else {
     operators = operatorCatalog(column.type) ?? ["is", "is not"];
   }

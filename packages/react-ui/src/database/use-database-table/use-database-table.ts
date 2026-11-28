@@ -40,11 +40,12 @@ import { toBridgeError } from "../bridge";
 import { createColumnOps } from "./column-ops";
 import { PAGE_SIZE } from "./constants";
 import { useTableHistory } from "./history";
+import { createLoadMore } from "./load-more";
 import type { ColumnOpsContext, DatabaseTablePhase, DatabaseTableRow, RowOpsContext, UseDatabaseTable } from "./models";
 import { createRowBatchOps } from "./row-batch-ops";
 import { createRowStructureOps } from "./row-structure-ops";
 import { createRowWriteOps } from "./row-write-ops";
-import { applySnapshotState, createLoadMore, useTableStream } from "./use-table-stream";
+import { applySnapshotState, useTableStream } from "./use-table-stream";
 import { errorCodeOf } from "./utils";
 
 /**
@@ -247,6 +248,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     updateRows: rowBatch.updateRows,
     pasteRows: rowBatch.pasteRows,
     removeRow: rowStructure.removeRow,
+    removeRows: rowStructure.removeRows,
     moveRow: rowStructure.moveRow,
     addColumn: column.addColumn,
     updateColumn: column.updateColumn,
