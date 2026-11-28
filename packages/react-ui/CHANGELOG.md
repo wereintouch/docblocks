@@ -1,5 +1,29 @@
 # docblocks-react-ui
 
+## 0.27.0
+
+### Minor Changes
+
+- 0fb5c95: feat(database): the stretched header row reflows the column names (the
+  wrap's stand over the single-line's truncation) and the double-click's
+  reset returns the auto height — the block's `headerHeight` attr's
+  removal / the section's value's clear (the `setHeaderHeight`'s
+  `undefined`'s stand) / the no-write's no-op over the auto height.
+- de617e2: feat(database): add optional resizable document-block heights and consumer-owned total row counts; polish the grid toolbar, outer frame, empty states, and localized column creation in both document and standalone surfaces.
+
+### Patch Changes
+
+- 69bad3a: fix(database): the Columns popover's mouse reorder commits from the pointer's
+  true release position (the native event's coordinate hit-tested against the
+  rows' midpoints) instead of the framer's cascade draft — the draft lags the
+  pointer over the slow engine's input batching (a last-slot miss), and the
+  drag-start order's reference stands rewritten over the reorder's mid-drag
+  remount (a spurious no-op). The commit's previous is the committed order (the
+  hidden's columns keep their committed positions over the visible slots).
+- 95eb947: fix(database): the column's and the table's rename stand the inline edit's contract — the field's focus + the name's select-all over the open (a keystroke replaces the name), the live name's reseed over an open edit (a peer's rename, the own commit's settle — a typed draft's keep), the committed-once's guard, and the field's keys' isolation over the menu's keyboard (a typed letter no longer retargets the focus over a menu item — the form's "D" over the "Delete column"'s typeahead). The Enter / the blur no longer stand the value's revert over the commit. The rename's input stands the accessible's name over the translation (the raw key's stand's removal).
+- Updated dependencies [de617e2]
+  - docblocks-core@0.11.0
+
 ## 0.26.0
 
 ### Minor Changes
